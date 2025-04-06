@@ -1,0 +1,172 @@
+<div class="card">
+  <div class="back-button">
+    <a href="/otp">←</a>
+  </div>
+  
+  <div class="logo">
+    <img src="/images/logo.png" alt="SafeBallot Logo">
+  </div>
+  
+  <h1>Verify your Voter ID</h1>
+  <p>Enter your known voter ID number below</p>
+  
+  <form id="voter-id-form">
+    <div class="form-group">
+      <input type="text" id="voter-id" placeholder="Enter voter ID number" required>
+    </div>
+    
+    <div id="error-message" class="error-message hidden"></div>
+    
+    <button type="submit" id="confirm-btn">Confirm</button>
+  </form>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const ballotId = urlParams.get('ballot');
+    
+    // For demo purposes, generate a voter ID if none exists
+    if (!localStorage.getItem('voterID')) {
+      const generatedID = generateVoterID();
+      localStorage.setItem('voterID', generatedID);
+      console.log('Generated Voter ID:', generatedID);
+    }
+    
+    // For demo purposes, log the expected voter ID
+    console.log('Expected Voter ID:', localStorage.getItem('voterID'));
+    
+    // Handle form submission
+    document.getElementById('voter-id-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const enteredID = document.getElementById('voter-id').value;
+      const storedID = localStorage.getItem('voterID');
+      const errorMessage = document.getElementById('error-message');
+      
+      if (enteredID === storedID) {
+        // Voter ID is correct, redirect to biometric verification
+        if (ballotId) {
+          window.location.href = `/biometric?ballot=${ballotId}`;
+        } else {
+          window.location.href = '/biometric';
+        }
+      } else {
+        // Show error message
+        errorMessage.textContent = 'Invalid Voter ID. Please try again.';
+        errorMessage.classList.remove('hidden');
+        
+        // Clear input
+        document.getElementById('voter-id').value = '';
+        document.getElementById('voter-id').focus();
+      }
+    });
+  });
+  
+  // Generate a sample voter ID (for demo purposes)
+  function generateVoterID() {
+    // Create a voter ID format like 1234-1234-1234-1234
+    const segments = [];
+    for (let i = 0; i < 4; i++) {
+      segments.push(Math.floor(1000 + Math.random() * 9000).toString());
+    }
+    return segments.join('-');
+  }
+</script>
+
+<style>
+  .card {
+    max-width: 500px;
+    margin: 0 auto;
+    background-color: white;
+    border-radius: 12px;
+    padding: 40px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .back-button {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+  }
+  
+  .back-button a {
+    text-decoration: none;
+    color: var(--primary-color, #224CB7);
+    font-size: 24px;
+    font-weight: bold;
+  }
+  
+  .logo {
+    margin-bottom: 30px;
+  }
+  
+  .logo img {
+    height: 60px;
+  }
+  
+  h1 {
+    margin-bottom: 15px;
+    text-align: center;
+  }
+  
+  p {
+    color: var(--light-text, #666);
+    text-align: center;
+    margin-bottom: 30px;
+  }
+  
+  .form-group {
+    width: 100%;
+    margin-bottom: 20px;
+  }
+  
+  input[type="text"] {
+    width: 100%;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    text-align: center;
+  }
+  
+  input[type="text"]:focus {
+    border-color: var(--primary-color, #224CB7);
+    outline: none;
+  }
+  
+  .error-message {
+    background-color: #ffebee;
+    color: #f44336;
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    width: 100%;
+    text-align: center;
+  }
+  
+  .hidden {
+    display: none;
+  }
+  
+  #confirm-btn {
+    background-color: var(--accent-color, #4267B2);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 12px 20px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    transition: background-color 0.3s;
+  }
+  
+  #confirm-btn:hover {
+    background-color: var(--primary-color, #224CB7);
+  }
+</style> 

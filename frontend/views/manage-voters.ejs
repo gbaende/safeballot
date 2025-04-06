@@ -1,0 +1,648 @@
+<div class="dashboard-container">
+  <div class="sidebar">
+    <div class="logo">
+      <img src="/images/logo.png" alt="SafeBallot Logo">
+      <span class="logo-text">SAFEBALLOT</span>
+      <div class="logo-tagline">-VOTE OUTSIDE THE BOX-</div>
+    </div>
+    
+    <nav class="sidebar-nav">
+      <a href="/dashboard" class="nav-item">
+        <svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z" fill="currentColor"/>
+        </svg>
+        Home
+      </a>
+      <a href="/elections" class="nav-item active">
+        <svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" fill="currentColor"/>
+        </svg>
+        My Elections
+      </a>
+      <a href="/ballot/new" class="nav-item">
+        <svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" fill="currentColor"/>
+        </svg>
+        Ballot Builder
+      </a>
+    </nav>
+    
+    <div class="user-profile">
+      <div class="avatar">
+        <img src="/images/avatar.png" alt="User Avatar">
+      </div>
+      <div class="user-info">
+        <p class="user-name">John Doe</p>
+        <p class="user-email">johndoe@example.com</p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="main-content">
+    <div class="detail-header">
+      <a href="/election/2024_presidential" class="back-link">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 11H7.83L13.42 5.41L12 4L4 12L12 20L13.41 18.59L7.83 13H20V11Z" fill="currentColor"/>
+        </svg>
+        Manage Voters
+      </a>
+      
+      <div class="election-subtitle">2024 Presidential Election - General Ballot Voters</div>
+    </div>
+    
+    <div class="admin-actions">
+      <button class="filter-btn">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8.33333 15H11.6667V13.3333H8.33333V15ZM2.5 5V6.66667H17.5V5H2.5ZM5 10.8333H15V9.16667H5V10.8333Z" fill="currentColor"/>
+        </svg>
+        More filters
+      </button>
+      
+      <button class="admin-btn resend-btn">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16.6667 3.33334H3.33334C2.41667 3.33334 1.67501 4.08334 1.67501 5.00001L1.66667 15C1.66667 15.9167 2.41667 16.6667 3.33334 16.6667H16.6667C17.5833 16.6667 18.3333 15.9167 18.3333 15V5.00001C18.3333 4.08334 17.5833 3.33334 16.6667 3.33334ZM16.6667 6.66668L10 10.8333L3.33334 6.66668V5.00001L10 9.16668L16.6667 5.00001V6.66668Z" fill="currentColor"/>
+        </svg>
+        Resend Voter ID
+      </button>
+      
+      <button class="admin-btn key-btn">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M11.6667 10C13.5 10 15 8.5 15 6.66667C15 4.83333 13.5 3.33333 11.6667 3.33333C9.83333 3.33333 8.33333 4.83333 8.33333 6.66667C8.33333 8.5 9.83333 10 11.6667 10ZM11.6667 5C12.5833 5 13.3333 5.75 13.3333 6.66667C13.3333 7.58333 12.5833 8.33333 11.6667 8.33333C10.75 8.33333 10 7.58333 10 6.66667C10 5.75 10.75 5 11.6667 5ZM11.6667 10.8333C9.44167 10.8333 5 11.9417 5 14.1667V16.6667H18.3333V14.1667C18.3333 11.9417 13.8917 10.8333 11.6667 10.8333ZM6.66667 15V14.1667C6.7 13.5 9.35833 12.5 11.6667 12.5C13.9667 12.5 16.6333 13.5 16.6667 14.1667V15H6.66667ZM4.175 10.3583C3.76667 9.69167 1.66667 10.0417 1.66667 12.0833V15H4.16667V14.1667C4.16667 12.775 4.51667 11.575 5.1 10.5917C4.775 10.4583 4.43333 10.3667 4.175 10.3583Z" fill="currentColor"/>
+        </svg>
+        Generate Digital Key
+      </button>
+      
+      <button class="admin-btn remove-btn">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 1.66666C5.4 1.66666 1.66667 5.39999 1.66667 9.99999C1.66667 14.6 5.4 18.3333 10 18.3333C14.6 18.3333 18.3333 14.6 18.3333 9.99999C18.3333 5.39999 14.6 1.66666 10 1.66666ZM10 16.6667C6.32501 16.6667 3.33334 13.675 3.33334 9.99999C3.33334 6.32499 6.32501 3.33332 10 3.33332C13.675 3.33332 16.6667 6.32499 16.6667 9.99999C16.6667 13.675 13.675 16.6667 10 16.6667ZM13.3333 5.83332L10 9.16666L6.66667 5.83332L5.83334 6.66666L9.16667 9.99999L5.83334 13.3333L6.66667 14.1667L10 10.8333L13.3333 14.1667L14.1667 13.3333L10.8333 9.99999L14.1667 6.66666L13.3333 5.83332Z" fill="currentColor"/>
+        </svg>
+        Remove Preregistration
+      </button>
+      
+      <div class="search-container">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12.9167 11.6667H12.2583L12.025 11.4417C12.8417 10.4917 13.3333 9.25833 13.3333 7.91667C13.3333 4.925 10.9083 2.5 7.91667 2.5C4.925 2.5 2.5 4.925 2.5 7.91667C2.5 10.9083 4.925 13.3333 7.91667 13.3333C9.25833 13.3333 10.4917 12.8417 11.4417 12.025L11.6667 12.2583V12.9167L15.8333 17.075L17.075 15.8333L12.9167 11.6667ZM7.91667 11.6667C5.84167 11.6667 4.16667 9.99167 4.16667 7.91667C4.16667 5.84167 5.84167 4.16667 7.91667 4.16667C9.99167 4.16667 11.6667 5.84167 11.6667 7.91667C11.6667 9.99167 9.99167 11.6667 7.91667 11.6667Z" fill="#777"/>
+        </svg>
+        <input type="text" placeholder="Search" class="search-input">
+      </div>
+    </div>
+    
+    <div class="voters-table">
+      <table>
+        <thead>
+          <tr>
+            <th class="checkbox-column">
+              <input type="checkbox" id="select-all">
+            </th>
+            <th>Name
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 2.5L9 6.5H3L6 2.5Z" fill="#777"/>
+              </svg>
+            </th>
+            <th>Status</th>
+            <th>Email</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="checkbox-column">
+              <input type="checkbox" class="voter-checkbox">
+            </td>
+            <td>Chloe Ashford</td>
+            <td><span class="status-badge voted">Voted</span></td>
+            <td>Chloe.Ashford@example.com</td>
+            <td>
+              <button class="action-menu-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 8C13.1 8 14 7.1 14 6C14 4.9 13.1 4 12 4C10.9 4 10 4.9 10 6C10 7.1 10.9 8 12 8ZM12 10C10.9 10 10 10.9 10 12C10 13.1 10.9 14 12 14C13.1 14 14 13.1 14 12C14 10.9 13.1 10 12 10ZM12 16C10.9 16 10 16.9 10 18C10 19.1 10.9 20 12 20C13.1 20 14 19.1 14 18C14 16.9 13.1 16 12 16Z" fill="#666"/>
+                </svg>
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td class="checkbox-column">
+              <input type="checkbox" class="voter-checkbox">
+            </td>
+            <td>Charlotte Beckett</td>
+            <td><span class="status-badge registered">Registered</span></td>
+            <td>Charlotte.Beckett@example.com</td>
+            <td>
+              <button class="action-menu-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 8C13.1 8 14 7.1 14 6C14 4.9 13.1 4 12 4C10.9 4 10 4.9 10 6C10 7.1 10.9 8 12 8ZM12 10C10.9 10 10 10.9 10 12C10 13.1 10.9 14 12 14C13.1 14 14 13.1 14 12C14 10.9 13.1 10 12 10ZM12 16C10.9 16 10 16.9 10 18C10 19.1 10.9 20 12 20C13.1 20 14 19.1 14 18C14 16.9 13.1 16 12 16Z" fill="#666"/>
+                </svg>
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td class="checkbox-column">
+              <input type="checkbox" class="voter-checkbox">
+            </td>
+            <td>Sophia Caldwell</td>
+            <td><span class="status-badge registered">Registered</span></td>
+            <td>Sophia.Caldwell@example.com</td>
+            <td>
+              <button class="action-menu-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 8C13.1 8 14 7.1 14 6C14 4.9 13.1 4 12 4C10.9 4 10 4.9 10 6C10 7.1 10.9 8 12 8ZM12 10C10.9 10 10 10.9 10 12C10 13.1 10.9 14 12 14C13.1 14 14 13.1 14 12C14 10.9 13.1 10 12 10ZM12 16C10.9 16 10 16.9 10 18C10 19.1 10.9 20 12 20C13.1 20 14 19.1 14 18C14 16.9 13.1 16 12 16Z" fill="#666"/>
+                </svg>
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td class="checkbox-column">
+              <input type="checkbox" class="voter-checkbox">
+            </td>
+            <td>Owen Callahan</td>
+            <td><span class="status-badge voted">Voted</span></td>
+            <td>Owen.Callahan@example.com</td>
+            <td>
+              <button class="action-menu-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 8C13.1 8 14 7.1 14 6C14 4.9 13.1 4 12 4C10.9 4 10 4.9 10 6C10 7.1 10.9 8 12 8ZM12 10C10.9 10 10 10.9 10 12C10 13.1 10.9 14 12 14C13.1 14 14 13.1 14 12C14 10.9 13.1 10 12 10ZM12 16C10.9 16 10 16.9 10 18C10 19.1 10.9 20 12 20C13.1 20 14 19.1 14 18C14 16.9 13.1 16 12 16Z" fill="#666"/>
+                </svg>
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td class="checkbox-column">
+              <input type="checkbox" class="voter-checkbox">
+            </td>
+            <td>Caleb Montgomery</td>
+            <td><span class="status-badge registered">Registered</span></td>
+            <td>Caleb.Montgomery@example.com</td>
+            <td>
+              <button class="action-menu-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 8C13.1 8 14 7.1 14 6C14 4.9 13.1 4 12 4C10.9 4 10 4.9 10 6C10 7.1 10.9 8 12 8ZM12 10C10.9 10 10 10.9 10 12C10 13.1 10.9 14 12 14C13.1 14 14 13.1 14 12C14 10.9 13.1 10 12 10ZM12 16C10.9 16 10 16.9 10 18C10 19.1 10.9 20 12 20C13.1 20 14 19.1 14 18C14 16.9 13.1 16 12 16Z" fill="#666"/>
+                </svg>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- Modal for Digital Key Generation -->
+    <div class="modal" id="digitalKeyModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Generate Digital Key</h2>
+          <button class="close-modal-btn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z" fill="#666"/>
+            </svg>
+          </button>
+        </div>
+        
+        <div class="modal-body">
+          <p>Generate a new digital key for the selected voter(s). This will invalidate any previously generated keys.</p>
+          
+          <div class="selected-voters">
+            <div class="voter-chip">
+              Chloe Ashford
+              <button class="remove-chip-btn">×</button>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label>Key Expiration</label>
+            <select class="form-control">
+              <option>24 hours</option>
+              <option>48 hours</option>
+              <option>72 hours</option>
+              <option>1 week</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <button class="cancel-btn">Cancel</button>
+          <button class="generate-btn">Generate Key</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Select all checkbox functionality
+  const selectAllCheckbox = document.getElementById('select-all');
+  const voterCheckboxes = document.querySelectorAll('.voter-checkbox');
+  
+  selectAllCheckbox.addEventListener('change', function() {
+    voterCheckboxes.forEach(checkbox => {
+      checkbox.checked = this.checked;
+    });
+  });
+  
+  // Modal functionality
+  const keyBtn = document.querySelector('.key-btn');
+  const digitalKeyModal = document.getElementById('digitalKeyModal');
+  const closeModalBtn = document.querySelector('.close-modal-btn');
+  const cancelBtn = document.querySelector('.cancel-btn');
+  
+  keyBtn.addEventListener('click', function() {
+    digitalKeyModal.style.display = 'flex';
+  });
+  
+  closeModalBtn.addEventListener('click', function() {
+    digitalKeyModal.style.display = 'none';
+  });
+  
+  cancelBtn.addEventListener('click', function() {
+    digitalKeyModal.style.display = 'none';
+  });
+  
+  // Close modal when clicking outside
+  window.addEventListener('click', function(event) {
+    if (event.target === digitalKeyModal) {
+      digitalKeyModal.style.display = 'none';
+    }
+  });
+  
+  // Remove chip functionality
+  const removeChipBtn = document.querySelector('.remove-chip-btn');
+  removeChipBtn.addEventListener('click', function() {
+    this.parentElement.remove();
+  });
+</script>
+
+<style>
+  .dashboard-container {
+    display: flex;
+    min-height: 100vh;
+    background-color: var(--bg-color);
+  }
+  
+  .sidebar {
+    width: 240px;
+    background-color: white;
+    padding: 20px 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #eee;
+  }
+  
+  .logo {
+    text-align: center;
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 20px;
+  }
+  
+  .logo img {
+    width: 50px;
+    height: auto;
+  }
+  
+  .logo-text {
+    display: block;
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--primary-color);
+    margin-top: 8px;
+  }
+  
+  .logo-tagline {
+    font-size: 10px;
+    color: var(--light-text);
+    letter-spacing: 1px;
+  }
+  
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+  
+  .nav-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    color: var(--text-color);
+    text-decoration: none;
+    transition: background-color 0.3s;
+  }
+  
+  .nav-item svg {
+    margin-right: 12px;
+    width: 20px;
+    height: 20px;
+  }
+  
+  .nav-item:hover {
+    background-color: rgba(66, 103, 178, 0.05);
+  }
+  
+  .nav-item.active {
+    background-color: rgba(66, 103, 178, 0.1);
+    color: var(--accent-color);
+    font-weight: 500;
+  }
+  
+  .user-profile {
+    display: flex;
+    align-items: center;
+    padding: 20px;
+    border-top: 1px solid #eee;
+    margin-top: auto;
+  }
+  
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-right: 12px;
+  }
+  
+  .avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .user-info {
+    flex: 1;
+  }
+  
+  .user-name {
+    font-weight: 500;
+    margin: 0;
+  }
+  
+  .user-email {
+    font-size: 12px;
+    color: var(--light-text);
+    margin: 0;
+  }
+  
+  .main-content {
+    flex: 1;
+    padding: 30px;
+  }
+  
+  .detail-header {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 30px;
+  }
+  
+  .back-link {
+    display: flex;
+    align-items: center;
+    color: var(--text-color);
+    text-decoration: none;
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 5px;
+  }
+  
+  .back-link svg {
+    margin-right: 8px;
+  }
+  
+  .election-subtitle {
+    color: var(--light-text);
+    font-size: 14px;
+  }
+  
+  .admin-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  
+  .filter-btn, .admin-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: normal;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  .filter-btn:hover, .admin-btn:hover {
+    background-color: #f5f5f5;
+  }
+  
+  .search-container {
+    position: relative;
+    margin-left: auto;
+  }
+  
+  .search-container svg {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  
+  .search-input {
+    padding: 8px 8px 8px 36px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    width: 240px;
+    font-size: 14px;
+  }
+  
+  .voters-table {
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  th {
+    text-align: left;
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    color: var(--light-text);
+    font-weight: 500;
+    font-size: 14px;
+  }
+  
+  th svg {
+    margin-left: 5px;
+    vertical-align: middle;
+  }
+  
+  td {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    vertical-align: middle;
+  }
+  
+  .checkbox-column {
+    width: 40px;
+    text-align: center;
+  }
+  
+  .status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  
+  .status-badge.voted {
+    background-color: rgba(76, 175, 80, 0.1);
+    color: var(--success-color);
+  }
+  
+  .status-badge.registered {
+    background-color: rgba(66, 103, 178, 0.1);
+    color: var(--accent-color);
+  }
+  
+  .action-menu-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+  }
+  
+  /* Modal Styles */
+  .modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .modal-content {
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    width: 500px;
+    max-width: 90%;
+  }
+  
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .modal-header h2 {
+    font-size: 18px;
+    margin: 0;
+    color: var(--text-color);
+  }
+  
+  .close-modal-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+  }
+  
+  .modal-body {
+    padding: 20px;
+  }
+  
+  .modal-body p {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: var(--light-text);
+  }
+  
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 20px;
+    border-top: 1px solid #eee;
+  }
+  
+  .cancel-btn, .generate-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  
+  .cancel-btn {
+    background-color: transparent;
+    border: 1px solid #ddd;
+    color: var(--text-color);
+  }
+  
+  .generate-btn {
+    background-color: var(--accent-color);
+    border: none;
+    color: white;
+  }
+  
+  .selected-voters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  
+  .voter-chip {
+    display: flex;
+    align-items: center;
+    background-color: #f0f2f5;
+    padding: 6px 10px;
+    border-radius: 16px;
+    font-size: 14px;
+  }
+  
+  .remove-chip-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    margin-left: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--light-text);
+  }
+  
+  .form-group {
+    margin-bottom: 20px;
+  }
+  
+  .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text-color);
+  }
+  
+  .form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+</style> 

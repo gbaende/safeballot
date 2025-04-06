@@ -1,0 +1,286 @@
+<div class="card">
+  <div class="back-button">
+    <a href="/login">←</a>
+  </div>
+  
+  <h1>Confirm OTP</h1>
+  <p id="otp-message">We sent 4-digit code to <span id="user-email">email@email.com</span></p>
+  
+  <div class="otp-container">
+    <input type="text" class="otp-input" maxlength="1" autofocus>
+    <input type="text" class="otp-input" maxlength="1">
+    <input type="text" class="otp-input" maxlength="1">
+    <input type="text" class="otp-input" maxlength="1">
+  </div>
+  
+  <div class="resend-container">
+    <p>Didn't get code? <span id="timer">1:45</span></p>
+    <button id="resend-btn" disabled>Resend</button>
+  </div>
+  
+  <div id="error-message" class="error-message hidden"></div>
+  
+  <button id="confirm-btn" disabled>Confirm</button>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const userEmail = localStorage.getItem('userEmail') || 'your email';
+    const storedOTP = localStorage.getItem('currentOTP');
+    const urlParams = new URLSearchParams(window.location.search);
+    const ballotId = urlParams.get('ballot');
+    
+    // Display user email
+    document.getElementById('user-email').textContent = userEmail;
+    
+    // For demonstration, log the OTP to console
+    console.log('OTP Code for verification:', storedOTP);
+    
+    // OTP input handling
+    const otpInputs = document.querySelectorAll('.otp-input');
+    const confirmBtn = document.getElementById('confirm-btn');
+    const errorMessage = document.getElementById('error-message');
+    
+    // Auto-focus next input when a digit is entered
+    otpInputs.forEach((input, index) => {
+      input.addEventListener('input', (e) => {
+        if (e.target.value.length === 1) {
+          if (index < otpInputs.length - 1) {
+            otpInputs[index + 1].focus();
+          }
+        }
+        
+        // Check if all inputs are filled
+        checkInputsComplete();
+      });
+      
+      // Handle backspace
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && e.target.value === '' && index > 0) {
+          otpInputs[index - 1].focus();
+        }
+      });
+    });
+    
+    // Check if all OTP inputs are filled
+    function checkInputsComplete() {
+      let isFilled = true;
+      otpInputs.forEach(input => {
+        if (input.value === '') {
+          isFilled = false;
+        }
+      });
+      
+      confirmBtn.disabled = !isFilled;
+    }
+    
+    // Timer for resend button
+    let seconds = 105; // 1:45 in seconds
+    const timerElement = document.getElementById('timer');
+    const resendBtn = document.getElementById('resend-btn');
+    
+    const countdownTimer = setInterval(() => {
+      seconds--;
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      
+      timerElement.textContent = `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+      
+      if (seconds <= 0) {
+        clearInterval(countdownTimer);
+        timerElement.textContent = '';
+        resendBtn.disabled = false;
+      }
+    }, 1000);
+    
+    // Resend OTP
+    resendBtn.addEventListener('click', function() {
+      // For demo purposes, just reset the timer and disable the button
+      seconds = 105;
+      resendBtn.disabled = true;
+      
+      // In a real app, this would call the API to resend the OTP
+      // For now, just generate a new OTP and store it (simulating a resend)
+      const newOTP = Math.floor(1000 + Math.random() * 9000).toString();
+      localStorage.setItem('currentOTP', newOTP);
+      console.log('New OTP Code for verification:', newOTP);
+      
+      // Show confirmation message
+      errorMessage.textContent = 'New OTP has been sent';
+      errorMessage.classList.remove('hidden', 'error');
+      errorMessage.classList.add('success');
+      
+      setTimeout(() => {
+        errorMessage.classList.add('hidden');
+      }, 3000);
+    });
+    
+    // Verify OTP
+    confirmBtn.addEventListener('click', function() {
+      // Get entered OTP
+      let enteredOTP = '';
+      otpInputs.forEach(input => {
+        enteredOTP += input.value;
+      });
+      
+      // Check against the stored OTP
+      if (enteredOTP === storedOTP) {
+        // OTP is correct, redirect to voter ID verification
+        if (ballotId) {
+          window.location.href = `/voter-id?ballot=${ballotId}`;
+        } else {
+          window.location.href = '/voter-id';
+        }
+      } else {
+        // Show error message
+        errorMessage.textContent = 'Invalid OTP code. Please try again.';
+        errorMessage.classList.remove('hidden', 'success');
+        errorMessage.classList.add('error');
+        
+        // Clear inputs and focus on first input
+        otpInputs.forEach(input => {
+          input.value = '';
+        });
+        otpInputs[0].focus();
+        confirmBtn.disabled = true;
+      }
+    });
+  });
+</script>
+
+<style>
+  .card {
+    max-width: 500px;
+    margin: 0 auto;
+    background-color: white;
+    border-radius: 12px;
+    padding: 40px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .back-button {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+  }
+  
+  .back-button a {
+    text-decoration: none;
+    color: var(--primary-color, #224CB7);
+    font-size: 24px;
+    font-weight: bold;
+  }
+  
+  h1 {
+    margin-bottom: 15px;
+    text-align: center;
+  }
+  
+  p {
+    color: var(--light-text, #666);
+    text-align: center;
+    margin-bottom: 30px;
+  }
+  
+  #user-email {
+    font-weight: 500;
+    color: var(--text-color, #333);
+  }
+  
+  .otp-container {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 30px;
+    width: 100%;
+  }
+  
+  .otp-input {
+    width: 60px;
+    height: 60px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 24px;
+    font-weight: 500;
+    text-align: center;
+  }
+  
+  .otp-input:focus {
+    border-color: var(--primary-color, #224CB7);
+    outline: none;
+  }
+  
+  .resend-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 30px;
+  }
+  
+  .resend-container p {
+    margin: 0 15px 0 0;
+  }
+  
+  #timer {
+    font-weight: 500;
+    color: var(--accent-color, #4267B2);
+  }
+  
+  #resend-btn {
+    background: none;
+    border: none;
+    color: var(--accent-color, #4267B2);
+    font-weight: 500;
+    cursor: pointer;
+    padding: 0;
+  }
+  
+  #resend-btn:disabled {
+    color: #ccc;
+    cursor: not-allowed;
+  }
+  
+  .error-message {
+    background-color: #ffebee;
+    color: #f44336;
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    width: 100%;
+    text-align: center;
+  }
+  
+  .error-message.success {
+    background-color: #e8f5e9;
+    color: #4caf50;
+  }
+  
+  .hidden {
+    display: none;
+  }
+  
+  #confirm-btn {
+    background-color: var(--accent-color, #4267B2);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 12px 20px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    transition: background-color 0.3s;
+  }
+  
+  #confirm-btn:hover:not(:disabled) {
+    background-color: var(--primary-color, #224CB7);
+  }
+  
+  #confirm-btn:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }
+</style> 

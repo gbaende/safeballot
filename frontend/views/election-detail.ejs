@@ -1,0 +1,602 @@
+<div class="dashboard-container">
+  <div class="sidebar">
+    <div class="logo">
+      <img src="/images/logo.png" alt="SafeBallot Logo">
+      <span class="logo-text">SAFEBALLOT</span>
+      <div class="logo-tagline">-VOTE OUTSIDE THE BOX-</div>
+    </div>
+    
+    <nav class="sidebar-nav">
+      <a href="/dashboard" class="nav-item">
+        <svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z" fill="currentColor"/>
+        </svg>
+        Home
+      </a>
+      <a href="/elections" class="nav-item active">
+        <svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" fill="currentColor"/>
+        </svg>
+        My Elections
+      </a>
+      <a href="/ballot/new" class="nav-item">
+        <svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" fill="currentColor"/>
+        </svg>
+        Ballot Builder
+      </a>
+    </nav>
+    
+    <div class="user-profile">
+      <div class="avatar">
+        <img src="/images/avatar.png" alt="User Avatar">
+      </div>
+      <div class="user-info">
+        <p class="user-name">John Doe</p>
+        <p class="user-email">johndoe@example.com</p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="main-content">
+    <div class="detail-header">
+      <a href="/elections" class="back-link">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 11H7.83L13.42 5.41L12 4L4 12L12 20L13.41 18.59L7.83 13H20V11Z" fill="currentColor"/>
+        </svg>
+        2024 Presidential Election - General Ballot
+      </a>
+      
+      <div class="action-button">
+        <button class="create-ballot-btn">+ Create Ballot</button>
+      </div>
+    </div>
+    
+    <div class="election-info-container">
+      <div class="election-info-card">
+        <div class="election-status">
+          <span class="status-badge live">Voting is live</span>
+          <h2 class="countdown">3:12:16s Remaining</h2>
+        </div>
+        
+        <div class="voting-period">
+          <p>Voting time</p>
+          <p>6:00 AM - 6:00 PM</p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="shareable-link">
+          <p>Shareable Pre Registration Link</p>
+          <div class="link-box">
+            safeballot.com/2024-presidential-election
+            <button class="copy-btn">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M15 15H5V5H11.6667V3.33333H5C4.08333 3.33333 3.33333 4.08333 3.33333 5V15C3.33333 15.9167 4.08333 16.6667 5 16.6667H15C15.9167 16.6667 16.6667 15.9167 16.6667 15V8.33333H15V15ZM8.33333 13.3333L6.66667 11.6667L7.84167 10.4917L8.33333 10.9833L12.1583 7.15833L13.3333 8.33333L8.33333 13.3333ZM13.3333 3.33333V1.66667H11.6667V3.33333H10V5H11.6667V6.66667H13.3333V5H15V3.33333H13.3333Z" fill="currentColor"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="voters-summary">
+          <h3>Voters Summary</h3>
+          <a href="/manage-voters/2024_presidential" class="manage-link">Manage →</a>
+          
+          <div class="metric-grid">
+            <div class="metric">
+              <div class="metric-circle registered">
+                <svg viewBox="0 0 36 36">
+                  <path d="M18 2.0845
+                    a 15.9155 15.9155 0 0 1 0 31.831
+                    a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="#E6E6E6"
+                    stroke-width="3"
+                  />
+                  <path d="M18 2.0845
+                    a 15.9155 15.9155 0 0 1 0 31.831
+                    a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="#4267B2"
+                    stroke-width="3"
+                    stroke-dasharray="100, 100"
+                  />
+                </svg>
+                <span class="metric-value">500</span>
+              </div>
+              <h4>Number of Registered Voters</h4>
+            </div>
+            
+            <div class="metric">
+              <div class="metric-circle voted">
+                <svg viewBox="0 0 36 36">
+                  <path d="M18 2.0845
+                    a 15.9155 15.9155 0 0 1 0 31.831
+                    a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="#E6E6E6"
+                    stroke-width="3"
+                  />
+                  <path d="M18 2.0845
+                    a 15.9155 15.9155 0 0 1 0 31.831
+                    a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="#273E6A"
+                    stroke-width="3"
+                    stroke-dasharray="20, 100"
+                  />
+                </svg>
+                <span class="metric-value">100</span>
+              </div>
+              <h4>Total Number of Votes</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="result-cards">
+        <div class="result-header">
+          <h2>Live Voting Results</h2>
+          <a href="#" class="view-all">View All →</a>
+        </div>
+        
+        <div class="result-section">
+          <h3>Presidential Election - General</h3>
+          
+          <div class="result-item">
+            <div class="result-details">
+              <div class="candidate-name">Kamala D. Harris</div>
+              <div class="candidate-party">Democratic Party</div>
+            </div>
+            <div class="result-bar-container">
+              <div class="result-bar" style="width: 58.6%"></div>
+              <span class="result-percentage">58.6%</span>
+            </div>
+          </div>
+          
+          <div class="result-item">
+            <div class="result-details">
+              <div class="candidate-name">Donald J. Trump</div>
+              <div class="candidate-party">Republican Party</div>
+            </div>
+            <div class="result-bar-container">
+              <div class="result-bar" style="width: 38.2%"></div>
+              <span class="result-percentage">38.2%</span>
+            </div>
+          </div>
+          
+          <div class="result-item">
+            <div class="result-details">
+              <div class="candidate-name">Robert F. Kennedy, Jr.</div>
+              <div class="candidate-party">We the People Party</div>
+            </div>
+            <div class="result-bar-container">
+              <div class="result-bar" style="width: 1.2%"></div>
+              <span class="result-percentage">1.2%</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="result-section">
+          <h3>US House of Representatives</h3>
+          
+          <div class="result-item">
+            <div class="result-details">
+              <div class="candidate-name">Sample Candidate 1</div>
+              <div class="candidate-party">Sample Party</div>
+            </div>
+            <div class="result-bar-container">
+              <div class="result-bar" style="width: 56.8%"></div>
+              <span class="result-percentage">56.8%</span>
+            </div>
+          </div>
+          
+          <div class="result-item">
+            <div class="result-details">
+              <div class="candidate-name">Sample Candidate 2</div>
+              <div class="candidate-party">Sample Party</div>
+            </div>
+            <div class="result-bar-container">
+              <div class="result-bar" style="width: 38.2%"></div>
+              <span class="result-percentage">38.2%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Copy to clipboard functionality
+  document.querySelector('.copy-btn').addEventListener('click', function() {
+    const textToCopy = 'safeballot.com/2024-presidential-election';
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      alert('Link copied to clipboard');
+    }).catch(err => {
+      console.error('Could not copy text: ', err);
+    });
+  });
+  
+  // Create ballot button
+  document.querySelector('.create-ballot-btn').addEventListener('click', function() {
+    window.location.href = '/ballot/new';
+  });
+</script>
+
+<style>
+  .dashboard-container {
+    display: flex;
+    min-height: 100vh;
+    background-color: var(--bg-color);
+  }
+  
+  .sidebar {
+    width: 240px;
+    background-color: white;
+    padding: 20px 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #eee;
+  }
+  
+  .logo {
+    text-align: center;
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 20px;
+  }
+  
+  .logo img {
+    width: 50px;
+    height: auto;
+  }
+  
+  .logo-text {
+    display: block;
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--primary-color);
+    margin-top: 8px;
+  }
+  
+  .logo-tagline {
+    font-size: 10px;
+    color: var(--light-text);
+    letter-spacing: 1px;
+  }
+  
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+  
+  .nav-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    color: var(--text-color);
+    text-decoration: none;
+    transition: background-color 0.3s;
+  }
+  
+  .nav-item svg {
+    margin-right: 12px;
+    width: 20px;
+    height: 20px;
+  }
+  
+  .nav-item:hover {
+    background-color: rgba(66, 103, 178, 0.05);
+  }
+  
+  .nav-item.active {
+    background-color: rgba(66, 103, 178, 0.1);
+    color: var(--accent-color);
+    font-weight: 500;
+  }
+  
+  .user-profile {
+    display: flex;
+    align-items: center;
+    padding: 20px;
+    border-top: 1px solid #eee;
+    margin-top: auto;
+  }
+  
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-right: 12px;
+  }
+  
+  .avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .user-info {
+    flex: 1;
+  }
+  
+  .user-name {
+    font-weight: 500;
+    margin: 0;
+  }
+  
+  .user-email {
+    font-size: 12px;
+    color: var(--light-text);
+    margin: 0;
+  }
+  
+  .main-content {
+    flex: 1;
+    padding: 30px;
+  }
+  
+  .detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+  }
+  
+  .back-link {
+    display: flex;
+    align-items: center;
+    color: var(--text-color);
+    text-decoration: none;
+    font-size: 18px;
+    font-weight: 500;
+  }
+  
+  .back-link svg {
+    margin-right: 8px;
+  }
+  
+  .action-button {
+    margin-left: auto;
+  }
+  
+  .create-ballot-btn {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    width: auto;
+  }
+  
+  .create-ballot-btn:hover {
+    background-color: var(--secondary-color);
+  }
+  
+  .election-info-container {
+    display: flex;
+    gap: 30px;
+  }
+  
+  .election-info-card {
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    padding: 30px;
+    width: 400px;
+  }
+  
+  .election-status {
+    margin-bottom: 20px;
+  }
+  
+  .status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  
+  .status-badge.live {
+    background-color: #F44336;
+    color: white;
+  }
+  
+  .countdown {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 15px 0 10px;
+    color: var(--text-color);
+  }
+  
+  .voting-period {
+    color: var(--light-text);
+    font-size: 14px;
+  }
+  
+  .voting-period p {
+    margin: 0;
+  }
+  
+  .divider {
+    height: 1px;
+    background-color: #eee;
+    margin: 20px 0;
+  }
+  
+  .shareable-link p {
+    color: var(--light-text);
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  
+  .link-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: #f5f5f5;
+    padding: 10px 15px;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  
+  .copy-btn {
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    width: auto;
+  }
+  
+  .copy-btn svg {
+    color: var(--accent-color);
+  }
+  
+  .voters-summary {
+    position: relative;
+  }
+  
+  .voters-summary h3 {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 15px;
+    color: var(--text-color);
+  }
+  
+  .manage-link {
+    position: absolute;
+    top: 0;
+    right: 0;
+    color: var(--accent-color);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  
+  .metric-grid {
+    display: flex;
+    gap: 20px;
+  }
+  
+  .metric {
+    text-align: center;
+  }
+  
+  .metric-circle {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 10px;
+  }
+  
+  .metric-circle svg {
+    width: 100%;
+    height: 100%;
+  }
+  
+  .metric-value {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 20px;
+    font-weight: 700;
+  }
+  
+  .metric h4 {
+    font-size: 12px;
+    font-weight: normal;
+    color: var(--light-text);
+    margin: 0;
+  }
+  
+  .result-cards {
+    flex: 1;
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    padding: 30px;
+  }
+  
+  .result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .result-header h2 {
+    font-size: 18px;
+    margin: 0;
+    color: var(--text-color);
+    text-align: left;
+  }
+  
+  .view-all {
+    color: var(--accent-color);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  
+  .result-section {
+    margin-bottom: 30px;
+  }
+  
+  .result-section h3 {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 15px;
+    color: var(--text-color);
+  }
+  
+  .result-item {
+    display: flex;
+    margin-bottom: 15px;
+  }
+  
+  .result-details {
+    width: 250px;
+    padding-right: 20px;
+  }
+  
+  .candidate-name {
+    font-weight: 500;
+    margin-bottom: 3px;
+  }
+  
+  .candidate-party {
+    font-size: 12px;
+    color: var(--light-text);
+    font-style: italic;
+  }
+  
+  .result-bar-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+  }
+  
+  .result-bar {
+    height: 16px;
+    background-color: var(--accent-color);
+    border-radius: 8px;
+    margin-right: 10px;
+  }
+  
+  .result-percentage {
+    font-weight: 500;
+    min-width: 50px;
+    text-align: right;
+  }
+</style> 

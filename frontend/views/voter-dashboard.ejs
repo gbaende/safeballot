@@ -1,0 +1,272 @@
+<div class="voter-dashboard-container">
+  <div class="voter-dashboard-header">
+    <div class="logo">
+      <img src="/images/logo.png" alt="SafeBallot Logo">
+      <span class="logo-text">SAFEBALLOT</span>
+    </div>
+    
+    <div class="user-actions">
+      <div class="user-info">
+        <img src="/images/avatar.png" alt="User Avatar" class="user-avatar">
+        <span class="user-name">Voter Account</span>
+      </div>
+      <a href="/logout" class="logout-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+        Logout
+      </a>
+    </div>
+  </div>
+  
+  <div class="voter-dashboard-content">
+    <h1>Your Available Ballots</h1>
+    <p class="subtitle">Select a ballot to begin voting</p>
+    
+    <div class="ballots-list">
+      <div class="ballot-card">
+        <div class="ballot-info">
+          <h2>2024 Presidential Election - General Ballot</h2>
+          <div class="ballot-meta">
+            <span class="voting-period">Voting period: Nov 5 - Nov 12, 2024</span>
+            <span class="ballot-status active">Active</span>
+          </div>
+        </div>
+        <a href="/voter-id?ballot=2024_presidential" class="vote-now-btn">
+          Vote Now
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </a>
+      </div>
+      
+      <div class="ballot-card">
+        <div class="ballot-info">
+          <h2>Statewide Ballot Measure: Healthcare Reform Initiative</h2>
+          <div class="ballot-meta">
+            <span class="voting-period">Voting period: Oct 15 - Oct 30, 2024</span>
+            <span class="ballot-status upcoming">Upcoming</span>
+          </div>
+        </div>
+        <div class="not-active-message">
+          Voting begins on October 15, 2024
+        </div>
+      </div>
+      
+      <div class="ballot-card">
+        <div class="ballot-info">
+          <h2>School District 5 Board Election</h2>
+          <div class="ballot-meta">
+            <span class="voting-period">Voting period: Sep 10 - Sep 24, 2024</span>
+            <span class="ballot-status completed">Completed</span>
+          </div>
+        </div>
+        <a href="/election/school_board_district5" class="view-results-btn">
+          View Results
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Check if user is a voter
+  document.addEventListener('DOMContentLoaded', function() {
+    const userRole = localStorage.getItem('userRole');
+    
+    if (userRole !== 'voter') {
+      // Redirect non-voters to the appropriate dashboard
+      window.location.href = '/dashboard';
+    }
+  });
+</script>
+
+<style>
+  .voter-dashboard-container {
+    min-height: 100vh;
+    background-color: #f5f7fa;
+    padding-bottom: 40px;
+  }
+  
+  .voter-dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 40px;
+    background-color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+  
+  .logo {
+    display: flex;
+    align-items: center;
+  }
+  
+  .logo img {
+    height: 40px;
+    margin-right: 10px;
+  }
+  
+  .logo-text {
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--primary-color);
+  }
+  
+  .user-actions {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  
+  .user-info {
+    display: flex;
+    align-items: center;
+  }
+  
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    margin-right: 10px;
+  }
+  
+  .user-name {
+    font-weight: 500;
+  }
+  
+  .logout-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--accent-color);
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+  }
+  
+  .logout-btn:hover {
+    background-color: rgba(66, 103, 178, 0.05);
+  }
+  
+  .voter-dashboard-content {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 40px 20px;
+  }
+  
+  .voter-dashboard-content h1 {
+    font-size: 28px;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  
+  .subtitle {
+    color: var(--light-text);
+    margin-bottom: 30px;
+  }
+  
+  .ballots-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .ballot-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: white;
+    padding: 25px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  }
+  
+  .ballot-info {
+    flex: 1;
+  }
+  
+  .ballot-info h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  
+  .ballot-meta {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    color: var(--light-text);
+    font-size: 14px;
+  }
+  
+  .ballot-status {
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 20px;
+    font-size: 12px;
+  }
+  
+  .ballot-status.active {
+    background-color: rgba(76, 175, 80, 0.1);
+    color: #4CAF50;
+  }
+  
+  .ballot-status.upcoming {
+    background-color: rgba(33, 150, 243, 0.1);
+    color: #2196F3;
+  }
+  
+  .ballot-status.completed {
+    background-color: rgba(158, 158, 158, 0.1);
+    color: #757575;
+  }
+  
+  .vote-now-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: var(--accent-color);
+    color: white;
+    text-decoration: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: background-color 0.3s;
+  }
+  
+  .vote-now-btn:hover {
+    background-color: var(--primary-color);
+  }
+  
+  .view-results-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: transparent;
+    border: 1px solid var(--accent-color);
+    color: var(--accent-color);
+    text-decoration: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.3s;
+  }
+  
+  .view-results-btn:hover {
+    background-color: rgba(66, 103, 178, 0.05);
+  }
+  
+  .not-active-message {
+    color: var(--light-text);
+    padding: 12px 24px;
+    font-style: italic;
+  }
+</style> 

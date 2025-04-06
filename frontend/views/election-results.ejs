@@ -1,0 +1,409 @@
+<div class="results-container">
+  <div class="back-button">
+    <a href="/election/<%= electionId %>">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M19 12H5" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 19L5 12L12 5" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+  </div>
+
+  <h1 class="results-title">Live Voting Results</h1>
+  <h2 class="election-name">2024 Presidential Election - General Ballot</h2>
+
+  <div class="download-button">
+    <a href="#" onclick="downloadResults()">Download Results</a>
+  </div>
+
+  <div class="results-section">
+    <h3>Presidential Election - General</h3>
+    
+    <div class="race-results">
+      <div class="candidate-result">
+        <div class="candidate-name">Patricia N. Smith</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 58.4%"></div>
+          <div class="percentage">58.4%</div>
+        </div>
+      </div>
+      
+      <div class="candidate-result">
+        <div class="candidate-name">Donald J. Trump</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 39.2%"></div>
+          <div class="percentage">39.2%</div>
+        </div>
+      </div>
+      
+      <div class="candidate-result">
+        <div class="candidate-name">Robert F. Kennedy Jr.</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 1.3%"></div>
+          <div class="percentage">1.3%</div>
+        </div>
+      </div>
+      
+      <div class="candidate-result">
+        <div class="candidate-name">Jill Stein</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 0.6%"></div>
+          <div class="percentage">0.6%</div>
+        </div>
+      </div>
+      
+      <div class="candidate-result">
+        <div class="candidate-name">Chase Oliver</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 0.4%"></div>
+          <div class="percentage">0.4%</div>
+        </div>
+      </div>
+      
+      <div class="candidate-result">
+        <div class="candidate-name">Cornel West</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 0.2%"></div>
+          <div class="percentage">0.2%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-section">
+    <h3>US House of Representatives</h3>
+    
+    <div class="race-results">
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 1</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 54.8%"></div>
+          <div class="percentage">54.8%</div>
+        </div>
+      </div>
+      
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 2</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 45.2%"></div>
+          <div class="percentage">45.2%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-section">
+    <h3>[State] Governor</h3>
+    
+    <div class="race-results">
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 1</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 51.9%"></div>
+          <div class="percentage">51.9%</div>
+        </div>
+      </div>
+      
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 2</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 48.1%"></div>
+          <div class="percentage">48.1%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-section">
+    <h3>[State] Lieutenant Governor</h3>
+    
+    <div class="race-results">
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 1</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 51.4%"></div>
+          <div class="percentage">51.4%</div>
+        </div>
+      </div>
+      
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 2</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 48.6%"></div>
+          <div class="percentage">48.6%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-section">
+    <h3>[State] Attorney General</h3>
+    
+    <div class="race-results">
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 1</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 51.7%"></div>
+          <div class="percentage">51.7%</div>
+        </div>
+      </div>
+      
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 2</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 48.3%"></div>
+          <div class="percentage">48.3%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-section">
+    <h3>[State] Auditor</h3>
+    
+    <div class="race-results">
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 1</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 52.2%"></div>
+          <div class="percentage">52.2%</div>
+        </div>
+      </div>
+      
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 2</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 47.8%"></div>
+          <div class="percentage">47.8%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-section">
+    <h3>[State] Commissioner of Agriculture</h3>
+    
+    <div class="race-results">
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 1</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 51.5%"></div>
+          <div class="percentage">51.5%</div>
+        </div>
+      </div>
+      
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 2</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 48.5%"></div>
+          <div class="percentage">48.5%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-section">
+    <h3>[State] Commissioner of Insurance</h3>
+    
+    <div class="race-results">
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 1</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 51.8%"></div>
+          <div class="percentage">51.8%</div>
+        </div>
+      </div>
+      
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 2</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 48.2%"></div>
+          <div class="percentage">48.2%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-section">
+    <h3>[State] Commissioner of Labor</h3>
+    
+    <div class="race-results">
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 1</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 51.1%"></div>
+          <div class="percentage">51.1%</div>
+        </div>
+      </div>
+      
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 2</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 48.9%"></div>
+          <div class="percentage">48.9%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-section">
+    <h3>[State] Commissioner of State</h3>
+    
+    <div class="race-results">
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 1</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 52.0%"></div>
+          <div class="percentage">52.0%</div>
+        </div>
+      </div>
+      
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 2</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 48.0%"></div>
+          <div class="percentage">48.0%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-section">
+    <h3>[State] Superintendent of Public Instruction</h3>
+    
+    <div class="race-results">
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 1</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 51.3%"></div>
+          <div class="percentage">51.3%</div>
+        </div>
+      </div>
+      
+      <div class="candidate-result">
+        <div class="candidate-name">Sample Candidate 2</div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: 48.7%"></div>
+          <div class="percentage">48.7%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .results-container {
+    background-color: var(--bg-color);
+    padding: 30px;
+    border-radius: 10px;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  
+  .back-button {
+    margin-bottom: 20px;
+  }
+  
+  .back-button a {
+    display: inline-flex;
+    align-items: center;
+    color: var(--text-color);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  
+  .results-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 5px;
+    text-align: left;
+  }
+  
+  .election-name {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text-color);
+    margin-bottom: 20px;
+    text-align: left;
+  }
+  
+  .download-button {
+    margin-bottom: 30px;
+  }
+  
+  .download-button a {
+    display: inline-block;
+    background-color: var(--accent-color);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 14px;
+  }
+  
+  .results-section {
+    margin-bottom: 30px;
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+  
+  .results-section h3 {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--primary-color);
+    margin-bottom: 15px;
+    text-align: left;
+  }
+  
+  .race-results {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .candidate-result {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .candidate-name {
+    font-size: 16px;
+    font-weight: 500;
+    width: 200px;
+    color: var(--text-color);
+  }
+  
+  .progress-container {
+    flex: 1;
+    height: 24px;
+    background-color: #f0f0f0;
+    border-radius: 4px;
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  
+  .progress-bar {
+    height: 100%;
+    background-color: var(--accent-color);
+    border-radius: 4px;
+  }
+  
+  .percentage {
+    position: absolute;
+    right: 10px;
+    font-weight: 500;
+    color: #333;
+  }
+</style>
+
+<script>
+  function downloadResults() {
+    // In a real application, this would generate a CSV or PDF file
+    alert('In a production environment, this would download the results as a CSV or PDF file.');
+  }
+</script> 

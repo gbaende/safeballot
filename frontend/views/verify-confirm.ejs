@@ -1,0 +1,243 @@
+<div class="verify-id-container">
+  <div class="back-button">
+    <a href="/verify/id">←</a>
+  </div>
+  
+  <div class="content-container">
+    <div class="id-confirmation-box">
+      <div class="id-image-preview">
+        <!-- Display captured ID image -->
+        <img id="captured-id-image" src="" alt="Your ID">
+      </div>
+      
+      <div class="id-info-section">
+        <div class="id-info-header">
+          <h1>Is this info correct?</h1>
+          <p>Verify that your information is filled in correctly.</p>
+        </div>
+        
+        <div class="id-info-grid">
+          <div class="info-row">
+            <div class="info-cell">
+              <label>Document Number</label>
+              <p>12888817</p>
+            </div>
+            <div class="info-cell">
+              <label>Issuing State Code</label>
+              <p>Texas</p>
+            </div>
+          </div>
+          
+          <div class="info-row">
+            <div class="info-cell">
+              <label>Surname</label>
+              <p>Nico</p>
+            </div>
+            <div class="info-cell">
+              <label>Given Name</label>
+              <p>Vanny</p>
+            </div>
+          </div>
+          
+          <div class="info-row">
+            <div class="info-cell">
+              <label>Sex</label>
+              <p>Male</p>
+            </div>
+            <div class="info-cell">
+              <label>Nationality Code</label>
+              <p>N/A</p>
+            </div>
+          </div>
+          
+          <div class="info-row">
+            <div class="info-cell">
+              <label>Birth Date</label>
+              <p>20 November 1999</p>
+            </div>
+            <div class="info-cell">
+              <label>Expiry of Document</label>
+              <p>20 December 2022</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="button-container">
+          <button id="next-btn">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.getElementById('next-btn').addEventListener('click', function() {
+    window.location.href = '/verify/success';
+  });
+  
+  // Display the captured ID image when the page loads
+  document.addEventListener('DOMContentLoaded', function() {
+    const capturedID = localStorage.getItem('capturedID');
+    if (capturedID) {
+      document.getElementById('captured-id-image').src = capturedID;
+    } else {
+      // Fallback to pink placeholder if no image was captured
+      document.getElementById('captured-id-image').style.display = 'none';
+      const placeholder = document.createElement('div');
+      placeholder.className = 'id-placeholder';
+      document.querySelector('.id-image-preview').appendChild(placeholder);
+    }
+  });
+</script>
+
+<style>
+  .verify-id-container {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #f5f7fa;
+  }
+  
+  .content-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 30px;
+  }
+  
+  .back-button {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 10;
+  }
+  
+  .back-button a {
+    text-decoration: none;
+    color: var(--primary-color);
+    font-size: 24px;
+    font-weight: bold;
+  }
+  
+  .id-confirmation-box {
+    width: 100%;
+    display: flex;
+    height: 65vh;
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+  }
+  
+  .id-image-preview {
+    width: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f0f0f0;
+    padding: 0;
+  }
+  
+  .id-placeholder {
+    width: 100%;
+    height: 100%;
+    background-color: #ff9ec3; /* Pink color as requested */
+    border-radius: 0;
+  }
+  
+  #captured-id-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+  
+  .id-info-section {
+    width: 50%;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  
+  .id-info-header {
+    margin-bottom: 20px;
+  }
+  
+  .id-info-header h1 {
+    font-size: 24px;
+    margin-bottom: 10px;
+  }
+  
+  .id-info-header p {
+    color: var(--light-text);
+    margin: 0;
+  }
+  
+  .id-info-grid {
+    width: 100%;
+    margin-bottom: 20px;
+  }
+  
+  .info-row {
+    display: flex;
+    margin-bottom: 30px;
+  }
+  
+  .info-cell {
+    flex: 1;
+    padding-right: 20px;
+  }
+  
+  .info-cell label {
+    font-size: 14px;
+    color: var(--light-text);
+    display: block;
+    margin-bottom: 8px;
+  }
+  
+  .info-cell p {
+    font-size: 18px;
+    font-weight: 500;
+    margin: 0;
+  }
+  
+  .button-container {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+  }
+  
+  #next-btn {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 15px 20px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 25%;
+    transition: background-color 0.3s;
+  }
+  
+  #next-btn:hover {
+    background-color: var(--primary-color);
+  }
+  
+  @media (max-width: 768px) {
+    .id-confirmation-box {
+      flex-direction: column;
+      height: auto;
+    }
+    
+    .id-image-preview, .id-info-section {
+      width: 100%;
+    }
+    
+    .id-placeholder {
+      height: 300px;
+    }
+  }
+</style> 
