@@ -46,7 +46,12 @@ const BallotBuilder = () => {
   const [activeStep, setActiveStep] = useState(3); // Set to 3 to show Confirm + Pay step by default
   const [electionTitle, setElectionTitle] = useState("");
   const [questions, setQuestions] = useState([
-    { id: 1, title: "Question Title Here", description: "", options: [] },
+    {
+      id: 1,
+      title: "Question Title Here",
+      description: "",
+      options: [""], // Initialize with one empty option
+    },
   ]);
   const [currentQuestionId, setCurrentQuestionId] = useState(1);
   const [allowWriteIn, setAllowWriteIn] = useState(false);
@@ -75,13 +80,75 @@ const BallotBuilder = () => {
     const newId = Math.max(...questions.map((q) => q.id), 0) + 1;
     setQuestions([
       ...questions,
-      { id: newId, title: "", description: "", options: [] },
+      { id: newId, title: "", description: "", options: [""] },
     ]);
   };
 
   const handleQuestionTitleChange = (e) => {
     const updatedQuestions = questions.map((q) =>
       q.id === currentQuestionId ? { ...q, title: e.target.value } : q
+    );
+    setQuestions(updatedQuestions);
+  };
+
+  const handleQuestionDescriptionChange = (e) => {
+    const updatedQuestions = questions.map((q) =>
+      q.id === currentQuestionId ? { ...q, description: e.target.value } : q
+    );
+    setQuestions(updatedQuestions);
+  };
+
+  const handleOptionChange = (index, value) => {
+    const currentQuestion = getCurrentQuestion();
+    const updatedOptions = [...currentQuestion.options];
+    updatedOptions[index] = value;
+
+    // If this is the last option and it's not empty, add a new empty option
+    if (index === updatedOptions.length - 1 && value.trim() !== "") {
+      updatedOptions.push("");
+    }
+
+    const updatedQuestions = questions.map((q) =>
+      q.id === currentQuestionId ? { ...q, options: updatedOptions } : q
+    );
+    setQuestions(updatedQuestions);
+  };
+
+  const addEmptyOption = () => {
+    const currentQuestion = getCurrentQuestion();
+    const updatedOptions = [...currentQuestion.options];
+    updatedOptions.push("");
+
+    const updatedQuestions = questions.map((q) =>
+      q.id === currentQuestionId ? { ...q, options: updatedOptions } : q
+    );
+    setQuestions(updatedQuestions);
+  };
+
+  const removeOption = (index) => {
+    const currentQuestion = getCurrentQuestion();
+    // Don't remove if it's the last empty option
+    if (
+      currentQuestion.options.length === 1 &&
+      currentQuestion.options[0] === ""
+    ) {
+      return;
+    }
+
+    const updatedOptions = currentQuestion.options.filter(
+      (_, i) => i !== index
+    );
+
+    // Ensure there's always at least one empty option at the end
+    if (
+      updatedOptions.length === 0 ||
+      updatedOptions[updatedOptions.length - 1].trim() !== ""
+    ) {
+      updatedOptions.push("");
+    }
+
+    const updatedQuestions = questions.map((q) =>
+      q.id === currentQuestionId ? { ...q, options: updatedOptions } : q
     );
     setQuestions(updatedQuestions);
   };
@@ -260,6 +327,8 @@ const BallotBuilder = () => {
                 multiline
                 rows={3}
                 sx={{ mb: 3 }}
+                value={getCurrentQuestion().description}
+                onChange={handleQuestionDescriptionChange}
               />
 
               <FormControlLabel
@@ -270,22 +339,97 @@ const BallotBuilder = () => {
                   />
                 }
                 label="Allow write in"
+                sx={{ mb: 3 }}
               />
 
-              <Box sx={{ mt: 2 }}>
-                <TextField
-                  fullWidth
-                  placeholder="Type here"
-                  variant="outlined"
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <AddIcon fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Box>
+              {getCurrentQuestion().options.map((option, index) => (
+                <Box
+                  key={index}
+                  sx={{ mb: 2, display: "flex", alignItems: "center" }}
+                >
+                  <TextField
+                    fullWidth
+                    placeholder="Type here"
+                    variant="outlined"
+                    value={option}
+                    onChange={(e) => handleOptionChange(index, e.target.value)}
+                    multiline
+                    minRows={1}
+                    maxRows={3}
+                    onKeyDown={(e) => {
+                      // Prevent form submission on Enter key
+                      if (e.key === "Enter") {
+                        e.stopPropagation();
+                      }
+                    }}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        alignItems: "flex-start",
+                        padding: "8px 14px",
+                      },
+                    }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment
+                          position="start"
+                          sx={{
+                            alignSelf: "center",
+                          }}
+                        >
+                          {option.trim() === "" ? (
+                            <IconButton
+                              size="small"
+                              onClick={addEmptyOption}
+                              sx={{
+                                p: 0,
+                                color: "#3182CE",
+                                "&:hover": {
+                                  backgroundColor: "transparent",
+                                },
+                              }}
+                            >
+                              <AddIcon fontSize="small" />
+                            </IconButton>
+                          ) : (
+                            <Typography
+                              sx={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: "50%",
+                                bgcolor: "#EDF2F7",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: "14px",
+                                fontWeight: 500,
+                                color: "#4A5568",
+                              }}
+                            >
+                              {String.fromCharCode(65 + index)}
+                            </Typography>
+                          )}
+                        </InputAdornment>
+                      ),
+                      endAdornment: option.trim() !== "" && (
+                        <InputAdornment
+                          position="end"
+                          sx={{
+                            alignSelf: "center",
+                          }}
+                        >
+                          <IconButton
+                            size="small"
+                            onClick={() => removeOption(index)}
+                            edge="end"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Box>
+              ))}
             </Box>
           </Paper>
         </Grid>
