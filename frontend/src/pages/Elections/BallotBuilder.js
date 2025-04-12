@@ -665,9 +665,16 @@ const BallotBuilder = () => {
         Final Step!
       </Typography>
 
-      <Grid container spacing={3}>
+      <Grid
+        container
+        spacing={3}
+        sx={{
+          justifyContent: "space-between",
+          mb: { xs: 8, md: 10 }, // Add responsive bottom margin
+        }}
+      >
         {/* Left Column - Review Election Details */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={5.4} sx={{ width: "45%" }}>
           {/* Styled grey review header */}
           <Box
             className="section-header-review"
@@ -675,7 +682,7 @@ const BallotBuilder = () => {
               bgcolor: "#F7FAFC",
               p: 2,
               mb: 0,
-              borderRadius: "4px 4px 0 0",
+              borderRadius: "12px 12px 0 0",
               borderBottom: "1px solid #E2E8F0",
               borderTop: "1px solid #E2E8F0",
               borderLeft: "1px solid #E2E8F0",
@@ -683,124 +690,166 @@ const BallotBuilder = () => {
               width: "100%",
             }}
           >
-            <Typography variant="body1" fontWeight={500}>
-              Review your election details
-            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center" }}>
+              <Box
+                sx={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: "50%",
+                  bgcolor: "#3182CE",
+                  mr: 1.5,
+                }}
+              />
+              <Typography variant="body1" fontWeight={500}>
+                Review your election details
+              </Typography>
+            </Box>
           </Box>
           <Paper
             sx={{
               p: 4,
+              pt: 5,
               border: "1px solid #E2E8F0",
-              borderRadius: "0 0 8px 8px",
+              borderRadius: "0 0 12px 12px",
               borderTop: "none",
-              boxShadow: "none",
-              height: "100%",
+              boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.05)",
+              height: "75%",
+              overflowY: "auto",
             }}
           >
-            {/* Ballot Details */}
-            <Typography variant="body1" fontWeight={600} sx={{ mb: 3 }}>
-              Ballot Details
-            </Typography>
-
-            <Box sx={{ mb: 3 }}>
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  mb: 1,
-                }}
-              >
-                <Typography variant="body2" color="text.secondary">
-                  Ballot:
-                </Typography>
-                <Typography variant="body2">x 11 Questions</Typography>
-              </Box>
-            </Box>
-
-            <Box sx={{ mb: 1 }}>
-              <Typography variant="body1" fontWeight={600}>
-                Duration
+            {/* Content container with reduced width */}
+            <Box sx={{ width: "90%", mx: "auto", py: 2 }}>
+              {/* Ballot Details */}
+              <Typography variant="body1" fontWeight={600} sx={{ mb: 2 }}>
+                Ballot Details
               </Typography>
-            </Box>
-
-            <Box sx={{ mb: 3 }}>
               <Box
                 sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  mb: 1,
+                  height: "1px",
+                  bgcolor: "#E2E8F0",
+                  width: "100%",
+                  mb: 2,
                 }}
-              >
-                <Typography variant="body2" color="text.secondary">
-                  Starts:
-                </Typography>
-                <Typography variant="body2">
-                  November 5, 2024, 12:00am
-                </Typography>
+              />
+
+              <Box sx={{ mb: 6 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mb: 1,
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary">
+                    Ballot:
+                  </Typography>
+                  <Typography variant="body2">x 11 Questions</Typography>
+                </Box>
               </Box>
 
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <Typography variant="body2" color="text.secondary">
-                  Ends:
-                </Typography>
-                <Typography variant="body2">
-                  November 12, 2024, 12:00am
-                </Typography>
-              </Box>
-            </Box>
-
-            <Box sx={{ mb: 1 }}>
-              <Typography variant="body1" fontWeight={600}>
-                Number of Voters
-              </Typography>
-            </Box>
-
-            <Box sx={{ mb: 3 }}>
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <Typography variant="body2" color="text.secondary">
-                  Voters:
-                </Typography>
-                <Typography variant="body2">10 voters x $ 0.10</Typography>
-              </Box>
-            </Box>
-
-            <Box sx={{ pt: 1 }}>
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  borderTop: "1px solid #E2E8F0",
-                  pt: 2,
-                }}
-              >
+              <Box sx={{ mb: 3 }}>
                 <Typography variant="body1" fontWeight={600}>
-                  Total Amount:
+                  Duration
                 </Typography>
+                <Box
+                  sx={{
+                    height: "1px",
+                    bgcolor: "#E2E8F0",
+                    width: "100%",
+                    mt: 1,
+                    mb: 1,
+                  }}
+                />
+              </Box>
+
+              <Box sx={{ mb: 7 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mb: 2,
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary">
+                    Starts:
+                  </Typography>
+                  <Typography variant="body2">
+                    November 5, 2024, 12:00am
+                  </Typography>
+                </Box>
+
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary">
+                    Ends:
+                  </Typography>
+                  <Typography variant="body2">
+                    November 12, 2024, 12:00am
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ mb: 3 }}>
                 <Typography variant="body1" fontWeight={600}>
-                  $ 1.00
+                  Number of Voters
                 </Typography>
+                <Box
+                  sx={{
+                    height: "1px",
+                    bgcolor: "#E2E8F0",
+                    width: "100%",
+                    mt: 1,
+                    mb: 1,
+                  }}
+                />
+              </Box>
+
+              <Box sx={{ mb: 8 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary">
+                    Voters:
+                  </Typography>
+                  <Typography variant="body2">10 voters x $ 0.10</Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ pt: 1 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    borderTop: "1px solid #E2E8F0",
+                    pt: 2,
+                  }}
+                >
+                  <Typography variant="body1" fontWeight={600}>
+                    Total Amount:
+                  </Typography>
+                  <Typography variant="body1" fontWeight={600}>
+                    $ 1.00
+                  </Typography>
+                </Box>
               </Box>
             </Box>
           </Paper>
         </Grid>
 
         {/* Right Column - Payment Details */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={6} sx={{ width: "50%" }}>
           {/* Styled grey payment header */}
           <Box
             className="section-header-payment"
@@ -808,7 +857,7 @@ const BallotBuilder = () => {
               bgcolor: "#F7FAFC",
               p: 2,
               mb: 0,
-              borderRadius: "4px 4px 0 0",
+              borderRadius: "12px 12px 0 0",
               borderBottom: "1px solid #E2E8F0",
               borderTop: "1px solid #E2E8F0",
               borderLeft: "1px solid #E2E8F0",
@@ -816,17 +865,28 @@ const BallotBuilder = () => {
               width: "100%",
             }}
           >
-            <Typography variant="body1" fontWeight={500}>
-              Payment Details
-            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center" }}>
+              <Box
+                sx={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: "50%",
+                  bgcolor: "#3182CE",
+                  mr: 1.5,
+                }}
+              />
+              <Typography variant="body1" fontWeight={500}>
+                Payment Details
+              </Typography>
+            </Box>
           </Box>
           <Paper
             sx={{
               p: 4,
               border: "1px solid #E2E8F0",
-              borderRadius: "0 0 8px 8px",
+              borderRadius: "0 0 12px 12px",
               borderTop: "none",
-              boxShadow: "none",
+              boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.05)",
               height: "100%",
             }}
           >
