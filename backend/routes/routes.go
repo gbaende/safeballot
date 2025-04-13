@@ -1,45 +1,83 @@
 package routes
 
 import (
-	"net/http"
+	"database/sql"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/safeballot/backend/config"
 	"github.com/safeballot/backend/handlers"
+	"github.com/safeballot/backend/middleware"
 )
 
-// SetupRoutes configures all API routes
-func SetupRoutes() {
+// Setup configures all API routes
+func Setup(r chi.Router, db *sql.DB, cfg *config.Config) {
+	// Create handler instances with dependencies
+	authHandler := handlers.NewAuthHandler(db, cfg)
+	ballotHandler := handlers.NewBallotHandler(db, cfg)
+	userHandler := handlers.NewUserHandler(db, cfg)
+	electionController := handlers.NewElectionController(db, cfg)
+
 	// Health check
-	http.HandleFunc("/api/health", handlers.HealthCheckHandler)
+	r.Get("/api/health", handlers.HealthCheckHandler)
 
-	// Auth routes
-	http.HandleFunc("/api/register", handlers.RegisterHandler)
-	http.HandleFunc("/api/login", handlers.LoginHandler)
-	http.HandleFunc("/api/verify", handlers.VerifyHandler)
-
-	// Ballot routes
-	http.HandleFunc("/api/ballots", handlers.BallotsHandler)
-	http.HandleFunc("/api/ballot", handlers.BallotHandler)
-	http.HandleFunc("/api/vote", handlers.VoteHandler)
-
-	// User routes
-	http.HandleFunc("/api/users", handlers.UsersHandler)
-	http.HandleFunc("/api/user", handlers.UserHandler)
-
-	// Template dashboard route for testing
-	http.HandleFunc("/template-dashboard", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "frontend/views/template-dashboard.ejs")
+	// Public routes
+	r.Group(func(r chi.Router) {
+		// Auth routes
+		r.Post("/api/register", authHandler.Register)
+		r.Post("/api/login", authHandler.Login)
+		r.Post("/api/refresh-token", authHandler.RefreshToken)
+		r.Post("/api/verify-email", authHandler.VerifyEmail)
+		r.Post("/api/reset-password/request", authHandler.RequestPasswordReset)
+		r.Post("/api/reset-password/confirm", authHandler.ConfirmPasswordReset)
 	})
 
-	// Voter authentication flow pages
-	http.HandleFunc("/otp", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "frontend/views/otp.ejs")
-	})
+	// Protected routes - require authentication
+	r.Group(func(r chi.Router) {
+		// Apply auth middleware
+		r.Use(middleware.Authenticate(cfg))
 
-	http.HandleFunc("/voter-id", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "frontend/views/voter-id.ejs")
-	})
+		// Election routes
+		r.Get("/api/elections/summary", electionController.Summary)
+		r.Get("/api/elections/recent", electionController.RecentElections)
+		r.Get("/api/elections/upcoming", electionController.UpcomingElections)
+		r.Get("/api/elections/status", electionController.ElectionStatus)
+		r.Post("/api/elections/start", electionController.StartElection)
+		r.Post("/api/elections/end", electionController.EndElection)
 
-	http.HandleFunc("/biometric", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "frontend/views/biometric.ejs")
+		// Ballot routes
+		r.Get("/api/ballots", ballotHandler.List)
+		r.Post("/api/ballots", ballotHandler.Create)
+
+		r.Route("/api/ballots/{ballotID}", func(r chi.Router) {
+			r.Get("/", ballotHandler.Get)
+			r.Put("/", ballotHandler.Update)
+			r.Delete("/", ballotHandler.Delete)
+
+			// Ballot questions
+			r.Get("/questions", ballotHandler.ListQuestions)
+			r.Post("/questions", ballotHandler.CreateQuestion)
+
+			// Ballot voters
+			r.Get("/voters", ballotHandler.ListVoters)
+			r.Post("/voters", ballotHandler.AddVoters)
+			r.Delete("/voters/{voterID}", ballotHandler.RemoveVoter)
+
+			// Voting
+			r.Post("/vote", ballotHandler.CastVote)
+
+			// Results (only accessible when ballot is complete)
+			r.Get("/results", ballotHandler.GetResults)
+		})
+
+		// User routes
+		r.Get("/api/users", userHandler.ListUsers)
+		r.Get("/api/users/profile", userHandler.GetProfile)
+		r.Put("/api/users/profile", userHandler.UpdateProfile)
+		r.Post("/api/users/change-password", userHandler.ChangePassword)
+		r.Post("/api/users", userHandler.CreateUser)
+		r.Get("/api/users/{id}", userHandler.GetUser)
+
+		// Logout
+		r.Post("/api/logout", authHandler.Logout)
 	})
 }

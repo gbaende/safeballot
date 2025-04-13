@@ -8,7 +8,8 @@ import (
 type Ballot struct {
 	ID               string     `json:"id"`
 	Title            string     `json:"title"`
-	CreatedBy        string     `json:"created_by"` // User ID of creator
+	CreatedBy        string     `json:"created_by"`             // User ID of creator
+	CreatorName      string     `json:"creator_name,omitempty"` // Not stored in DB, populated for API responses
 	StartDate        time.Time  `json:"start_date"`
 	EndDate          time.Time  `json:"end_date"`
 	Status           string     `json:"status"` // draft, live, completed
@@ -21,12 +22,15 @@ type Ballot struct {
 
 // Question represents a ballot question
 type Question struct {
-	ID           string   `json:"id"`
-	Title        string   `json:"title"`
-	OrderIndex   int      `json:"order_index"`
-	Options      []Option `json:"options"`
-	AllowWriteIn bool     `json:"allow_write_in"`
-	Description  string   `json:"description,omitempty"`
+	ID           string    `json:"id"`
+	BallotID     string    `json:"ballot_id"`
+	Title        string    `json:"title"`
+	OrderIndex   int       `json:"order_index"`
+	Options      []Option  `json:"options"`
+	AllowWriteIn bool      `json:"allow_write_in"`
+	Description  string    `json:"description,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // Option represents a possible answer to a ballot question
