@@ -19,6 +19,10 @@ import {
   Select,
   MenuItem,
   Link,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -33,6 +37,15 @@ import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+
+// Add import for date-time pickers
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import {
+  LocalizationProvider,
+  DatePicker,
+  TimePicker,
+} from "@mui/x-date-pickers";
+import { format } from "date-fns";
 
 const steps = [
   "Build Ballot",
@@ -67,6 +80,18 @@ const BallotBuilder = () => {
   const [zipCode, setZipCode] = useState("");
   const [city, setCity] = useState("");
   const [sameAsShipping, setSameAsShipping] = useState(false);
+
+  // Add state for controlling date/time picker dialogs
+  const [startDatePickerOpen, setStartDatePickerOpen] = useState(false);
+  const [startTimePickerOpen, setStartTimePickerOpen] = useState(false);
+  const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
+  const [endTimePickerOpen, setEndTimePickerOpen] = useState(false);
+
+  // Add state for temporary date/time values
+  const [tempStartDate, setTempStartDate] = useState(startDate);
+  const [tempStartTime, setTempStartTime] = useState(startTime);
+  const [tempEndDate, setTempEndDate] = useState(endDate);
+  const [tempEndTime, setTempEndTime] = useState(endTime);
 
   const handleNext = () => {
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
@@ -172,6 +197,54 @@ const BallotBuilder = () => {
 
   const increaseVoterCount = () => {
     setVoterCount(voterCount + 1);
+  };
+
+  // Add helper functions for date picker dialogs
+  const handleOpenStartDatePicker = () => {
+    setStartDatePickerOpen(true);
+  };
+
+  const handleCloseStartDatePicker = (save = false) => {
+    if (save && tempStartDate) {
+      setStartDate(tempStartDate);
+    }
+    setStartDatePickerOpen(false);
+  };
+
+  const handleOpenStartTimePicker = () => {
+    setTempStartTime(startTime);
+    setStartTimePickerOpen(true);
+  };
+
+  const handleCloseStartTimePicker = (save = false) => {
+    if (save) {
+      setStartTime(tempStartTime);
+    }
+    setStartTimePickerOpen(false);
+  };
+
+  const handleOpenEndDatePicker = () => {
+    setTempEndDate(endDate);
+    setEndDatePickerOpen(true);
+  };
+
+  const handleCloseEndDatePicker = (save = false) => {
+    if (save) {
+      setEndDate(tempEndDate);
+    }
+    setEndDatePickerOpen(false);
+  };
+
+  const handleOpenEndTimePicker = () => {
+    setTempEndTime(endTime);
+    setEndTimePickerOpen(true);
+  };
+
+  const handleCloseEndTimePicker = (save = false) => {
+    if (save) {
+      setEndTime(tempEndTime);
+    }
+    setEndTimePickerOpen(false);
   };
 
   // Step 1: Build Ballot Content
@@ -516,6 +589,7 @@ const BallotBuilder = () => {
                     width: "60%",
                     height: "40px",
                   }}
+                  onClick={handleOpenStartDatePicker}
                 >
                   <Box sx={{ display: "flex", alignItems: "center" }}>
                     <CalendarTodayIcon
@@ -536,6 +610,7 @@ const BallotBuilder = () => {
                     width: "60%",
                     height: "40px",
                   }}
+                  onClick={handleOpenStartTimePicker}
                 >
                   <Box sx={{ display: "flex", alignItems: "center" }}>
                     <AccessTimeIcon
@@ -571,6 +646,7 @@ const BallotBuilder = () => {
                     width: "60%",
                     height: "40px",
                   }}
+                  onClick={handleOpenEndDatePicker}
                 >
                   <Box sx={{ display: "flex", alignItems: "center" }}>
                     <CalendarTodayIcon
@@ -591,6 +667,7 @@ const BallotBuilder = () => {
                     width: "60%",
                     height: "40px",
                   }}
+                  onClick={handleOpenEndTimePicker}
                 >
                   <Box sx={{ display: "flex", alignItems: "center" }}>
                     <AccessTimeIcon
@@ -1199,6 +1276,163 @@ const BallotBuilder = () => {
     </>
   );
 
+  // Date and Time Picker Dialogs
+  const renderDateTimePickerDialogs = () => (
+    <LocalizationProvider dateAdapter={AdapterDateFns}>
+      {/* Start Date Picker Dialog */}
+      <Dialog
+        open={startDatePickerOpen}
+        onClose={() => handleCloseStartDatePicker(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Select Start Date</DialogTitle>
+        <DialogContent>
+          <Box sx={{ p: 2 }}>
+            <DatePicker
+              label="Election Start Date"
+              value={tempStartDate ? new Date(tempStartDate) : new Date()}
+              onChange={(newDate) => {
+                if (newDate) {
+                  const formattedDate = format(newDate, "MMMM d, yyyy");
+                  setTempStartDate(formattedDate);
+                }
+              }}
+              renderInput={(params) => <TextField {...params} fullWidth />}
+              inputFormat="MMMM d, yyyy"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => handleCloseStartDatePicker(false)}>
+            Cancel
+          </Button>
+          <Button onClick={() => handleCloseStartDatePicker(true)}>OK</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Start Time Picker Dialog */}
+      <Dialog
+        open={startTimePickerOpen}
+        onClose={() => handleCloseStartTimePicker(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Select Start Time</DialogTitle>
+        <DialogContent>
+          <Box sx={{ p: 2 }}>
+            <TimePicker
+              label="Election Start Time"
+              value={
+                tempStartTime
+                  ? new Date(`2022-01-01T${convertTo24Hour(tempStartTime)}`)
+                  : new Date()
+              }
+              onChange={(newTime) => {
+                if (newTime) {
+                  const formattedTime = format(newTime, "h:mm a");
+                  setTempStartTime(formattedTime);
+                }
+              }}
+              renderInput={(params) => <TextField {...params} fullWidth />}
+              ampm={true}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => handleCloseStartTimePicker(false)}>
+            Cancel
+          </Button>
+          <Button onClick={() => handleCloseStartTimePicker(true)}>OK</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* End Date Picker Dialog */}
+      <Dialog
+        open={endDatePickerOpen}
+        onClose={() => handleCloseEndDatePicker(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Select End Date</DialogTitle>
+        <DialogContent>
+          <Box sx={{ p: 2 }}>
+            <DatePicker
+              label="Election End Date"
+              value={tempEndDate ? new Date(tempEndDate) : new Date()}
+              onChange={(newDate) => {
+                if (newDate) {
+                  const formattedDate = format(newDate, "MMMM d, yyyy");
+                  setTempEndDate(formattedDate);
+                }
+              }}
+              renderInput={(params) => <TextField {...params} fullWidth />}
+              inputFormat="MMMM d, yyyy"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => handleCloseEndDatePicker(false)}>
+            Cancel
+          </Button>
+          <Button onClick={() => handleCloseEndDatePicker(true)}>OK</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* End Time Picker Dialog */}
+      <Dialog
+        open={endTimePickerOpen}
+        onClose={() => handleCloseEndTimePicker(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Select End Time</DialogTitle>
+        <DialogContent>
+          <Box sx={{ p: 2 }}>
+            <TimePicker
+              label="Election End Time"
+              value={
+                tempEndTime
+                  ? new Date(`2022-01-01T${convertTo24Hour(tempEndTime)}`)
+                  : new Date()
+              }
+              onChange={(newTime) => {
+                if (newTime) {
+                  const formattedTime = format(newTime, "h:mm a");
+                  setTempEndTime(formattedTime);
+                }
+              }}
+              renderInput={(params) => <TextField {...params} fullWidth />}
+              ampm={true}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => handleCloseEndTimePicker(false)}>
+            Cancel
+          </Button>
+          <Button onClick={() => handleCloseEndTimePicker(true)}>OK</Button>
+        </DialogActions>
+      </Dialog>
+    </LocalizationProvider>
+  );
+
+  // Add helper function to convert time format
+  const convertTo24Hour = (time12h) => {
+    const [time, modifier] = time12h.split(" ");
+    let [hours, minutes] = time.split(":");
+
+    if (hours === "12") {
+      hours = "00";
+    }
+
+    if (modifier === "PM") {
+      hours = parseInt(hours, 10) + 12;
+    }
+
+    return `${hours}:${minutes}:00`;
+  };
+
   return (
     <Box sx={{ p: 4 }}>
       {/* Stepper */}
@@ -1301,6 +1535,9 @@ const BallotBuilder = () => {
       {activeStep === 1 && renderSetDuration()}
       {activeStep === 2 && renderSelectParticipants()}
       {activeStep === 3 && renderConfirmAndPay()}
+
+      {/* Render date/time picker dialogs */}
+      {renderDateTimePickerDialogs()}
     </Box>
   );
 };
