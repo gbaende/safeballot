@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -22,6 +22,54 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 const Dashboard = () => {
   const { user } = useSelector((state) => state.auth);
   const navigate = useNavigate();
+
+  // Use state to trigger re-render when user data changes
+  const [userDisplayName, setUserDisplayName] = useState("Guest");
+
+  // Load the user display name when the component mounts
+  useEffect(() => {
+    const name = getUserDisplayName();
+    setUserDisplayName(name);
+
+    // Set up an interval to check for changes in user data
+    const intervalId = setInterval(() => {
+      const newName = getUserDisplayName();
+      if (newName !== userDisplayName) {
+        setUserDisplayName(newName);
+      }
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // Function to get user's name from storage or email - matching MainLayout approach
+  const getUserDisplayName = () => {
+    try {
+      // Force reload user data from localStorage each time
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        const userData = JSON.parse(storedUser);
+        // Always prioritize email username over name field
+        if (userData.email) return userData.email.split("@")[0];
+        if (userData.name) return userData.name;
+      }
+
+      // Try direct email approach
+      const email = localStorage.getItem("userEmail");
+      if (email) return email.split("@")[0];
+
+      // Last resort, check Redux
+      if (user && user.email) return user.email.split("@")[0];
+
+      return "Guest";
+    } catch (error) {
+      console.error("Error getting user display name:", error);
+      return "Guest";
+    }
+  };
+
+  // Ensure fresh data on every render
+  const displayName = getUserDisplayName();
 
   // Mock active election data
   const activeElection = {
@@ -76,7 +124,7 @@ const Dashboard = () => {
       >
         <Box>
           <Typography variant="h3" sx={{ fontWeight: 500, mb: 0.5 }}>
-            Hey, John.
+            Hey, {userDisplayName}.
           </Typography>
           <Typography variant="body1" color="text.secondary">
             Welcome back to Safe Ballot, let's ensure every vote counts.

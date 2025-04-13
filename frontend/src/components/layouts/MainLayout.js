@@ -10,22 +10,136 @@ import {
   Typography,
   Avatar,
   Divider,
+  Menu,
+  MenuItem,
+  ListItemButton,
+  IconButton,
 } from "@mui/material";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import HomeIcon from "@mui/icons-material/Home";
 import BallotIcon from "@mui/icons-material/Ballot";
 import PeopleIcon from "@mui/icons-material/People";
+import LogoutIcon from "@mui/icons-material/Logout";
 
 const drawerWidth = 240;
 
 const MainLayout = () => {
   const location = useLocation();
+  const navigate = useNavigate();
 
-  // Mock user data
-  const user = {
-    name: "John Doe",
-    email: "johndoe@example.com",
-    avatar: "/avatar.png",
+  // Function to generate display name from email
+  const generateNameFromEmail = (email) => {
+    if (!email) return "Guest User";
+
+    // Simply extract the part before @ and use it directly
+    return email.split("@")[0];
+  };
+
+  // Get user data from storage
+  const getUserData = () => {
+    try {
+      // Try to get user from localStorage
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        return JSON.parse(storedUser);
+      }
+
+      // Check sessionStorage if not in localStorage
+      const sessionUser = sessionStorage.getItem("user");
+      if (sessionUser) {
+        return JSON.parse(sessionUser);
+      }
+
+      // If no stored user, check if there's at least an email
+      const email =
+        localStorage.getItem("userEmail") ||
+        sessionStorage.getItem("userEmail");
+      if (email) {
+        return { email, name: generateNameFromEmail(email) };
+      }
+
+      // Fallback to default user (for demo purposes)
+      return {
+        name: "Guest User",
+        email: "guest@example.com",
+        avatar: "/avatar.png",
+      };
+    } catch (error) {
+      console.error("Error retrieving user data:", error);
+      return {
+        name: "Guest User",
+        email: "guest@example.com",
+        avatar: "/avatar.png",
+      };
+    }
+  };
+
+  // Get current user
+  const user = getUserData();
+
+  // If user has email but no name, generate name from email
+  if (user.email && (!user.name || user.name === "John Doe")) {
+    user.name = generateNameFromEmail(user.email);
+  }
+
+  // Add state for menu
+  const [anchorEl, setAnchorEl] = useState(null);
+  const open = Boolean(anchorEl);
+
+  // Handle profile click to open menu
+  const handleProfileClick = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  // Handle menu close
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  // Handle logout action
+  const handleLogout = () => {
+    console.log("Logging out...");
+
+    try {
+      // Clear all authentication data
+      if (window.localStorage) {
+        localStorage.clear(); // Clear all localStorage instead of specific items
+      }
+
+      if (window.sessionStorage) {
+        sessionStorage.clear(); // Clear all sessionStorage
+      }
+
+      // More thorough cookie clearing approach
+      const cookies = document.cookie.split(";");
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i];
+        const eqPos = cookie.indexOf("=");
+        const name =
+          eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+        document.cookie =
+          name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;";
+        // Also try with domain attribute for cross-browser compatibility
+        document.cookie =
+          name +
+          "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=" +
+          window.location.hostname;
+      }
+
+      // Set a flag to indicate logout was initiated
+      window.sessionStorage.setItem("logoutRedirect", "true");
+
+      // Close the menu
+      handleClose();
+
+      // Force a hard redirect instead of using React Router
+      // This ensures a complete page refresh and state reset
+      window.location.href = "/register";
+    } catch (error) {
+      console.error("Error during logout:", error);
+      // Fallback to simple redirect if any errors
+      window.location.href = "/register";
+    }
   };
 
   const menuItems = [
@@ -120,7 +234,24 @@ const MainLayout = () => {
 
         <Divider sx={{ mx: 2 }} />
 
-        <Box sx={{ p: 2, display: "flex", alignItems: "center" }}>
+        {/* Update user profile section to be clickable */}
+        <Box
+          sx={{
+            p: 2,
+            display: "flex",
+            alignItems: "center",
+            cursor: "pointer",
+            "&:hover": {
+              backgroundColor: "#F7FAFC",
+            },
+            borderRadius: "8px",
+            m: 1,
+          }}
+          onClick={handleProfileClick}
+          aria-controls={open ? "profile-menu" : undefined}
+          aria-haspopup="true"
+          aria-expanded={open ? "true" : undefined}
+        >
           <Avatar src={user.avatar} sx={{ width: 36, height: 36, mr: 2 }} />
           <Box>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -131,6 +262,32 @@ const MainLayout = () => {
             </Typography>
           </Box>
         </Box>
+
+        {/* Add profile menu with logout option */}
+        <Menu
+          id="profile-menu"
+          anchorEl={anchorEl}
+          open={open}
+          onClose={handleClose}
+          MenuListProps={{
+            "aria-labelledby": "profile-button",
+          }}
+          anchorOrigin={{
+            vertical: "top",
+            horizontal: "center",
+          }}
+          transformOrigin={{
+            vertical: "bottom",
+            horizontal: "center",
+          }}
+        >
+          <MenuItem onClick={handleLogout}>
+            <ListItemIcon>
+              <LogoutIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Logout</ListItemText>
+          </MenuItem>
+        </Menu>
       </Drawer>
 
       <Box
