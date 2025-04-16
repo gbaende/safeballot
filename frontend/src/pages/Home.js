@@ -138,6 +138,11 @@ const Home = () => {
 
   // Fetch elections on component mount
   useEffect(() => {
+    // Don't fetch if already loaded
+    if (elections.length > 0 && !loading) {
+      return;
+    }
+
     dispatch(fetchElectionsRequest());
 
     // Simulating API call with mock data
@@ -149,7 +154,7 @@ const Home = () => {
     // api.getElections()
     //   .then(data => dispatch(fetchElectionsSuccess(data)))
     //   .catch(error => dispatch(fetchElectionsFailure(error.message)));
-  }, [dispatch]);
+  }, [dispatch, elections.length, loading]);
 
   const getStatusColor = (status) => {
     switch (status) {

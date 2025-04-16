@@ -24,7 +24,8 @@ import {
   Google as GoogleIcon,
   GitHub as GitHubIcon,
 } from "@mui/icons-material";
-import { loginRequest, loginSuccess } from "../store/authSlice";
+import { loginRequest, loginSuccess, loginFailure } from "../store/authSlice";
+import { authService } from "../services/api";
 
 // Logo placeholder
 const Logo = styled("img")({
@@ -109,39 +110,29 @@ const Login = () => {
 
     dispatch(loginRequest());
 
-    // Simulate API call for demo purposes
-    setTimeout(() => {
-      // Mock successful login for demo
-      if (
-        formData.email === "demo@example.com" &&
-        formData.password === "password"
-      ) {
+    // Call the actual API
+    authService
+      .login(formData.email, formData.password)
+      .then((response) => {
+        const { token, refresh_token, user } = response.data;
+
+        // Save token to localStorage
+        localStorage.setItem("token", token);
+
         dispatch(
           loginSuccess({
-            user: {
-              id: 1,
-              name: "Demo User",
-              email: formData.email,
-              avatar: "",
-            },
-            token: "mock-jwt-token",
+            user,
+            token,
           })
         );
-        navigate("/home");
-      } else {
-        setError("Invalid email or password");
-      }
-    }, 1000);
 
-    // In a real application, you would call your API here
-    // authService.login(formData)
-    //   .then(response => {
-    //     dispatch(loginSuccess(response.data));
-    //     navigate('/home');
-    //   })
-    //   .catch(error => {
-    //     setError(error.response?.data?.message || 'Login failed');
-    //   });
+        navigate("/home");
+      })
+      .catch((error) => {
+        console.error("Login error:", error);
+        dispatch(loginFailure());
+        setError(error.response?.data?.message || "Invalid email or password");
+      });
   };
 
   const handleGoogleLogin = () => {

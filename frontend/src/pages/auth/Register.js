@@ -5,25 +5,37 @@ import {
   Button,
   Typography,
   Paper,
-  Container,
   Link,
   InputAdornment,
   IconButton,
+  Alert,
+  Divider,
 } from "@mui/material";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { register } from "../../store/authSlice";
+import {
+  registerRequest,
+  registerSuccess,
+  registerFailure,
+  loginSuccess,
+} from "../../store/authSlice";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
+import { authService } from "../../services/api";
 
 const Register = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
+    firstName: "",
+    lastName: "",
+    role: "host", // Default role is host for this registration page
   });
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -48,7 +60,49 @@ const Register = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (validate()) {
-      dispatch(register(formData));
+      dispatch(registerRequest());
+
+      // Make API call
+      authService
+        .register(formData)
+        .then((response) => {
+          dispatch(registerSuccess());
+          setErrorMessage(""); // Clear any errors
+
+          // Auto-login after successful registration
+          if (response.data && response.data.token) {
+            // Store token and user data in localStorage
+            localStorage.setItem("token", response.data.token);
+            localStorage.setItem("user", JSON.stringify(response.data.user));
+
+            // Update Redux state
+            dispatch(
+              loginSuccess({
+                token: response.data.token,
+                user: response.data.user,
+              })
+            );
+
+            // Navigate to home page
+            navigate("/");
+          } else {
+            // Fallback if token not received
+            alert("Registration successful! Please log in.");
+            navigate("/login");
+          }
+        })
+        .catch((error) => {
+          console.error("Registration error:", error);
+          dispatch(
+            registerFailure(
+              error.response?.data?.message || "Registration failed"
+            )
+          );
+          setErrorMessage(
+            error.response?.data?.message ||
+              "Registration failed. Please try again."
+          );
+        });
     }
   };
 
@@ -64,7 +118,7 @@ const Register = () => {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        background: "linear-gradient(to right, #2d3748, #4a5568)",
+        background: "linear-gradient(to right, #1e293b, #3b5998)",
       }}
     >
       <Paper
@@ -79,12 +133,14 @@ const Register = () => {
           alignItems: "center",
         }}
       >
-        <Box
-          component="img"
-          src="/logo192.png"
-          alt="SafeBallot Logo"
-          sx={{ width: "60px", height: "60px", mb: 2 }}
-        />
+        {/* SafeBallot Logo */}
+        <Box sx={{ mb: 2, width: "60px", height: "60px" }}>
+          <img
+            src="/images/logo.png"
+            alt="SafeBallot Logo"
+            style={{ width: "100%", height: "100%" }}
+          />
+        </Box>
 
         <Typography
           component="h1"
@@ -95,9 +151,17 @@ const Register = () => {
           Get Started
         </Typography>
 
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Welcome to SafeBallot - Let's create your account
         </Typography>
+
+        <Divider sx={{ width: "100%", mb: 3 }} />
+
+        {errorMessage && (
+          <Alert severity="error" sx={{ width: "100%", mb: 2 }}>
+            {errorMessage}
+          </Alert>
+        )}
 
         <Box
           component="form"
@@ -118,7 +182,7 @@ const Register = () => {
             error={!!errors.email}
             helperText={errors.email}
             variant="outlined"
-            sx={{ mb: 2 }}
+            sx={{ mb: 3 }}
             InputProps={{
               sx: {
                 borderRadius: "4px",
@@ -140,7 +204,7 @@ const Register = () => {
             error={!!errors.password}
             helperText={errors.password}
             variant="outlined"
-            sx={{ mb: 3 }}
+            sx={{ mb: 4 }}
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
@@ -163,29 +227,31 @@ const Register = () => {
             fullWidth
             variant="contained"
             sx={{
-              mt: 1,
-              mb: 2,
               py: 1.5,
-              backgroundColor: "#CBD5E0",
-              color: "#4A5568",
-              fontWeight: "bold",
+              backgroundColor: "#AAAAAA", // Light gray button as shown in image
+              color: "#FFFFFF",
+              textTransform: "none",
+              fontWeight: "medium",
               "&:hover": {
-                backgroundColor: "#A0AEC0",
+                backgroundColor: "#999999",
               },
             }}
           >
             Sign up
           </Button>
 
-          <Box sx={{ textAlign: "center" }}>
+          <Box sx={{ textAlign: "center", mt: 2 }}>
             <Typography variant="body2">
               Already have an account?{" "}
               <Link
                 component={RouterLink}
                 to="/login"
-                sx={{ fontWeight: "bold", textDecoration: "none" }}
+                sx={{
+                  textDecoration: "none",
+                  color: "#1976d2",
+                }}
               >
-                Log In
+                Log in
               </Link>
             </Typography>
           </Box>

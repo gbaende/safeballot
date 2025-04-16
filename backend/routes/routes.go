@@ -29,6 +29,10 @@ func Setup(r chi.Router, db *sql.DB, cfg *config.Config) {
 		r.Post("/api/verify-email", authHandler.VerifyEmail)
 		r.Post("/api/reset-password/request", authHandler.RequestPasswordReset)
 		r.Post("/api/reset-password/confirm", authHandler.ConfirmPasswordReset)
+
+		// Public election data
+		r.Get("/api/elections/recent", electionController.RecentElections)
+		r.Get("/api/ballots", ballotHandler.List)
 	})
 
 	// Protected routes - require authentication
@@ -38,14 +42,12 @@ func Setup(r chi.Router, db *sql.DB, cfg *config.Config) {
 
 		// Election routes
 		r.Get("/api/elections/summary", electionController.Summary)
-		r.Get("/api/elections/recent", electionController.RecentElections)
 		r.Get("/api/elections/upcoming", electionController.UpcomingElections)
 		r.Get("/api/elections/status", electionController.ElectionStatus)
 		r.Post("/api/elections/start", electionController.StartElection)
 		r.Post("/api/elections/end", electionController.EndElection)
 
 		// Ballot routes
-		r.Get("/api/ballots", ballotHandler.List)
 		r.Post("/api/ballots", ballotHandler.Create)
 
 		r.Route("/api/ballots/{ballotID}", func(r chi.Router) {

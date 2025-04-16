@@ -28,7 +28,12 @@ import {
   GitHub as GitHubIcon,
   Check as CheckIcon,
 } from "@mui/icons-material";
-import { registerRequest, registerSuccess } from "../store/authSlice";
+import {
+  registerRequest,
+  registerSuccess,
+  registerFailure,
+} from "../store/authSlice";
+import { authService } from "../services/api";
 
 const FormContainer = styled(Paper)(({ theme }) => ({
   borderRadius: theme.shape.borderRadius,
@@ -193,21 +198,32 @@ const Registration = () => {
   const handleSubmit = () => {
     dispatch(registerRequest());
 
-    // Simulate API call for demo purposes
-    setTimeout(() => {
-      dispatch(registerSuccess());
-      navigate("/login");
-    }, 1000);
+    // Prepare the registration data
+    const registrationData = {
+      email: formData.email,
+      password: formData.password,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      organization: formData.organization,
+      jobTitle: formData.jobTitle,
+    };
 
-    // In a real application, you would call your API here
-    // authService.register(formData)
-    //   .then(response => {
-    //     dispatch(registerSuccess());
-    //     navigate('/login');
-    //   })
-    //   .catch(error => {
-    //     setError(error.response?.data?.message || 'Registration failed');
-    //   });
+    // Call the actual API
+    authService
+      .register(registrationData)
+      .then((response) => {
+        dispatch(registerSuccess());
+        // Show success message or redirect to login page
+        navigate("/login");
+      })
+      .catch((error) => {
+        console.error("Registration error:", error);
+        dispatch(registerFailure());
+        setError(
+          error.response?.data?.message ||
+            "Registration failed. Please try again."
+        );
+      });
   };
 
   const handleGoogleSignup = () => {
