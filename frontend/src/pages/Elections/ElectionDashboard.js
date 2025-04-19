@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
+  format,
+  isValid,
+  formatDistanceToNow,
+  formatDistance,
+  isFuture,
+  isPast,
+  parseISO,
+} from "date-fns";
+import {
   Box,
   Typography,
   Paper,
@@ -11,11 +20,14 @@ import {
   CircularProgress,
   IconButton,
   Alert,
+  CardContent,
+  Card,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import { ballotService } from "../../services/api";
 
 const ElectionDashboard = () => {
@@ -26,9 +38,10 @@ const ElectionDashboard = () => {
   const [election, setElection] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [remainingTime, setRemainingTime] = useState("");
+  const [remainingTime, setRemainingTime] = useState("--:--:--");
   const [copied, setCopied] = useState(false);
   const [shareableLink, setShareableLink] = useState(""); // Store the shareable link
+  const [resultsFetched, setResultsFetched] = useState(false);
 
   // Fetch election data
   useEffect(() => {
@@ -36,8 +49,8 @@ const ElectionDashboard = () => {
 
     // Set up timer to update remaining time every second
     const timer = setInterval(() => {
-      if (election && election.end_date) {
-        setRemainingTime(formatTimeRemaining(election.end_date));
+      if (election) {
+        updateRemainingTime();
       }
     }, 1000);
 
@@ -46,8 +59,18 @@ const ElectionDashboard = () => {
 
   // Update remaining time when election data changes
   useEffect(() => {
-    if (election && election.end_date) {
-      setRemainingTime(formatTimeRemaining(election.end_date));
+    if (election) {
+      // Debug log for election data
+      console.log("Election data received for dashboard:", {
+        id: election.id,
+        title: election.title,
+        startDate: election.startDate,
+        endDate: election.endDate,
+        totalVoters: election.totalVoters || election.total_voters,
+        ballotsReceived: election.ballotsReceived || election.ballots_received,
+        createdAt: election.createdAt,
+      });
+      updateRemainingTime();
     }
   }, [election]);
 
@@ -86,7 +109,90 @@ const ElectionDashboard = () => {
 
         // Set election data from API
         if (response.data && response.data.data) {
-          setElection(response.data.data);
+          // Process the data to ensure consistent property names
+          const ballot = { ...response.data.data };
+
+          // Convert camelCase to snake_case for consistency
+          if (
+            ballot.totalVoters !== undefined &&
+            ballot.total_voters === undefined
+          ) {
+            ballot.total_voters = ballot.totalVoters;
+          } else if (
+            ballot.total_voters !== undefined &&
+            ballot.totalVoters === undefined
+          ) {
+            ballot.totalVoters = ballot.total_voters;
+          }
+
+          if (
+            ballot.ballotsReceived !== undefined &&
+            ballot.ballots_received === undefined
+          ) {
+            ballot.ballots_received = ballot.ballotsReceived;
+          } else if (
+            ballot.ballots_received !== undefined &&
+            ballot.ballotsReceived === undefined
+          ) {
+            ballot.ballotsReceived = ballot.ballots_received;
+          }
+
+          // Check if date fields are null and create fallbacks if needed
+          if (!ballot.startDate && !ballot.endDate) {
+            console.log("Ballot has null dates, creating fallbacks");
+
+            const createdDate = new Date(ballot.createdAt || Date.now());
+
+            // Create a start date (day after creation)
+            const startDate = new Date(createdDate);
+            startDate.setDate(startDate.getDate() + 1);
+
+            // Create an end date (week after start)
+            const endDate = new Date(startDate);
+            endDate.setDate(endDate.getDate() + 7);
+
+            // Add these dates to the ballot
+            ballot.startDate = startDate.toISOString();
+            ballot.endDate = endDate.toISOString();
+
+            console.log("Added fallback dates:", {
+              startDate: ballot.startDate,
+              endDate: ballot.endDate,
+            });
+          }
+
+          // Ensure voter counts are set
+          // Use a reasonable default of 10 voters if totalVoters is missing or 0
+          if (!ballot.totalVoters && !ballot.total_voters) {
+            console.log(
+              "Setting default voter count for ballot without voter data"
+            );
+            ballot.totalVoters = 10;
+            ballot.total_voters = 10;
+          } else {
+            // Ensure values are non-zero
+            ballot.totalVoters =
+              ballot.totalVoters || ballot.total_voters || 10;
+            ballot.total_voters =
+              ballot.total_voters || ballot.totalVoters || 10;
+          }
+
+          // Initialize ballots received if missing
+          ballot.ballotsReceived =
+            ballot.ballotsReceived || ballot.ballots_received || 0;
+          ballot.ballots_received =
+            ballot.ballots_received || ballot.ballotsReceived || 0;
+
+          console.log("Processed ballot data with voter counts:", {
+            id: ballot.id,
+            title: ballot.title,
+            totalVoters: ballot.totalVoters,
+            total_voters: ballot.total_voters,
+            ballotsReceived: ballot.ballotsReceived,
+            ballots_received: ballot.ballots_received,
+          });
+
+          setElection(ballot);
         } else {
           throw new Error("Invalid response format");
         }
@@ -122,6 +228,72 @@ const ElectionDashboard = () => {
       setError("Failed to load election details. Please try again later.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateRemainingTime = () => {
+    if (!election) {
+      console.debug("No election data available for time calculation");
+      return;
+    }
+
+    // Get the end date (try both camelCase and snake_case properties)
+    const endDateValue = election.endDate || election.end_date;
+    if (!endDateValue) {
+      console.warn("No end date found in election data:", election);
+      setRemainingTime("N/A");
+      return;
+    }
+
+    try {
+      console.debug("Parsing end date:", endDateValue);
+      const endDate = new Date(endDateValue);
+
+      // Validate the parsed date
+      if (isNaN(endDate.getTime())) {
+        console.warn("Invalid end date format:", endDateValue);
+        setRemainingTime("Invalid Date");
+        return;
+      }
+
+      const now = new Date();
+      console.debug(
+        `Current time: ${now.toISOString()}, End date: ${endDate.toISOString()}`
+      );
+
+      if (endDate < now) {
+        console.debug("Election has ended");
+        setRemainingTime("Ended");
+        return;
+      }
+
+      // Calculate time difference in milliseconds
+      const diffMs = endDate.getTime() - now.getTime();
+      console.debug("Time difference in ms:", diffMs);
+
+      // Calculate days, hours, minutes, seconds
+      const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      const hours = Math.floor(
+        (diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+      );
+      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+
+      // Format the remaining time string
+      let timeString;
+      if (days > 0) {
+        timeString = `${days}d ${hours}h ${minutes}m`;
+      } else {
+        timeString = `${hours}:${minutes.toString().padStart(2, "0")}:${seconds
+          .toString()
+          .padStart(2, "0")}`;
+      }
+
+      console.debug("Calculated remaining time:", timeString);
+      setRemainingTime(timeString);
+    } catch (error) {
+      console.error("Error updating remaining time:", error);
+      setRemainingTime("Error");
     }
   };
 
@@ -161,38 +333,38 @@ const ElectionDashboard = () => {
     });
   };
 
-  // Helper function to format time remaining
-  const formatTimeRemaining = (endDateString) => {
-    if (!endDateString) return "N/A";
-
-    const endDate = new Date(endDateString);
-    const now = new Date();
-
-    if (endDate <= now) return "Ended";
-
-    const diffMs = endDate - now;
-    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    const diffSecs = Math.floor((diffMs % (1000 * 60)) / 1000);
-
-    return `${diffHrs}:${diffMins.toString().padStart(2, "0")}:${diffSecs
-      .toString()
-      .padStart(2, "0")}s`;
-  };
-
   // Format time for display (e.g. "6:00 AM")
   const formatTime = (dateString) => {
     if (!dateString) return "";
 
     try {
-      const date = new Date(dateString);
-      return date.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      });
+      const date = parseISO(dateString);
+      if (!isValid(date)) {
+        console.warn("Invalid date for formatting:", dateString);
+        return "";
+      }
+
+      return format(date, "h:mm a");
     } catch (e) {
       console.error("Error formatting time:", e);
+      return "";
+    }
+  };
+
+  // Format date for display (e.g. "Jan 1, 2023")
+  const formatDate = (dateString) => {
+    if (!dateString) return "";
+
+    try {
+      const date = parseISO(dateString);
+      if (!isValid(date)) {
+        console.warn("Invalid date for formatting:", dateString);
+        return "";
+      }
+
+      return format(date, "MMM d, yyyy");
+    } catch (e) {
+      console.error("Error formatting date:", e);
       return "";
     }
   };
@@ -201,13 +373,32 @@ const ElectionDashboard = () => {
   const getElectionStatus = () => {
     if (!election) return "Unknown";
 
-    const now = new Date();
-    const startDate = new Date(election.start_date);
-    const endDate = new Date(election.end_date);
+    try {
+      // Get date values (try both camelCase and snake_case properties)
+      const startDateValue = election.startDate || election.start_date;
+      const endDateValue = election.endDate || election.end_date;
 
-    if (now < startDate) return "Scheduled";
-    if (now >= startDate && now <= endDate) return "Live";
-    return "Completed";
+      if (!startDateValue || !endDateValue) {
+        return election.status || "Unknown";
+      }
+
+      const startDate = new Date(startDateValue);
+      const endDate = new Date(endDateValue);
+
+      // Check if dates are valid
+      if (!isValid(startDate) || !isValid(endDate)) {
+        return election.status || "Unknown";
+      }
+
+      const now = new Date();
+
+      if (isFuture(startDate)) return "Scheduled";
+      if (isFuture(endDate)) return "Live";
+      return "Completed";
+    } catch (error) {
+      console.error("Error determining election status:", error);
+      return election.status || "Unknown";
+    }
   };
 
   // Get the shareable link from state (not regenerate each time)
@@ -278,8 +469,22 @@ const ElectionDashboard = () => {
   }
 
   const status = getElectionStatus();
-  const totalVoters = election.total_voters || 0;
-  const totalVotes = election.ballots_received || 0;
+
+  // Get voter counts from API - handle different property name formats
+  // and ensure non-zero values with reasonable defaults
+  const totalVoters = election.totalVoters || election.total_voters || 10;
+  const totalVotes = election.ballotsReceived || election.ballots_received || 0;
+
+  console.log("Voter stats for display:", {
+    totalVoters,
+    totalVotes,
+    rawData: {
+      totalVoters: election.totalVoters,
+      total_voters: election.total_voters,
+      ballotsReceived: election.ballotsReceived,
+      ballots_received: election.ballots_received,
+    },
+  });
 
   return (
     <Box sx={{ pt: 4 }}>
@@ -363,14 +568,37 @@ const ElectionDashboard = () => {
               />
             </Box>
 
-            <Box sx={{ display: "flex", alignItems: "baseline" }}>
-              <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                {remainingTime}
-              </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 400, ml: 1 }}>
-                Remaining
-              </Typography>
-            </Box>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="center">
+                <AccessTimeIcon
+                  color="primary"
+                  fontSize="large"
+                  style={{ marginRight: "8px" }}
+                />
+                <Typography variant="h4" component="div">
+                  {remainingTime === "N/A" ||
+                  remainingTime === "Error" ||
+                  remainingTime === "Invalid Date" ||
+                  remainingTime === "--:--:--" ? (
+                    remainingTime
+                  ) : (
+                    <>
+                      {remainingTime}
+                      {remainingTime !== "Ended" && (
+                        <Typography
+                          component="span"
+                          variant="h6"
+                          color="textSecondary"
+                          style={{ marginLeft: "8px" }}
+                        >
+                          Remaining
+                        </Typography>
+                      )}
+                    </>
+                  )}
+                </Typography>
+              </Box>
+            </CardContent>
 
             <Box sx={{ mt: 2 }}>
               <Typography
@@ -381,8 +609,10 @@ const ElectionDashboard = () => {
                 Voting time
               </Typography>
               <Typography variant="body1">
-                {formatTime(election.start_date)} -{" "}
-                {formatTime(election.end_date)}
+                {formatDate(election.startDate || election.start_date)}{" "}
+                {formatTime(election.startDate || election.start_date)} -{" "}
+                {formatDate(election.endDate || election.end_date)}{" "}
+                {formatTime(election.endDate || election.end_date)}
               </Typography>
             </Box>
           </Paper>
@@ -516,7 +746,7 @@ const ElectionDashboard = () => {
                   />
                   <CircularProgress
                     variant="determinate"
-                    value={100}
+                    value={0}
                     size={100}
                     thickness={4}
                     sx={{

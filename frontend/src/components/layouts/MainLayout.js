@@ -38,7 +38,13 @@ const MainLayout = () => {
   // Get user data from storage
   const getUserData = () => {
     try {
-      // Try to get user from localStorage
+      // Try to get admin user from localStorage
+      const storedAdminUser = localStorage.getItem("adminUser");
+      if (storedAdminUser) {
+        return JSON.parse(storedAdminUser);
+      }
+
+      // Check for regular user if no admin user found
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
         return JSON.parse(storedUser);
@@ -101,7 +107,17 @@ const MainLayout = () => {
     console.log("Logging out...");
 
     try {
-      // Clear all authentication data
+      // Clear specific authentication data first
+      localStorage.removeItem("adminToken");
+      localStorage.removeItem("adminUser");
+      localStorage.removeItem("adminRefreshToken");
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("voterToken");
+      localStorage.removeItem("voterUser");
+
+      // Then clear all other localStorage and sessionStorage items
       if (window.localStorage) {
         localStorage.clear(); // Clear all localStorage instead of specific items
       }

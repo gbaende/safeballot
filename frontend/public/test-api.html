@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SafeBallot API Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    button {
+      padding: 10px;
+      margin: 5px;
+      background-color: #4478EB;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>SafeBallot API Test Page</h1>
+  
+  <div>
+    <h2>Health Check</h2>
+    <button onclick="testHealth()">Test Health Endpoint</button>
+    <pre id="health-result">Results will appear here...</pre>
+  </div>
+
+  <div>
+    <h2>Registration Test</h2>
+    <div>
+      <label for="name">Name:</label>
+      <input type="text" id="name" value="Test User">
+    </div>
+    <div>
+      <label for="email">Email:</label>
+      <input type="email" id="email" value="test3@example.com">
+    </div>
+    <div>
+      <label for="password">Password:</label>
+      <input type="password" id="password" value="password123">
+    </div>
+    <div>
+      <label for="role">Role:</label>
+      <select id="role">
+        <option value="user">User</option>
+        <option value="voter">Voter</option>
+      </select>
+    </div>
+    <button onclick="testRegistration()">Test Registration</button>
+    <pre id="registration-result">Results will appear here...</pre>
+  </div>
+
+  <script>
+    async function testHealth() {
+      const resultElement = document.getElementById('health-result');
+      resultElement.textContent = 'Testing...';
+      
+      try {
+        // Test with fetch
+        const response = await fetch('http://localhost:8080/api/health');
+        const data = await response.json();
+        
+        resultElement.textContent = 'Success!\n\n' + JSON.stringify(data, null, 2);
+      } catch (error) {
+        resultElement.textContent = 'Error: ' + error.message;
+      }
+    }
+
+    async function testRegistration() {
+      const resultElement = document.getElementById('registration-result');
+      resultElement.textContent = 'Testing...';
+      
+      const name = document.getElementById('name').value;
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const role = document.getElementById('role').value;
+      
+      try {
+        // Test with fetch
+        const response = await fetch('http://localhost:8080/api/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ name, email, password, role }),
+        });
+        
+        const responseText = await response.text();
+        let data;
+        
+        try {
+          data = JSON.parse(responseText);
+        } catch (e) {
+          resultElement.textContent = 'Response is not valid JSON:\n\n' + responseText;
+          return;
+        }
+        
+        if (response.ok) {
+          resultElement.textContent = 'Success!\n\n' + JSON.stringify(data, null, 2);
+        } else {
+          resultElement.textContent = 'Error: ' + response.status + ' ' + response.statusText + '\n\n' + JSON.stringify(data, null, 2);
+        }
+      } catch (error) {
+        resultElement.textContent = 'Network Error: ' + error.message;
+      }
+    }
+  </script>
+</body>
+</html> 

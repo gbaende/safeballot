@@ -23,6 +23,8 @@ import {
   TextField,
   InputAdornment,
   Tooltip,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import {
@@ -39,7 +41,9 @@ import MainLayout from "../components/Layout/MainLayout";
 import {
   fetchElectionsRequest,
   fetchElectionsSuccess,
+  fetchElectionsFailure,
 } from "../store/electionSlice";
+import { ballotService } from "../services/api";
 
 // Sample data - replace with API calls
 const mockElections = [
@@ -134,22 +138,161 @@ const ActionButton = styled(Button)(({ theme }) => ({
 const MyElections = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { elections, loading } = useSelector((state) => state.elections);
+  const { elections, loading: reduxLoading } = useSelector(
+    (state) => state.elections
+  );
 
   const [selected, setSelected] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [actionMenuAnchorEl, setActionMenuAnchorEl] = useState(null);
   const [currentElection, setCurrentElection] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   // Fetch elections on component mount
   useEffect(() => {
-    dispatch(fetchElectionsRequest());
-
-    // Simulating API call with mock data
-    setTimeout(() => {
-      dispatch(fetchElectionsSuccess(mockElections));
-    }, 500);
+    fetchElections();
   }, [dispatch]);
+
+  const fetchElections = async () => {
+    dispatch(fetchElectionsRequest());
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await ballotService.getBallots();
+      console.log("API response:", response);
+
+      let electionsData = [];
+
+      if (response.data && response.data.data) {
+        // Process data from API
+        electionsData = response.data.data.map((ballot) => {
+          // Ensure consistent property naming
+          return {
+            id: ballot.id,
+            title: ballot.title,
+            status: determineStatus(ballot),
+            startDate: ballot.startDate || ballot.start_date,
+            endDate: ballot.endDate || ballot.end_date,
+            totalVoters: ballot.totalVoters || ballot.total_voters || 0,
+            votedCount: ballot.ballotsReceived || ballot.ballots_received || 0,
+            participation: calculateParticipation(
+              ballot.ballotsReceived || ballot.ballots_received || 0,
+              ballot.totalVoters || ballot.total_voters || 1
+            ),
+          };
+        });
+      }
+
+      // Check for ballots in localStorage as a fallback/supplement
+      try {
+        const localBallots = JSON.parse(
+          localStorage.getItem("userBallots") || "[]"
+        );
+        console.log("Found", localBallots.length, "ballots in localStorage");
+
+        if (localBallots.length > 0) {
+          // Convert localStorage ballots to the same format
+          const localElections = localBallots.map((ballot) => ({
+            id: ballot.id,
+            title: ballot.title,
+            status: determineStatus(ballot),
+            startDate: ballot.startDate || ballot.start_date,
+            endDate: ballot.endDate || ballot.end_date,
+            totalVoters: ballot.totalVoters || ballot.total_voters || 0,
+            votedCount: ballot.ballotsReceived || ballot.ballots_received || 0,
+            participation: calculateParticipation(
+              ballot.ballotsReceived || ballot.ballots_received || 0,
+              ballot.totalVoters || ballot.total_voters || 1
+            ),
+          }));
+
+          // Merge API and localStorage ballots, remove duplicates by ID
+          const allElectionsMap = new Map();
+
+          // Add API elections first
+          electionsData.forEach((election) => {
+            allElectionsMap.set(election.id, election);
+          });
+
+          // Add localStorage elections (will overwrite API ones with same ID)
+          localElections.forEach((election) => {
+            // Only add if not already in the API results
+            if (!allElectionsMap.has(election.id)) {
+              allElectionsMap.set(election.id, election);
+            }
+          });
+
+          // Convert Map back to array
+          electionsData = Array.from(allElectionsMap.values());
+        }
+      } catch (localError) {
+        console.error("Error reading from localStorage:", localError);
+      }
+
+      console.log("Final elections data:", electionsData);
+      dispatch(fetchElectionsSuccess(electionsData));
+    } catch (error) {
+      console.error("Error fetching elections:", error);
+      dispatch(fetchElectionsFailure(error.message));
+      setError("Failed to load elections. Please try again.");
+
+      // Fallback to localStorage only
+      try {
+        const localBallots = JSON.parse(
+          localStorage.getItem("userBallots") || "[]"
+        );
+        if (localBallots.length > 0) {
+          const localElections = localBallots.map((ballot) => ({
+            id: ballot.id,
+            title: ballot.title,
+            status: determineStatus(ballot),
+            startDate: ballot.startDate || ballot.start_date,
+            endDate: ballot.endDate || ballot.end_date,
+            totalVoters: ballot.totalVoters || ballot.total_voters || 0,
+            votedCount: ballot.ballotsReceived || ballot.ballots_received || 0,
+            participation: calculateParticipation(
+              ballot.ballotsReceived || ballot.ballots_received || 0,
+              ballot.totalVoters || ballot.total_voters || 1
+            ),
+          }));
+          dispatch(fetchElectionsSuccess(localElections));
+          setError(
+            "Using locally saved elections (could not connect to server)"
+          );
+        }
+      } catch (localError) {
+        console.error("Error reading from localStorage fallback:", localError);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper function to determine status
+  const determineStatus = (ballot) => {
+    try {
+      const now = new Date();
+      const startDate = new Date(ballot.startDate || ballot.start_date);
+      const endDate = new Date(ballot.endDate || ballot.end_date);
+
+      if (ballot.status === "draft") return "Draft";
+      if (now < startDate) return "Registration";
+      if (now >= startDate && now <= endDate) return "Live";
+      if (now > endDate) return "Completed";
+
+      return "Registration"; // Default
+    } catch (e) {
+      return "Registration"; // Fallback
+    }
+  };
+
+  // Helper function to calculate participation percentage
+  const calculateParticipation = (votes, total) => {
+    if (!total) return 0;
+    return Math.round((votes / total) * 100);
+  };
 
   const handleSelectAll = (event) => {
     if (event.target.checked) {
@@ -261,170 +404,204 @@ const MyElections = () => {
           />
         </Box>
 
-        <Paper
-          elevation={0}
-          sx={{ width: "100%", overflow: "hidden", borderRadius: 2 }}
-        >
-          <TableContainer>
-            <Table sx={{ minWidth: 750 }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell padding="checkbox">
-                    <Checkbox
-                      indeterminate={
-                        selected.length > 0 &&
-                        selected.length < elections.length
-                      }
-                      checked={
-                        elections.length > 0 &&
-                        selected.length === elections.length
-                      }
-                      onChange={handleSelectAll}
-                      inputProps={{ "aria-label": "select all elections" }}
-                    />
-                  </TableCell>
-                  <TableCell>Election Title</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Date Range</TableCell>
-                  <TableCell>Voters</TableCell>
-                  <TableCell align="center">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredElections.map((election) => {
-                  const isItemSelected = isSelected(election.id);
+        {loading && (
+          <Box sx={{ display: "flex", justifyContent: "center", my: 4 }}>
+            <CircularProgress />
+          </Box>
+        )}
 
-                  return (
-                    <TableRow
-                      hover
-                      role="checkbox"
-                      aria-checked={isItemSelected}
-                      tabIndex={-1}
-                      key={election.id}
-                      selected={isItemSelected}
-                      sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
-                    >
-                      <TableCell padding="checkbox">
-                        <Checkbox
-                          checked={isItemSelected}
-                          onClick={(event) => handleSelect(event, election.id)}
-                          inputProps={{
-                            "aria-labelledby": `enhanced-table-checkbox-${election.id}`,
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell component="th" scope="row">
-                        <Typography variant="subtitle2" fontWeight={600}>
-                          {election.title}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <StatusChip
-                          label={election.status}
-                          status={election.status}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Stack spacing={0.5}>
-                          <Typography variant="body2" color="text.secondary">
-                            Start: {election.startDate}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            End: {election.endDate}
-                          </Typography>
-                        </Stack>
-                      </TableCell>
-                      <TableCell>
-                        <Box display="flex" alignItems="center">
-                          <PeopleAltIcon
-                            fontSize="small"
-                            sx={{ mr: 1, color: "text.secondary" }}
-                          />
-                          <Typography variant="body2">
-                            {election.votedCount}/{election.totalVoters} (
-                            {election.participation}%)
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Box display="flex" justifyContent="center">
-                          <Tooltip title="View Dashboard">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleViewDashboard(election.id)}
-                              sx={{ color: "#4478EB" }}
-                            >
-                              <VisibilityIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
+        {error && (
+          <Alert severity="error" sx={{ width: "100%", mb: 3 }}>
+            {error}
+          </Alert>
+        )}
 
-                          <Tooltip title="Manage Voters">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleViewVoters(election.id)}
-                              sx={{ color: "#33374D" }}
-                            >
-                              <PeopleAltIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-
-                          <IconButton
-                            size="small"
-                            aria-label="more"
-                            aria-controls="long-menu"
-                            aria-haspopup="true"
-                            onClick={(e) => handleActionMenuOpen(e, election)}
-                          >
-                            <MoreVertIcon fontSize="small" />
-                          </IconButton>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          <Menu
-            id="action-menu"
-            anchorEl={actionMenuAnchorEl}
-            keepMounted
-            open={Boolean(actionMenuAnchorEl)}
-            onClose={handleActionMenuClose}
-          >
-            <MenuItem
-              onClick={() => {
-                handleViewDetails(currentElection?.id);
-                handleActionMenuClose();
-              }}
+        {!loading && !error && elections.length === 0 && (
+          <Paper sx={{ p: 4, textAlign: "center", my: 4 }}>
+            <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
+              You haven't created any elections yet
+            </Typography>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
+              onClick={() => navigate("/ballot-builder")}
             >
-              <ListItemIcon>
-                <VisibilityIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primary="View Results" />
-            </MenuItem>
-            <MenuItem onClick={handleActionMenuClose}>
-              <ListItemIcon>
-                <EditIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primary="Edit Election" />
-            </MenuItem>
-            <MenuItem onClick={handleActionMenuClose}>
-              <ListItemIcon>
-                <ContentCopyIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primary="Duplicate" />
-            </MenuItem>
-            <MenuItem onClick={handleActionMenuClose}>
-              <ListItemIcon>
-                <DeleteIcon fontSize="small" color="error" />
-              </ListItemIcon>
-              <ListItemText primary="Delete" sx={{ color: "error.main" }} />
-            </MenuItem>
-          </Menu>
-        </Paper>
+              Create Your First Election
+            </Button>
+          </Paper>
+        )}
+
+        {!loading && !error && elections.length > 0 && (
+          <Paper
+            elevation={0}
+            sx={{ width: "100%", overflow: "hidden", borderRadius: 2 }}
+          >
+            <TableContainer>
+              <Table sx={{ minWidth: 750 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        indeterminate={
+                          selected.length > 0 &&
+                          selected.length < elections.length
+                        }
+                        checked={
+                          elections.length > 0 &&
+                          selected.length === elections.length
+                        }
+                        onChange={handleSelectAll}
+                        inputProps={{ "aria-label": "select all elections" }}
+                      />
+                    </TableCell>
+                    <TableCell>Election Title</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Date Range</TableCell>
+                    <TableCell>Voters</TableCell>
+                    <TableCell align="center">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredElections.map((election) => {
+                    const isItemSelected = isSelected(election.id);
+
+                    return (
+                      <TableRow
+                        hover
+                        role="checkbox"
+                        aria-checked={isItemSelected}
+                        tabIndex={-1}
+                        key={election.id}
+                        selected={isItemSelected}
+                        sx={{
+                          "&:last-child td, &:last-child th": { border: 0 },
+                        }}
+                      >
+                        <TableCell padding="checkbox">
+                          <Checkbox
+                            checked={isItemSelected}
+                            onClick={(event) =>
+                              handleSelect(event, election.id)
+                            }
+                            inputProps={{
+                              "aria-labelledby": `enhanced-table-checkbox-${election.id}`,
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell component="th" scope="row">
+                          <Typography variant="subtitle2" fontWeight={600}>
+                            {election.title}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <StatusChip
+                            label={election.status}
+                            status={election.status}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Stack spacing={0.5}>
+                            <Typography variant="body2" color="text.secondary">
+                              Start: {election.startDate}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              End: {election.endDate}
+                            </Typography>
+                          </Stack>
+                        </TableCell>
+                        <TableCell>
+                          <Box display="flex" alignItems="center">
+                            <PeopleAltIcon
+                              fontSize="small"
+                              sx={{ mr: 1, color: "text.secondary" }}
+                            />
+                            <Typography variant="body2">
+                              {election.votedCount}/{election.totalVoters} (
+                              {election.participation}%)
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell align="center">
+                          <Box display="flex" justifyContent="center">
+                            <Tooltip title="View Dashboard">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleViewDashboard(election.id)}
+                                sx={{ color: "#4478EB" }}
+                              >
+                                <VisibilityIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+
+                            <Tooltip title="Manage Voters">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleViewVoters(election.id)}
+                                sx={{ color: "#33374D" }}
+                              >
+                                <PeopleAltIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+
+                            <IconButton
+                              size="small"
+                              aria-label="more"
+                              aria-controls="long-menu"
+                              aria-haspopup="true"
+                              onClick={(e) => handleActionMenuOpen(e, election)}
+                            >
+                              <MoreVertIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            <Menu
+              id="action-menu"
+              anchorEl={actionMenuAnchorEl}
+              keepMounted
+              open={Boolean(actionMenuAnchorEl)}
+              onClose={handleActionMenuClose}
+            >
+              <MenuItem
+                onClick={() => {
+                  handleViewDetails(currentElection?.id);
+                  handleActionMenuClose();
+                }}
+              >
+                <ListItemIcon>
+                  <VisibilityIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary="View Results" />
+              </MenuItem>
+              <MenuItem onClick={handleActionMenuClose}>
+                <ListItemIcon>
+                  <EditIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary="Edit Election" />
+              </MenuItem>
+              <MenuItem onClick={handleActionMenuClose}>
+                <ListItemIcon>
+                  <ContentCopyIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary="Duplicate" />
+              </MenuItem>
+              <MenuItem onClick={handleActionMenuClose}>
+                <ListItemIcon>
+                  <DeleteIcon fontSize="small" color="error" />
+                </ListItemIcon>
+                <ListItemText primary="Delete" sx={{ color: "error.main" }} />
+              </MenuItem>
+            </Menu>
+          </Paper>
+        )}
       </Box>
     </MainLayout>
   );

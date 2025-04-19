@@ -10,20 +10,26 @@ import {
   Link,
   InputAdornment,
   IconButton,
+  Alert,
 } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
-import { authService } from "../../services/api";
+import { authService, ballotService } from "../../services/api";
 
 const VoterRegistration = () => {
   const { id, slug } = useParams();
   const navigate = useNavigate();
 
   // Form states
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const handleNameChange = (e) => {
+    setName(e.target.value);
+  };
 
   const handleEmailChange = (e) => {
     setEmail(e.target.value);
@@ -40,7 +46,7 @@ const VoterRegistration = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!email || !password) {
+    if (!name || !email || !password) {
       setError("Please fill in all fields");
       return;
     }
@@ -49,39 +55,54 @@ const VoterRegistration = () => {
     setError("");
 
     try {
-      // Register the voter
-      const response = await authService.register({
+      // Register using the voter-specific registration function
+      const response = await authService.voterRegister({
+        name,
         email,
         password,
-        role: "voter",
       });
 
-      console.log("Registration successful:", response);
+      console.log("Voter registration successful:", response);
 
-      // Save authentication state if needed
-      if (response.data && response.data.token) {
-        localStorage.setItem("token", response.data.token);
-        if (response.data.user) {
-          localStorage.setItem("user", JSON.stringify(response.data.user));
-        }
+      // Save authentication state handling is now done inside the voterRegister function
+
+      // Now that the user is registered and token is set, register them as a voter for this ballot
+      try {
+        console.log("Registering user as voter for ballot:", id);
+        const voterResponse = await ballotService.registerVoter(id);
+        console.log("Voter registration response:", voterResponse);
+      } catch (voterError) {
+        console.error("Error registering as voter for ballot:", voterError);
+        // Continue even if voter registration fails - we'll try again later
       }
 
       // After successful registration, redirect to pre-registration flow
-      // which will show the VerifyIdentity screen
       navigate(`/preregister/${id}/${slug}`);
     } catch (err) {
       console.error("Registration error:", err);
-      setError(
-        err.response?.data?.message || "Registration failed. Please try again."
-      );
+
+      // Show detailed error information
+      if (err.response && err.response.data) {
+        console.error("Error details:", err.response.data);
+        if (err.response.data.errors) {
+          const errorMsg = err.response.data.errors
+            .map((e) => `${e.path}: ${e.msg}`)
+            .join(", ");
+          setError(errorMsg);
+        } else {
+          setError(err.response.data.message || "Registration failed");
+        }
+      } else {
+        setError("Registration failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleLoginClick = () => {
-    // Redirect to login page, preserving the ballot information
-    navigate(`/login?redirect=/preregister/${id}/${slug}`);
+    // Redirect to voter login page, preserving the ballot information
+    navigate(`/voter/login?redirect=/preregister/${id}/${slug}`);
   };
 
   return (
@@ -114,21 +135,40 @@ const VoterRegistration = () => {
               mb: 3,
             }}
             onError={(e) => {
-              e.target.src = "https://via.placeholder.com/60?text=SB";
+              e.target.src =
+                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Crect width='60' height='60' fill='%234b5563'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='18' fill='%23ffffff'%3ESB%3C/text%3E%3C/svg%3E";
               e.target.onerror = null;
             }}
           />
 
           <Typography variant="h5" component="h1" gutterBottom>
-            Get Started
+            Voter Registration
           </Typography>
 
           <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-            Welcome to SafeBallot - Let's create your account
+            Register to vote in this election
           </Typography>
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
 
           <form onSubmit={handleSubmit}>
             <Box sx={{ mb: 3 }}>
+              <Typography variant="body2" align="left" sx={{ mb: 1 }}>
+                Full Name
+              </Typography>
+              <TextField
+                fullWidth
+                placeholder="John Doe"
+                variant="outlined"
+                value={name}
+                onChange={handleNameChange}
+                sx={{ mb: 3 }}
+              />
+
               <Typography variant="body2" align="left" sx={{ mb: 1 }}>
                 Email
               </Typography>
@@ -163,12 +203,6 @@ const VoterRegistration = () => {
                 }}
               />
             </Box>
-
-            {error && (
-              <Typography variant="body2" color="error" sx={{ mb: 2 }}>
-                {error}
-              </Typography>
-            )}
 
             <Button
               type="submit"

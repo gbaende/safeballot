@@ -10,37 +10,33 @@ import {
   Link,
   InputAdornment,
   IconButton,
+  Alert,
 } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
-import { authService } from "../../services/api";
 
 const VoterRegistration = () => {
   const { id, slug } = useParams();
   const navigate = useNavigate();
 
   // Form states
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleEmailChange = (e) => {
-    setEmail(e.target.value);
-  };
-
-  const handlePasswordChange = (e) => {
-    setPassword(e.target.value);
-  };
-
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
+  // Simple handlers
+  const handleNameChange = (e) => setName(e.target.value);
+  const handleEmailChange = (e) => setEmail(e.target.value);
+  const handlePasswordChange = (e) => setPassword(e.target.value);
+  const togglePasswordVisibility = () => setShowPassword(!showPassword);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!email || !password) {
+    // Validate form fields
+    if (!name || !email || !password) {
       setError("Please fill in all fields");
       return;
     }
@@ -49,38 +45,107 @@ const VoterRegistration = () => {
     setError("");
 
     try {
-      // Register the voter
-      const response = await authService.register({
-        email,
-        password,
+      // ---------- STEP 1: Register user ----------
+      // Using the exact same approach that worked in the test page
+      const registerUrl = "http://localhost:8080/api/auth/register";
+      const registerData = {
+        name: name.trim(),
+        email: email.trim(),
+        password: password,
         role: "voter",
+      };
+
+      console.log("Registering with data:", registerData);
+
+      const registerResponse = await fetch(registerUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(registerData),
       });
 
-      console.log("Registration successful:", response);
+      const responseText = await registerResponse.text();
+      let responseData;
 
-      // Save authentication state if needed
-      if (response.data && response.data.token) {
-        localStorage.setItem("token", response.data.token);
-        if (response.data.user) {
-          localStorage.setItem("user", JSON.stringify(response.data.user));
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.error("Failed to parse response:", e);
+        setError("Server returned an invalid response");
+        setLoading(false);
+        return;
+      }
+
+      if (!registerResponse.ok) {
+        console.error(
+          "Registration failed:",
+          registerResponse.status,
+          responseData
+        );
+
+        if (responseData.errors && responseData.errors.length > 0) {
+          const errorMsg = responseData.errors
+            .map((err) => `${err.path}: ${err.msg}`)
+            .join(", ");
+          setError(errorMsg);
+        } else {
+          setError(responseData.message || "Registration failed");
+        }
+
+        setLoading(false);
+        return;
+      }
+
+      console.log("Registration successful:", responseData);
+
+      // Save auth data
+      if (responseData.data && responseData.data.token) {
+        localStorage.setItem("token", responseData.data.token);
+        if (responseData.data.user) {
+          localStorage.setItem("user", JSON.stringify(responseData.data.user));
         }
       }
 
-      // After successful registration, redirect to pre-registration flow
-      // which will show the VerifyIdentity screen
+      // ---------- STEP 2: Add voter to ballot ----------
+      try {
+        console.log("Adding voter to ballot:", id);
+
+        const addVoterUrl = `http://localhost:8080/api/ballots/${id}/voters`;
+        const addVoterResponse = await fetch(addVoterUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${responseData.data.token}`,
+          },
+          body: JSON.stringify({
+            emails: [email.trim()],
+          }),
+        });
+
+        const ballotData = await addVoterResponse.json();
+
+        if (!addVoterResponse.ok) {
+          console.error("Failed to add voter to ballot:", ballotData);
+        } else {
+          console.log("Successfully added voter to ballot:", ballotData);
+        }
+      } catch (ballotError) {
+        // Non-fatal error - continue even if this fails
+        console.error("Error adding voter to ballot:", ballotError);
+      }
+
+      // ---------- STEP 3: Navigate to pre-registration flow ----------
       navigate(`/preregister/${id}/${slug}`);
-    } catch (err) {
-      console.error("Registration error:", err);
-      setError(
-        err.response?.data?.message || "Registration failed. Please try again."
-      );
+    } catch (error) {
+      console.error("Registration failed:", error);
+      setError("Network error: " + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   const handleLoginClick = () => {
-    // Redirect to login page, preserving the ballot information
     navigate(`/login?redirect=/preregister/${id}/${slug}`);
   };
 
@@ -103,7 +168,7 @@ const VoterRegistration = () => {
             textAlign: "center",
           }}
         >
-          {/* SafeBallot Logo */}
+          {/* Logo */}
           <Box
             component="img"
             src="/logo-shield.png"
@@ -114,7 +179,8 @@ const VoterRegistration = () => {
               mb: 3,
             }}
             onError={(e) => {
-              e.target.src = "https://via.placeholder.com/60?text=SB";
+              e.target.src =
+                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Crect width='60' height='60' fill='%234b5563'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='18' fill='%23ffffff'%3ESB%3C/text%3E%3C/svg%3E";
               e.target.onerror = null;
             }}
           />
@@ -127,8 +193,26 @@ const VoterRegistration = () => {
             Welcome to SafeBallot - Let's create your account
           </Typography>
 
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+
           <form onSubmit={handleSubmit}>
             <Box sx={{ mb: 3 }}>
+              <Typography variant="body2" align="left" sx={{ mb: 1 }}>
+                Full Name
+              </Typography>
+              <TextField
+                fullWidth
+                placeholder="John Doe"
+                variant="outlined"
+                value={name}
+                onChange={handleNameChange}
+                sx={{ mb: 3 }}
+              />
+
               <Typography variant="body2" align="left" sx={{ mb: 1 }}>
                 Email
               </Typography>
@@ -163,12 +247,6 @@ const VoterRegistration = () => {
                 }}
               />
             </Box>
-
-            {error && (
-              <Typography variant="body2" color="error" sx={{ mb: 2 }}>
-                {error}
-              </Typography>
-            )}
 
             <Button
               type="submit"

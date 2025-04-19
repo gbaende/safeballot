@@ -1,0 +1,70 @@
+
+> express-backend@1.0.0 dev:setup
+> node setup-db.js && nodemon server.js
+
+Connected to postgres database to check if app database exists
+Database safeballot already exists, dropping it to recreate...
+Database safeballot dropped successfully
+Database safeballot recreated successfully
+Database setup completed
+[33m[nodemon] 3.1.9[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: js,mjs,cjs,json[39m
+[32m[nodemon] starting `node server.js`[39m
+Connected to postgres database to check if app database exists
+Database safeballot already exists, dropping it to recreate...
+Database safeballot dropped successfully
+Database safeballot recreated successfully
+Database setup completed
+Executing (default): SELECT 1+1 AS result
+Successfully connected to the database
+Executing (default): SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users'
+Executing (default): SELECT t.typname enum_name, array_agg(e.enumlabel ORDER BY enumsortorder) enum_value FROM pg_type t JOIN pg_enum e ON t.oid = e.enumtypid JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typname='enum_users_role' GROUP BY 1
+Executing (default): DO 'BEGIN CREATE TYPE "public"."enum_users_role" AS ENUM(''admin'', ''user''); EXCEPTION WHEN duplicate_object THEN null; END';
+Executing (default): WITH ranges AS (  SELECT pg_range.rngtypid, pg_type.typname AS rngtypname,         pg_type.typarray AS rngtyparray, pg_range.rngsubtype    FROM pg_range LEFT OUTER JOIN pg_type ON pg_type.oid = pg_range.rngtypid)SELECT pg_type.typname, pg_type.typtype, pg_type.oid, pg_type.typarray,       ranges.rngtypname, ranges.rngtypid, ranges.rngtyparray  FROM pg_type LEFT OUTER JOIN ranges ON pg_type.oid = ranges.rngsubtype WHERE (pg_type.typtype IN('b', 'e'));
+Executing (default): CREATE TABLE IF NOT EXISTS "users" ("id" UUID , "name" VARCHAR(255) NOT NULL, "email" VARCHAR(255) NOT NULL UNIQUE, "password" VARCHAR(255) NOT NULL, "role" "public"."enum_users_role" DEFAULT 'user', "isVerified" BOOLEAN DEFAULT false, "profilePicture" VARCHAR(255), "refreshToken" VARCHAR(255), "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL, "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL, PRIMARY KEY ("id"));
+Executing (default): SELECT i.relname AS name, ix.indisprimary AS primary, ix.indisunique AS unique, ix.indkey AS indkey, array_agg(a.attnum) as column_indexes, array_agg(a.attname) AS column_names, pg_get_indexdef(ix.indexrelid) AS definition FROM pg_class t, pg_class i, pg_index ix, pg_attribute a WHERE t.oid = ix.indrelid AND i.oid = ix.indexrelid AND a.attrelid = t.oid AND t.relkind = 'r' and t.relname = 'users' GROUP BY i.relname, ix.indexrelid, ix.indisprimary, ix.indisunique, ix.indkey ORDER BY i.relname;
+Executing (default): SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ballots'
+Executing (default): SELECT t.typname enum_name, array_agg(e.enumlabel ORDER BY enumsortorder) enum_value FROM pg_type t JOIN pg_enum e ON t.oid = e.enumtypid JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typname='enum_ballots_status' GROUP BY 1
+Executing (default): SELECT t.typname enum_name, array_agg(e.enumlabel ORDER BY enumsortorder) enum_value FROM pg_type t JOIN pg_enum e ON t.oid = e.enumtypid JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typname='enum_ballots_verificationMethod' GROUP BY 1
+Executing (default): DO 'BEGIN CREATE TYPE "public"."enum_ballots_status" AS ENUM(''draft'', ''scheduled'', ''active'', ''completed''); EXCEPTION WHEN duplicate_object THEN null; END';
+Executing (default): DO 'BEGIN CREATE TYPE "public"."enum_ballots_verificationMethod" AS ENUM(''email'', ''sms'', ''id_document'', ''digital_key''); EXCEPTION WHEN duplicate_object THEN null; END';
+Executing (default): WITH ranges AS (  SELECT pg_range.rngtypid, pg_type.typname AS rngtypname,         pg_type.typarray AS rngtyparray, pg_range.rngsubtype    FROM pg_range LEFT OUTER JOIN pg_type ON pg_type.oid = pg_range.rngtypid)SELECT pg_type.typname, pg_type.typtype, pg_type.oid, pg_type.typarray,       ranges.rngtypname, ranges.rngtypid, ranges.rngtyparray  FROM pg_type LEFT OUTER JOIN ranges ON pg_type.oid = ranges.rngsubtype WHERE (pg_type.typtype IN('b', 'e'));
+Executing (default): CREATE TABLE IF NOT EXISTS "ballots" ("id" UUID , "title" VARCHAR(255) NOT NULL, "description" TEXT, "status" "public"."enum_ballots_status" DEFAULT 'draft', "startDate" TIMESTAMP WITH TIME ZONE, "endDate" TIMESTAMP WITH TIME ZONE, "isPublic" BOOLEAN DEFAULT false, "requiresVerification" BOOLEAN DEFAULT true, "verificationMethod" "public"."enum_ballots_verificationMethod" DEFAULT 'email', "createdBy" UUID REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE CASCADE, "totalVoters" INTEGER DEFAULT 0, "ballotsReceived" INTEGER DEFAULT 0, "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL, "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL, PRIMARY KEY ("id"));
+Executing (default): SELECT i.relname AS name, ix.indisprimary AS primary, ix.indisunique AS unique, ix.indkey AS indkey, array_agg(a.attnum) as column_indexes, array_agg(a.attname) AS column_names, pg_get_indexdef(ix.indexrelid) AS definition FROM pg_class t, pg_class i, pg_index ix, pg_attribute a WHERE t.oid = ix.indrelid AND i.oid = ix.indexrelid AND a.attrelid = t.oid AND t.relkind = 'r' and t.relname = 'ballots' GROUP BY i.relname, ix.indexrelid, ix.indisprimary, ix.indisunique, ix.indkey ORDER BY i.relname;
+Executing (default): SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'questions'
+Executing (default): SELECT t.typname enum_name, array_agg(e.enumlabel ORDER BY enumsortorder) enum_value FROM pg_type t JOIN pg_enum e ON t.oid = e.enumtypid JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typname='enum_questions_questionType' GROUP BY 1
+Executing (default): DO 'BEGIN CREATE TYPE "public"."enum_questions_questionType" AS ENUM(''single_choice'', ''multiple_choice'', ''rank_choice''); EXCEPTION WHEN duplicate_object THEN null; END';
+Executing (default): WITH ranges AS (  SELECT pg_range.rngtypid, pg_type.typname AS rngtypname,         pg_type.typarray AS rngtyparray, pg_range.rngsubtype    FROM pg_range LEFT OUTER JOIN pg_type ON pg_type.oid = pg_range.rngtypid)SELECT pg_type.typname, pg_type.typtype, pg_type.oid, pg_type.typarray,       ranges.rngtypname, ranges.rngtypid, ranges.rngtyparray  FROM pg_type LEFT OUTER JOIN ranges ON pg_type.oid = ranges.rngsubtype WHERE (pg_type.typtype IN('b', 'e'));
+Executing (default): CREATE TABLE IF NOT EXISTS "questions" ("id" UUID , "title" VARCHAR(255) NOT NULL, "description" TEXT, "questionType" "public"."enum_questions_questionType" DEFAULT 'single_choice', "maxSelections" INTEGER DEFAULT 1, "order" INTEGER DEFAULT 0, "ballotId" UUID REFERENCES "ballots" ("id") ON DELETE CASCADE ON UPDATE CASCADE, "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL, "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL, PRIMARY KEY ("id"));
+Executing (default): SELECT i.relname AS name, ix.indisprimary AS primary, ix.indisunique AS unique, ix.indkey AS indkey, array_agg(a.attnum) as column_indexes, array_agg(a.attname) AS column_names, pg_get_indexdef(ix.indexrelid) AS definition FROM pg_class t, pg_class i, pg_index ix, pg_attribute a WHERE t.oid = ix.indrelid AND i.oid = ix.indexrelid AND a.attrelid = t.oid AND t.relkind = 'r' and t.relname = 'questions' GROUP BY i.relname, ix.indexrelid, ix.indisprimary, ix.indisunique, ix.indkey ORDER BY i.relname;
+Executing (default): SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'choices'
+Executing (default): CREATE TABLE IF NOT EXISTS "choices" ("id" UUID , "text" VARCHAR(255) NOT NULL, "description" TEXT, "image" VARCHAR(255), "order" INTEGER DEFAULT 0, "questionId" UUID REFERENCES "questions" ("id") ON DELETE CASCADE ON UPDATE CASCADE, "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL, "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL, PRIMARY KEY ("id"));
+Executing (default): SELECT i.relname AS name, ix.indisprimary AS primary, ix.indisunique AS unique, ix.indkey AS indkey, array_agg(a.attnum) as column_indexes, array_agg(a.attname) AS column_names, pg_get_indexdef(ix.indexrelid) AS definition FROM pg_class t, pg_class i, pg_index ix, pg_attribute a WHERE t.oid = ix.indrelid AND i.oid = ix.indexrelid AND a.attrelid = t.oid AND t.relkind = 'r' and t.relname = 'choices' GROUP BY i.relname, ix.indexrelid, ix.indisprimary, ix.indisunique, ix.indkey ORDER BY i.relname;
+Executing (default): SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'voters'
+Executing (default): CREATE TABLE IF NOT EXISTS "voters" ("id" UUID , "email" VARCHAR(255) NOT NULL, "name" VARCHAR(255), "voterId" VARCHAR(255), "hasVoted" BOOLEAN DEFAULT false, "verificationCode" VARCHAR(255), "isVerified" BOOLEAN DEFAULT false, "ballotId" UUID REFERENCES "ballots" ("id") ON DELETE CASCADE ON UPDATE CASCADE, "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL, "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL, PRIMARY KEY ("id"));
+Executing (default): SELECT i.relname AS name, ix.indisprimary AS primary, ix.indisunique AS unique, ix.indkey AS indkey, array_agg(a.attnum) as column_indexes, array_agg(a.attname) AS column_names, pg_get_indexdef(ix.indexrelid) AS definition FROM pg_class t, pg_class i, pg_index ix, pg_attribute a WHERE t.oid = ix.indrelid AND i.oid = ix.indexrelid AND a.attrelid = t.oid AND t.relkind = 'r' and t.relname = 'voters' GROUP BY i.relname, ix.indexrelid, ix.indisprimary, ix.indisunique, ix.indkey ORDER BY i.relname;
+Executing (default): SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'votes'
+Executing (default): CREATE TABLE IF NOT EXISTS "votes" ("id" UUID , "voterId" UUID REFERENCES "voters" ("id") ON DELETE CASCADE ON UPDATE CASCADE, "ballotId" UUID REFERENCES "ballots" ("id") ON DELETE NO ACTION ON UPDATE CASCADE, "questionId" UUID REFERENCES "questions" ("id") ON DELETE NO ACTION ON UPDATE CASCADE, "choiceId" UUID REFERENCES "choices" ("id") ON DELETE CASCADE ON UPDATE CASCADE, "rank" INTEGER, "voteTimestamp" TIMESTAMP WITH TIME ZONE, "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL, "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL, PRIMARY KEY ("id"));
+Executing (default): SELECT i.relname AS name, ix.indisprimary AS primary, ix.indisunique AS unique, ix.indkey AS indkey, array_agg(a.attnum) as column_indexes, array_agg(a.attname) AS column_names, pg_get_indexdef(ix.indexrelid) AS definition FROM pg_class t, pg_class i, pg_index ix, pg_attribute a WHERE t.oid = ix.indrelid AND i.oid = ix.indexrelid AND a.attrelid = t.oid AND t.relkind = 'r' and t.relname = 'votes' GROUP BY i.relname, ix.indexrelid, ix.indisprimary, ix.indisunique, ix.indkey ORDER BY i.relname;
+Database migrations completed
+SafeBallot API server running at http://localhost:8080
+[32m[nodemon] clean exit - waiting for changes before restart[39m
+node:events:496
+     node:events:496
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: read EIO
+    at TTY.onStreamRead (node:internal/stream_base_commons:217:20)
+Emitted 'error' event on ReadStream instance at:
+    at emitErrorNT (node:internal/streams/destroy:169:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:128:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:82:21) {
+  errno: -5,
+  code: 'EIO',
+  syscall: 'read'
+}
+
+Node.js v20.11.0

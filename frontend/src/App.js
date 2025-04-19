@@ -11,6 +11,10 @@ import { useSelector, useDispatch } from "react-redux";
 import { loginSuccess } from "./store/authSlice";
 import MainLayout from "./components/layouts/MainLayout";
 
+// Date picker components
+import { LocalizationProvider } from "@mui/x-date-pickers";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+
 // Auth pages
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
@@ -78,46 +82,51 @@ function App() {
   }, [dispatch]);
 
   return (
-    <Router>
-      <Routes>
-        {/* Authentication Routes */}
-        <Route
-          path="/login"
-          element={!isAuthenticated ? <Login /> : <Navigate to="/" />}
-        />
-        <Route
-          path="/register"
-          element={!isAuthenticated ? <Register /> : <Navigate to="/" />}
-        />
+    <LocalizationProvider dateAdapter={AdapterDateFns}>
+      <Router>
+        <Routes>
+          {/* Authentication Routes */}
+          <Route
+            path="/login"
+            element={!isAuthenticated ? <Login /> : <Navigate to="/" />}
+          />
+          <Route
+            path="/register"
+            element={!isAuthenticated ? <Register /> : <Navigate to="/" />}
+          />
 
-        {/* Voter Flow Routes */}
-        <Route path="/vote/:id/:slug" element={<VotingPage />} />
-        <Route path="/register/:id/:slug" element={<VotingPage />} />
-        <Route
-          path="/voter-registration/:id/:slug"
-          element={<VoterRegistration />}
-        />
-        <Route path="/preregister/:id/:slug" element={<PreRegistration />} />
-        <Route
-          path="/verify-identity/:id/:slug"
-          element={<PreRegistration startAtStep={1} />}
-        />
-        <Route path="/scan-id/:id/:slug" element={<ScanIDWrapper />} />
+          {/* Voter Flow Routes */}
+          <Route path="/vote/:id/:slug" element={<VotingPage />} />
+          <Route path="/register/:id/:slug" element={<VotingPage />} />
+          <Route
+            path="/voter-registration/:id/:slug"
+            element={<VoterRegistration />}
+          />
+          <Route path="/preregister/:id/:slug" element={<PreRegistration />} />
+          <Route
+            path="/verify-identity/:id/:slug"
+            element={<PreRegistration startAtStep={1} />}
+          />
+          <Route path="/scan-id/:id/:slug" element={<ScanIDWrapper />} />
 
-        {/* Admin (Election Host) Routes - Protected by Authentication */}
-        <Route
-          path="/"
-          element={isAuthenticated ? <MainLayout /> : <Navigate to="/login" />}
-        >
-          <Route index element={<Dashboard />} />
-          <Route path="my-elections" element={<MyElections />} />
-          <Route path="elections/:id" element={<ElectionDashboard />} />
-          <Route path="elections/:id/details" element={<ElectionDetails />} />
-          <Route path="elections/:id/voters" element={<ManageVoters />} />
-          <Route path="create-election" element={<BallotBuilder />} />
-        </Route>
-      </Routes>
-    </Router>
+          {/* Admin (Election Host) Routes - Protected by Authentication */}
+          <Route
+            path="/"
+            element={
+              isAuthenticated ? <MainLayout /> : <Navigate to="/login" />
+            }
+          >
+            <Route index element={<Dashboard />} />
+            <Route path="my-elections" element={<MyElections />} />
+            <Route path="elections/:id" element={<ElectionDashboard />} />
+            <Route path="elections/:id/details" element={<ElectionDetails />} />
+            <Route path="elections/:id/voters" element={<ManageVoters />} />
+            <Route path="create-election" element={<BallotBuilder />} />
+            <Route path="ballot-builder" element={<BallotBuilder />} />
+          </Route>
+        </Routes>
+      </Router>
+    </LocalizationProvider>
   );
 }
 

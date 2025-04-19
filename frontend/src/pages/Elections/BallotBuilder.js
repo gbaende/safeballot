@@ -47,8 +47,9 @@ import {
   LocalizationProvider,
   DatePicker,
   TimePicker,
+  DateTimePicker,
 } from "@mui/x-date-pickers";
-import { format } from "date-fns";
+import { format, parse, isValid } from "date-fns";
 import { ballotService, electionService } from "../../services/api";
 import axios from "axios";
 
@@ -73,9 +74,11 @@ const BallotBuilder = () => {
   ]);
   const [currentQuestionId, setCurrentQuestionId] = useState(1);
   const [allowWriteIn, setAllowWriteIn] = useState(false);
-  const [startDate, setStartDate] = useState("November 5, 2024");
+  const [startDate, setStartDate] = useState(new Date());
   const [startTime, setStartTime] = useState("12:30 AM");
-  const [endDate, setEndDate] = useState("November 12, 2024");
+  const [endDate, setEndDate] = useState(
+    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  ); // Default: 1 week from now
   const [endTime, setEndTime] = useState("12:30 AM");
   const [voterCount, setVoterCount] = useState(10);
   const pricePerVoter = 0.1;
@@ -93,11 +96,17 @@ const BallotBuilder = () => {
   const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
   const [endTimePickerOpen, setEndTimePickerOpen] = useState(false);
 
-  // Add state for temporary date/time values
-  const [tempStartDate, setTempStartDate] = useState(startDate);
-  const [tempStartTime, setTempStartTime] = useState(startTime);
-  const [tempEndDate, setTempEndDate] = useState(endDate);
-  const [tempEndTime, setTempEndTime] = useState(endTime);
+  // Add state for temporary date/time values - initialize with current values
+  const [startDateStr, setStartDateStr] = useState(
+    format(new Date(), "MMMM d, yyyy")
+  );
+  const [startTimeStr, setStartTimeStr] = useState(
+    format(new Date(), "h:mm a")
+  );
+  const [endDateStr, setEndDateStr] = useState(
+    format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "MMMM d, yyyy")
+  );
+  const [endTimeStr, setEndTimeStr] = useState(format(new Date(), "h:mm a"));
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
@@ -221,64 +230,141 @@ const BallotBuilder = () => {
   };
 
   const handleCloseStartDatePicker = (save = false) => {
-    if (save && tempStartDate) {
-      setStartDate(tempStartDate);
-    }
     setStartDatePickerOpen(false);
   };
 
   const handleOpenStartTimePicker = () => {
-    setTempStartTime(startTime);
     setStartTimePickerOpen(true);
   };
 
   const handleCloseStartTimePicker = (save = false) => {
-    if (save) {
-      setStartTime(tempStartTime);
-    }
     setStartTimePickerOpen(false);
   };
 
   const handleOpenEndDatePicker = () => {
-    setTempEndDate(endDate);
     setEndDatePickerOpen(true);
   };
 
   const handleCloseEndDatePicker = (save = false) => {
-    if (save) {
-      setEndDate(tempEndDate);
-    }
     setEndDatePickerOpen(false);
   };
 
   const handleOpenEndTimePicker = () => {
-    setTempEndTime(endTime);
     setEndTimePickerOpen(true);
   };
 
   const handleCloseEndTimePicker = (save = false) => {
-    if (save) {
-      setEndTime(tempEndTime);
-    }
     setEndTimePickerOpen(false);
   };
 
-  // Update the submitBallot function to generate a voter-registration shareable link for the new ballot
+  // Helper functions to work with dates
+  const combineDateAndTime = (dateStr, timeStr) => {
+    try {
+      console.log("Combining date:", dateStr, "and time:", timeStr);
+
+      // Parse the date string
+      const datePart = parse(dateStr, "MMMM d, yyyy", new Date());
+      console.log("Parsed date part:", datePart);
+
+      // Extract hours and minutes from time string
+      const timeMatch = timeStr.match(/(\d+):(\d+)\s+(AM|PM)/i);
+      if (!timeMatch) {
+        console.error("Invalid time format:", timeStr);
+        return new Date();
+      }
+
+      let hours = parseInt(timeMatch[1], 10);
+      const minutes = parseInt(timeMatch[2], 10);
+      const isPM = timeMatch[3].toUpperCase() === "PM";
+      console.log("Extracted time parts:", { hours, minutes, isPM });
+
+      // Convert to 24-hour format
+      if (isPM && hours < 12) hours += 12;
+      if (!isPM && hours === 12) hours = 0;
+
+      // Create a new date with the parsed time
+      const result = new Date(datePart);
+      result.setHours(hours, minutes, 0, 0);
+      console.log("Final combined date:", result);
+
+      return result;
+    } catch (error) {
+      console.error("Error parsing date and time:", error);
+      return new Date();
+    }
+  };
+
+  // Update handlers for date pickers to store both string and Date formats
+  const handleStartDateChange = (newDate) => {
+    console.log("Start date changed:", newDate);
+    if (newDate && isValid(newDate)) {
+      const formattedDate = format(newDate, "MMMM d, yyyy");
+      console.log("Formatted start date:", formattedDate);
+      setStartDate(newDate);
+      setStartDateStr(formattedDate);
+    }
+  };
+
+  const handleStartTimeChange = (newTime) => {
+    console.log("Start time changed:", newTime);
+    if (newTime && isValid(newTime)) {
+      const formattedTime = format(newTime, "h:mm a");
+      console.log("Formatted start time:", formattedTime);
+      setStartTimeStr(formattedTime);
+    }
+  };
+
+  const handleEndDateChange = (newDate) => {
+    console.log("End date changed:", newDate);
+    if (newDate && isValid(newDate)) {
+      const formattedDate = format(newDate, "MMMM d, yyyy");
+      console.log("Formatted end date:", formattedDate);
+      setEndDate(newDate);
+      setEndDateStr(formattedDate);
+    }
+  };
+
+  const handleEndTimeChange = (newTime) => {
+    console.log("End time changed:", newTime);
+    if (newTime && isValid(newTime)) {
+      const formattedTime = format(newTime, "h:mm a");
+      console.log("Formatted end time:", formattedTime);
+      setEndTimeStr(formattedTime);
+    }
+  };
+
+  // Update the submitBallot function to use the new date handling
   const submitBallot = async () => {
     setIsSubmitting(true);
     setSubmitError(null);
 
     try {
-      // Get the token for debugging
-      const token = localStorage.getItem("token");
+      // Get the admin token for authentication
+      const token = localStorage.getItem("adminToken");
       console.log(
-        "Token for debugging:",
+        "Admin token for debugging:",
         token ? `${token.substring(0, 30)}...` : "missing"
       );
 
-      // Parse dates and times
-      const startDateTime = new Date(`${startDate} ${startTime}`);
-      const endDateTime = new Date(`${endDate} ${endTime}`);
+      // Parse dates and times using the helper function
+      const startDateTime = combineDateAndTime(startDateStr, startTimeStr);
+      const endDateTime = combineDateAndTime(endDateStr, endTimeStr);
+
+      // Validate date/time values
+      if (!isValid(startDateTime) || !isValid(endDateTime)) {
+        setSubmitError(
+          "Invalid start or end date/time. Please check your selections."
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Check that end date is after start date
+      if (endDateTime <= startDateTime) {
+        setSubmitError("End date/time must be after start date/time.");
+        setIsSubmitting(false);
+        return;
+      }
 
       // Format questions for API - filter out empty options
       const formattedQuestions = questions
@@ -301,12 +387,13 @@ const BallotBuilder = () => {
       const ballotData = {
         title: electionTitle || "Untitled Ballot",
         description: "Created from SafeBallot app",
-        start_date: startDateTime.toISOString(),
-        end_date: endDateTime.toISOString(),
+        startDate: startDateTime.toISOString(),
+        endDate: endDateTime.toISOString(),
         questions: formattedQuestions,
+        totalVoters: voterCount,
         total_voters: voterCount,
-        price_per_voter: pricePerVoter,
-        total_price: totalPrice,
+        ballotsReceived: 0,
+        ballots_received: 0,
       };
 
       console.log(
@@ -448,10 +535,13 @@ const BallotBuilder = () => {
   // Add a test function to check authentication status
   const testAuthentication = async () => {
     console.log("--- Authentication Test ---");
-    const token = localStorage.getItem("token");
-    console.log("Token in localStorage:", token ? "Present" : "Missing");
+    const token = localStorage.getItem("adminToken");
+    console.log("Admin token in localStorage:", token ? "Present" : "Missing");
     if (token) {
-      console.log("Token first 20 chars:", token.substring(0, 20) + "...");
+      console.log(
+        "Admin token first 20 chars:",
+        token.substring(0, 20) + "..."
+      );
     }
 
     // Test with a simple API call
@@ -480,15 +570,18 @@ const BallotBuilder = () => {
     console.log("--- DIRECT TOKEN DEBUGGING ---");
 
     // Get token directly from localStorage
-    const token = localStorage.getItem("token");
-    console.log("Raw token from localStorage:", token);
+    const token = localStorage.getItem("adminToken");
+    console.log("Raw admin token from localStorage:", token);
 
     // Analyze token structure if it exists
     if (token) {
-      console.log("Token length:", token.length);
-      console.log("Token first 20 chars:", token.substring(0, 20) + "...");
+      console.log("Admin token length:", token.length);
       console.log(
-        "Token last 20 chars:",
+        "Admin token first 20 chars:",
+        token.substring(0, 20) + "..."
+      );
+      console.log(
+        "Admin token last 20 chars:",
         "..." + token.substring(token.length - 20)
       );
 
@@ -505,7 +598,7 @@ const BallotBuilder = () => {
         console.error("Error analyzing token:", e);
       }
     } else {
-      console.error("No token found in localStorage");
+      console.error("No admin token found in localStorage");
     }
 
     // Try a direct axios request bypassing interceptors
@@ -918,7 +1011,7 @@ const BallotBuilder = () => {
                       fontSize="small"
                       sx={{ color: "#718096", mr: 1 }}
                     />
-                    <Typography variant="body2">{startDate}</Typography>
+                    <Typography variant="body2">{startDateStr}</Typography>
                   </Box>
                 </Box>
 
@@ -939,7 +1032,7 @@ const BallotBuilder = () => {
                       fontSize="small"
                       sx={{ color: "#718096", mr: 1 }}
                     />
-                    <Typography variant="body2">{startTime}</Typography>
+                    <Typography variant="body2">{startTimeStr}</Typography>
                   </Box>
                 </Box>
               </Box>
@@ -975,7 +1068,7 @@ const BallotBuilder = () => {
                       fontSize="small"
                       sx={{ color: "#718096", mr: 1 }}
                     />
-                    <Typography variant="body2">{endDate}</Typography>
+                    <Typography variant="body2">{endDateStr}</Typography>
                   </Box>
                 </Box>
 
@@ -996,7 +1089,7 @@ const BallotBuilder = () => {
                       fontSize="small"
                       sx={{ color: "#718096", mr: 1 }}
                     />
-                    <Typography variant="body2">{endTime}</Typography>
+                    <Typography variant="body2">{endTimeStr}</Typography>
                   </Box>
                 </Box>
               </Box>
@@ -1349,7 +1442,7 @@ const BallotBuilder = () => {
                     Starts:
                   </Typography>
                   <Typography variant="body2">
-                    {startDate}, {startTime}
+                    {startDateStr}, {startTimeStr}
                   </Typography>
                 </Box>
 
@@ -1364,7 +1457,7 @@ const BallotBuilder = () => {
                     Ends:
                   </Typography>
                   <Typography variant="body2">
-                    {endDate}, {endTime}
+                    {endDateStr}, {endTimeStr}
                   </Typography>
                 </Box>
               </Box>
@@ -1653,13 +1746,8 @@ const BallotBuilder = () => {
           <Box sx={{ p: 2 }}>
             <DatePicker
               label="Election Start Date"
-              value={tempStartDate ? new Date(tempStartDate) : new Date()}
-              onChange={(newDate) => {
-                if (newDate) {
-                  const formattedDate = format(newDate, "MMMM d, yyyy");
-                  setTempStartDate(formattedDate);
-                }
-              }}
+              value={startDate}
+              onChange={handleStartDateChange}
               renderInput={(params) => <TextField {...params} fullWidth />}
               inputFormat="MMMM d, yyyy"
             />
@@ -1685,17 +1773,8 @@ const BallotBuilder = () => {
           <Box sx={{ p: 2 }}>
             <TimePicker
               label="Election Start Time"
-              value={
-                tempStartTime
-                  ? new Date(`2022-01-01T${convertTo24Hour(tempStartTime)}`)
-                  : new Date()
-              }
-              onChange={(newTime) => {
-                if (newTime) {
-                  const formattedTime = format(newTime, "h:mm a");
-                  setTempStartTime(formattedTime);
-                }
-              }}
+              value={combineDateAndTime(startDateStr, startTimeStr)}
+              onChange={handleStartTimeChange}
               renderInput={(params) => <TextField {...params} fullWidth />}
               ampm={true}
             />
@@ -1721,13 +1800,8 @@ const BallotBuilder = () => {
           <Box sx={{ p: 2 }}>
             <DatePicker
               label="Election End Date"
-              value={tempEndDate ? new Date(tempEndDate) : new Date()}
-              onChange={(newDate) => {
-                if (newDate) {
-                  const formattedDate = format(newDate, "MMMM d, yyyy");
-                  setTempEndDate(formattedDate);
-                }
-              }}
+              value={endDate}
+              onChange={handleEndDateChange}
               renderInput={(params) => <TextField {...params} fullWidth />}
               inputFormat="MMMM d, yyyy"
             />
@@ -1753,17 +1827,8 @@ const BallotBuilder = () => {
           <Box sx={{ p: 2 }}>
             <TimePicker
               label="Election End Time"
-              value={
-                tempEndTime
-                  ? new Date(`2022-01-01T${convertTo24Hour(tempEndTime)}`)
-                  : new Date()
-              }
-              onChange={(newTime) => {
-                if (newTime) {
-                  const formattedTime = format(newTime, "h:mm a");
-                  setTempEndTime(formattedTime);
-                }
-              }}
+              value={combineDateAndTime(endDateStr, endTimeStr)}
+              onChange={handleEndTimeChange}
               renderInput={(params) => <TextField {...params} fullWidth />}
               ampm={true}
             />
@@ -1778,22 +1843,6 @@ const BallotBuilder = () => {
       </Dialog>
     </LocalizationProvider>
   );
-
-  // Add helper function to convert time format
-  const convertTo24Hour = (time12h) => {
-    const [time, modifier] = time12h.split(" ");
-    let [hours, minutes] = time.split(":");
-
-    if (hours === "12") {
-      hours = "00";
-    }
-
-    if (modifier === "PM") {
-      hours = parseInt(hours, 10) + 12;
-    }
-
-    return `${hours}:${minutes}:00`;
-  };
 
   return (
     <Box sx={{ p: 4 }}>

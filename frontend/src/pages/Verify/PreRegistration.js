@@ -49,6 +49,18 @@ const PreRegistration = ({ startAtStep }) => {
               email: auth.user.email,
               name: auth.user.name || "",
             });
+
+            // Try to register as voter for this ballot
+            const ballotIdToUse = id || idFromSlug;
+            if (ballotIdToUse) {
+              try {
+                console.log("Registering as voter for ballot:", ballotIdToUse);
+                await ballotService.registerVoter(ballotIdToUse);
+              } catch (voterError) {
+                console.warn("Failed to register as voter:", voterError);
+                // Continue - this is non-critical
+              }
+            }
           }
         }
 

@@ -21,6 +21,7 @@ import ScanID from "./Verify/ScanID";
 // New organized imports
 import * as AdminPages from "./admin";
 import * as VoterPages from "./voter";
+import DirectVoterRegistration from "./voter/DirectVoterRegistration";
 
 // Helper for creating the ScanID wrapper
 const createScanIDWrapper = (ScanIDComponent) => {
@@ -61,7 +62,7 @@ const getRoutes = (isAuthenticated) => {
       <Route path="/register/:id/:slug" element={<VotingPage />} />
       <Route
         path="/voter-registration/:id/:slug"
-        element={<VoterRegistration />}
+        element={<DirectVoterRegistration />}
       />
       <Route path="/preregister/:id/:slug" element={<PreRegistration />} />
       <Route

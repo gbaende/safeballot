@@ -68,10 +68,12 @@ const Login = () => {
       console.log("Login attempt for:", formData.email);
 
       authService
-        .login(formData.email, formData.password)
+        .adminLogin(formData.email, formData.password)
         .then((response) => {
           console.log("Login successful, response received:", response.status);
-          const { token, refresh_token, user } = response.data;
+
+          // Extract data from the nested response structure
+          const { token, refreshToken, user } = response.data.data || {};
 
           // Log the actual token value in the console
           console.log("Raw token value received:", token);
@@ -80,34 +82,41 @@ const Login = () => {
           try {
             // Check if token is a string and not null/undefined
             if (typeof token === "string" && token) {
-              localStorage.setItem("token", token);
+              localStorage.setItem("adminToken", token);
+
+              // Save refresh token if available
+              if (refreshToken) {
+                localStorage.setItem("adminRefreshToken", refreshToken);
+                console.log("Admin refresh token saved:", !!refreshToken);
+              }
+
               // Double-check it was saved correctly
-              const savedToken = localStorage.getItem("token");
-              console.log("Raw saved token:", savedToken);
-              console.log("Token saved successfully:", !!savedToken);
+              const savedToken = localStorage.getItem("adminToken");
+              console.log("Raw saved admin token:", savedToken);
+              console.log("Admin token saved successfully:", !!savedToken);
 
               if (savedToken !== token) {
                 console.error(
-                  "ERROR: Saved token does not match original token!"
+                  "ERROR: Saved admin token does not match original token!"
                 );
                 console.log("Original length:", token.length);
                 console.log("Saved length:", savedToken.length);
               }
 
               if (user) {
-                localStorage.setItem("user", JSON.stringify(user));
-                const savedUser = localStorage.getItem("user");
+                localStorage.setItem("adminUser", JSON.stringify(user));
+                const savedUser = localStorage.getItem("adminUser");
                 console.log(
-                  "User saved to localStorage:",
+                  "Admin user saved to localStorage:",
                   savedUser ? "Yes" : "No"
                 );
               }
 
               // Verify token is correctly stored
               setTimeout(() => {
-                const verifyToken = localStorage.getItem("token");
+                const verifyToken = localStorage.getItem("adminToken");
                 console.log(
-                  "Token verification after 500ms:",
+                  "Admin token verification after 500ms:",
                   verifyToken ? "Present" : "Missing"
                 );
               }, 500);

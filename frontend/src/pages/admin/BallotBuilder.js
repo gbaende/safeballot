@@ -269,10 +269,10 @@ const BallotBuilder = () => {
     setSubmitError(null);
 
     try {
-      // Get the token for debugging
-      const token = localStorage.getItem("token");
+      // Get the admin token for authentication
+      const token = localStorage.getItem("adminToken");
       console.log(
-        "Token for debugging:",
+        "Admin token for debugging:",
         token ? `${token.substring(0, 30)}...` : "missing"
       );
 
@@ -448,10 +448,13 @@ const BallotBuilder = () => {
   // Add a test function to check authentication status
   const testAuthentication = async () => {
     console.log("--- Authentication Test ---");
-    const token = localStorage.getItem("token");
-    console.log("Token in localStorage:", token ? "Present" : "Missing");
+    const token = localStorage.getItem("adminToken");
+    console.log("Admin token in localStorage:", token ? "Present" : "Missing");
     if (token) {
-      console.log("Token first 20 chars:", token.substring(0, 20) + "...");
+      console.log(
+        "Admin token first 20 chars:",
+        token.substring(0, 20) + "..."
+      );
     }
 
     // Test with a simple API call
@@ -480,15 +483,18 @@ const BallotBuilder = () => {
     console.log("--- DIRECT TOKEN DEBUGGING ---");
 
     // Get token directly from localStorage
-    const token = localStorage.getItem("token");
-    console.log("Raw token from localStorage:", token);
+    const token = localStorage.getItem("adminToken");
+    console.log("Raw admin token from localStorage:", token);
 
     // Analyze token structure if it exists
     if (token) {
-      console.log("Token length:", token.length);
-      console.log("Token first 20 chars:", token.substring(0, 20) + "...");
+      console.log("Admin token length:", token.length);
       console.log(
-        "Token last 20 chars:",
+        "Admin token first 20 chars:",
+        token.substring(0, 20) + "..."
+      );
+      console.log(
+        "Admin token last 20 chars:",
         "..." + token.substring(token.length - 20)
       );
 
@@ -505,7 +511,7 @@ const BallotBuilder = () => {
         console.error("Error analyzing token:", e);
       }
     } else {
-      console.error("No token found in localStorage");
+      console.error("No admin token found in localStorage");
     }
 
     // Try a direct axios request bypassing interceptors

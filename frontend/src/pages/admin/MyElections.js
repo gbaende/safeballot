@@ -322,7 +322,7 @@ const MyElections = () => {
                   </TableSortLabel>
                 </TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell>Ballots Recieved / # of Voters</TableCell>
+                <TableCell>Ballots Received / Total Voters</TableCell>
                 <TableCell>Election Time</TableCell>
               </TableRow>
             </TableHead>

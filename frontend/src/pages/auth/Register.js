@@ -29,9 +29,8 @@ const Register = () => {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    firstName: "",
-    lastName: "",
-    role: "host", // Default role is host for this registration page
+    name: "",
+    role: "admin", // Changed from "host" to "admin" to match backend validation
   });
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
@@ -49,6 +48,7 @@ const Register = () => {
     const newErrors = {};
     if (!formData.email) newErrors.email = "Email is required";
     if (!formData.password) newErrors.password = "Password is required";
+    if (!formData.name) newErrors.name = "Name is required";
     if (formData.password && formData.password.length < 8) {
       newErrors.password = "Password must be at least 8 characters";
     }
@@ -62,24 +62,37 @@ const Register = () => {
     if (validate()) {
       dispatch(registerRequest());
 
+      // Create payload with name field
+      const userData = {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+      };
+
       // Make API call
       authService
-        .register(formData)
+        .register(userData)
         .then((response) => {
           dispatch(registerSuccess());
           setErrorMessage(""); // Clear any errors
 
           // Auto-login after successful registration
-          if (response.data && response.data.token) {
-            // Store token and user data in localStorage
-            localStorage.setItem("token", response.data.token);
-            localStorage.setItem("user", JSON.stringify(response.data.user));
+          if (response.data && response.data.data && response.data.data.token) {
+            // Extract data
+            const { token, user } = response.data.data;
+
+            // Store token and user data in localStorage with proper keys
+            localStorage.setItem("adminToken", token);
+            localStorage.setItem("adminUser", JSON.stringify(user));
+
+            console.log("Admin token and user stored in localStorage");
 
             // Update Redux state
             dispatch(
               loginSuccess({
-                token: response.data.token,
-                user: response.data.user,
+                token,
+                user,
               })
             );
 
@@ -169,6 +182,27 @@ const Register = () => {
           noValidate
           sx={{ width: "100%" }}
         >
+          <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
+            Full Name
+          </Typography>
+          <TextField
+            fullWidth
+            id="name"
+            name="name"
+            placeholder="John Doe"
+            value={formData.name}
+            onChange={handleChange}
+            error={!!errors.name}
+            helperText={errors.name}
+            variant="outlined"
+            sx={{ mb: 3 }}
+            InputProps={{
+              sx: {
+                borderRadius: "4px",
+              },
+            }}
+          />
+
           <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
             Email
           </Typography>

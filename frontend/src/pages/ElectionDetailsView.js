@@ -40,83 +40,181 @@ import {
 // Mock data for election results
 const mockElectionResults = {
   id: 1,
-  title: "Board of Directors Election 2023",
-  description:
-    "Annual election to select the board of directors for the fiscal year 2023-2024",
+  title: "2024 Presidential Election",
+  subtitle: "General Ballot",
+  description: "2024 United States Presidential Election",
   status: "Live",
-  startDate: "2023-08-01",
-  endDate: "2023-08-15",
-  totalVoters: 150,
-  votedCount: 87,
-  participation: 58,
+  startDate: "2024-11-01",
+  endDate: "2024-11-05",
+  totalVoters: 350,
+  votedCount: 178,
+  participation: 51,
   categories: [
     {
       id: 1,
-      name: "Executive Board",
-      description: "Select members for the executive board",
+      name: "Presidential Election",
+      description: "Choose the next President of the United States",
       questions: [
         {
           id: 1,
-          title: "Chief Executive Officer",
+          title: "Presidential Election",
           votesRequired: 1,
           options: [
-            { id: 1, name: "John Smith", votes: 42, percentage: 48 },
-            { id: 2, name: "Sarah Johnson", votes: 35, percentage: 40 },
-            { id: 3, name: "Robert Williams", votes: 10, percentage: 12 },
-          ],
-        },
-        {
-          id: 2,
-          title: "Chief Financial Officer",
-          votesRequired: 1,
-          options: [
-            { id: 4, name: "Michael Brown", votes: 48, percentage: 55 },
-            { id: 5, name: "Jennifer Davis", votes: 39, percentage: 45 },
+            { id: 1, name: "Kamala D. Harris", votes: 92, percentage: 58.23 },
+            { id: 2, name: "Donald J. Trump", votes: 86, percentage: 54.43 },
+            {
+              id: 3,
+              name: "Robert F. Kennedy Jr.",
+              votes: 2,
+              percentage: 1.27,
+            },
+            { id: 4, name: "Jill Stein", votes: 8, percentage: 5.06 },
+            { id: 5, name: "Cornel West", votes: 9, percentage: 5.7 },
+            { id: 6, name: "Randall Terry", votes: 3, percentage: 1.9 },
           ],
         },
       ],
     },
     {
       id: 2,
-      name: "Board Members",
-      description: "Select general board members",
+      name: "US House of Representatives",
+      description: "Choose your district representative",
       questions: [
         {
-          id: 3,
-          title: "General Board Members (Select 3)",
-          votesRequired: 3,
+          id: 2,
+          title: "US House of Representatives",
+          votesRequired: 1,
           options: [
-            { id: 6, name: "Daniel Wilson", votes: 65, percentage: 75 },
-            { id: 7, name: "Emily Thompson", votes: 58, percentage: 67 },
-            { id: 8, name: "David Martinez", votes: 52, percentage: 60 },
-            { id: 9, name: "Lisa Anderson", votes: 46, percentage: 53 },
-            { id: 10, name: "James Taylor", votes: 41, percentage: 47 },
+            { id: 7, name: "Sample Candidate 1", votes: 92, percentage: 58.23 },
+            { id: 8, name: "Sample Candidate 2", votes: 86, percentage: 54.43 },
           ],
         },
       ],
     },
     {
       id: 3,
-      name: "Policy Votes",
-      description: "Vote on proposed policy changes",
+      name: "District Governor",
+      description: "Choose your district governor",
+      questions: [
+        {
+          id: 3,
+          title: "District Governor",
+          votesRequired: 1,
+          options: [
+            { id: 9, name: "Sample Candidate 1", votes: 92, percentage: 51.9 },
+            { id: 10, name: "Sample Candidate 2", votes: 86, percentage: 48.1 },
+          ],
+        },
+      ],
+    },
+    {
+      id: 4,
+      name: "District Lieutenant Governor",
+      description: "Choose your district lieutenant governor",
       questions: [
         {
           id: 4,
-          title:
-            "Should the organization increase the annual budget for community outreach?",
+          title: "District Lieutenant Governor",
           votesRequired: 1,
           options: [
-            { id: 11, name: "Yes", votes: 61, percentage: 70 },
-            { id: 12, name: "No", votes: 26, percentage: 30 },
+            { id: 11, name: "Sample Candidate 1", votes: 92, percentage: 51.9 },
+            { id: 12, name: "Sample Candidate 2", votes: 86, percentage: 48.1 },
           ],
         },
+      ],
+    },
+    {
+      id: 5,
+      name: "District Attorney General",
+      description: "Choose your district attorney general",
+      questions: [
         {
           id: 5,
-          title: "Should we adopt the new sustainability framework?",
+          title: "District Attorney General",
           votesRequired: 1,
           options: [
-            { id: 13, name: "Yes", votes: 72, percentage: 83 },
-            { id: 14, name: "No", votes: 15, percentage: 17 },
+            { id: 13, name: "Sample Candidate 1", votes: 92, percentage: 51.9 },
+            { id: 14, name: "Sample Candidate 2", votes: 86, percentage: 48.1 },
+          ],
+        },
+      ],
+    },
+    {
+      id: 6,
+      name: "District Commissioner of Agriculture",
+      description: "Choose your district commissioner of agriculture",
+      questions: [
+        {
+          id: 6,
+          title: "District Commissioner of Agriculture",
+          votesRequired: 1,
+          options: [
+            { id: 15, name: "Sample Candidate 1", votes: 92, percentage: 51.9 },
+            { id: 16, name: "Sample Candidate 2", votes: 86, percentage: 48.1 },
+          ],
+        },
+      ],
+    },
+    {
+      id: 7,
+      name: "District Commissioner of Insurance",
+      description: "Choose your district commissioner of insurance",
+      questions: [
+        {
+          id: 7,
+          title: "District Commissioner of Insurance",
+          votesRequired: 1,
+          options: [
+            { id: 17, name: "Sample Candidate 1", votes: 92, percentage: 51.9 },
+            { id: 18, name: "Sample Candidate 2", votes: 86, percentage: 48.1 },
+          ],
+        },
+      ],
+    },
+    {
+      id: 8,
+      name: "District Commissioner of Labor",
+      description: "Choose your district commissioner of labor",
+      questions: [
+        {
+          id: 8,
+          title: "District Commissioner of Labor",
+          votesRequired: 1,
+          options: [
+            { id: 19, name: "Sample Candidate 1", votes: 92, percentage: 51.9 },
+            { id: 20, name: "Sample Candidate 2", votes: 86, percentage: 48.1 },
+          ],
+        },
+      ],
+    },
+    {
+      id: 9,
+      name: "District Commissioner of State",
+      description: "Choose your district commissioner of state",
+      questions: [
+        {
+          id: 9,
+          title: "District Commissioner of State",
+          votesRequired: 1,
+          options: [
+            { id: 21, name: "Sample Candidate 1", votes: 92, percentage: 51.9 },
+            { id: 22, name: "Sample Candidate 2", votes: 86, percentage: 48.1 },
+          ],
+        },
+      ],
+    },
+    {
+      id: 10,
+      name: "District Superintendent of Public Instruction",
+      description: "Choose your district superintendent of public instruction",
+      questions: [
+        {
+          id: 10,
+          title: "District Superintendent of Public Instruction",
+          votesRequired: 1,
+          options: [
+            { id: 23, name: "Sample Candidate 1", votes: 92, percentage: 51.9 },
+            { id: 24, name: "Sample Candidate 2", votes: 86, percentage: 48.1 },
           ],
         },
       ],
@@ -124,32 +222,14 @@ const mockElectionResults = {
   ],
 };
 
-const StyledLinearProgress = styled(LinearProgress)(({ theme, color }) => {
-  let gradientColors;
-
-  switch (color) {
-    case "success":
-      gradientColors = "linear-gradient(90deg, #4CAF50 0%, #8BC34A 100%)";
-      break;
-    case "warning":
-      gradientColors = "linear-gradient(90deg, #FF9800 0%, #FFC107 100%)";
-      break;
-    case "info":
-      gradientColors = "linear-gradient(90deg, #2196F3 0%, #03A9F4 100%)";
-      break;
-    default:
-      gradientColors = "linear-gradient(90deg, #4478EB 0%, #6FA0FF 100%)";
-      break;
-  }
-
-  return {
-    height: 8,
-    borderRadius: 4,
-    "& .MuiLinearProgress-bar": {
-      background: gradientColors,
-    },
-  };
-});
+const StyledLinearProgress = styled(LinearProgress)(({ theme }) => ({
+  height: 8,
+  borderRadius: 4,
+  backgroundColor: "#E2E8F0",
+  "& .MuiLinearProgress-bar": {
+    background: "linear-gradient(90deg, #00005E 0%, #4478EB 100%)",
+  },
+}));
 
 const StatusChip = styled(Chip)(({ theme, status }) => {
   let chipColor;
@@ -261,335 +341,79 @@ const ElectionDetailsView = () => {
 
   return (
     <MainLayout>
-      <Box>
-        <Breadcrumbs
-          separator={<NavigateNextIcon fontSize="small" />}
-          aria-label="breadcrumb"
-          sx={{ mb: 2 }}
+      <Box sx={{ maxWidth: 1200, margin: "0 auto", p: 2 }}>
+        <Paper
+          elevation={0}
+          sx={{
+            p: 3,
+            borderRadius: 2,
+            border: "1px solid #E2E8F0",
+          }}
         >
-          <Link
-            color="inherit"
-            onClick={() => navigate("/home")}
-            sx={{ cursor: "pointer", textDecoration: "none" }}
+          <Box
+            display="flex"
+            justifyContent="space-between"
+            alignItems="center"
+            mb={3}
           >
-            Dashboard
-          </Link>
-          <Link
-            color="inherit"
-            onClick={() => navigate("/my-elections")}
-            sx={{ cursor: "pointer", textDecoration: "none" }}
-          >
-            My Elections
-          </Link>
-          <Link
-            color="inherit"
-            onClick={handleBackToDashboard}
-            sx={{ cursor: "pointer", textDecoration: "none" }}
-          >
-            Election Dashboard
-          </Link>
-          <Typography color="text.primary">Results</Typography>
-        </Breadcrumbs>
-
-        <Box
-          display="flex"
-          justifyContent="space-between"
-          alignItems="flex-start"
-          mb={3}
-        >
-          <Box>
-            <Box display="flex" alignItems="center" mb={1}>
-              <Button
-                startIcon={<ArrowBackIcon />}
-                onClick={handleBackToDashboard}
-                sx={{ mr: 2 }}
-              >
-                Back to Dashboard
-              </Button>
-              <StatusChip
-                label={electionResults.status}
-                status={electionResults.status}
-              />
-            </Box>
-            <Typography variant="h4" fontWeight={700} mb={1}>
-              {electionResults.title} - Results
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
-              {electionResults.description}
-            </Typography>
-          </Box>
-
-          <Box display="flex" gap={1}>
-            <Tooltip title="Download Results">
-              <IconButton color="primary" sx={{ border: "1px solid #E0E0E0" }}>
-                <DownloadIcon />
+            <Box display="flex" alignItems="center">
+              <IconButton onClick={handleBackToDashboard} sx={{ mr: 1 }}>
+                <ArrowBackIcon />
               </IconButton>
-            </Tooltip>
-            <Tooltip title="Share Results">
-              <IconButton color="primary" sx={{ border: "1px solid #E0E0E0" }}>
-                <ShareIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Print Results">
-              <IconButton color="primary" sx={{ border: "1px solid #E0E0E0" }}>
-                <PrintIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        </Box>
-
-        <Box sx={{ width: "100%", mb: 4 }}>
-          <Paper elevation={0} sx={{ borderRadius: 2 }}>
-            <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
-              <Tabs
-                value={tabValue}
-                onChange={handleTabChange}
-                aria-label="election results tabs"
-                sx={{
-                  "& .MuiTab-root": {
-                    textTransform: "none",
-                    fontWeight: 600,
-                  },
-                  "& .Mui-selected": {
-                    color: "#4478EB",
-                  },
-                  "& .MuiTabs-indicator": {
-                    backgroundColor: "#4478EB",
-                  },
-                }}
-              >
-                <Tab label="All Categories" />
-                {electionResults.categories.map((category) => (
-                  <Tab key={category.id} label={category.name} />
-                ))}
-              </Tabs>
+              <Typography variant="h6" fontWeight={600}>
+                {electionResults.title} - {electionResults.subtitle}
+              </Typography>
             </Box>
 
-            <TabPanel value={tabValue} index={0}>
-              <Box>
-                <Box display="flex" alignItems="center" mb={3}>
-                  <VoteIcon color="primary" sx={{ mr: 1 }} />
-                  <Typography variant="h5" fontWeight={600}>
-                    All Results
-                  </Typography>
-                </Box>
+            <Button
+              variant="contained"
+              size="small"
+              sx={{
+                bgcolor: "#1A202C",
+                "&:hover": {
+                  bgcolor: "#2D3748",
+                },
+                borderRadius: "4px",
+                textTransform: "none",
+              }}
+            >
+              Download PDF
+            </Button>
+          </Box>
 
-                <Box
-                  display="flex"
-                  justifyContent="space-between"
-                  alignItems="center"
-                  mb={3}
-                >
-                  <Typography variant="body1">
-                    Overall Participation:{" "}
-                    <b>{electionResults.participation}%</b> (
-                    {electionResults.votedCount}/{electionResults.totalVoters}{" "}
-                    votes)
-                  </Typography>
-                  <Box width={200}>
-                    <StyledLinearProgress
-                      variant="determinate"
-                      value={electionResults.participation}
-                      color={getProgressColor(electionResults.participation)}
-                    />
-                  </Box>
-                </Box>
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h6" fontWeight={600} mb={2}>
+              Live Voting Results
+            </Typography>
 
-                <Divider sx={{ mb: 3 }} />
+            {electionResults.categories.map((category) => (
+              <Box key={category.id} sx={{ mb: 4 }}>
+                <Typography variant="subtitle1" fontWeight={600} mb={2}>
+                  {category.questions[0].title}
+                </Typography>
 
-                <Grid container spacing={3}>
-                  {electionResults.categories.map((category) => (
-                    <Grid item xs={12} key={category.id}>
-                      <Box mb={3}>
-                        <Typography variant="h5" fontWeight={600} mb={1}>
-                          {category.name}
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          mb={2}
-                        >
-                          {category.description}
-                        </Typography>
-
-                        <Grid container spacing={3}>
-                          {category.questions.map((question) => (
-                            <Grid item xs={12} md={6} lg={4} key={question.id}>
-                              <ResultCard>
-                                <CardContent>
-                                  <Typography
-                                    variant="h6"
-                                    fontWeight={600}
-                                    mb={2}
-                                  >
-                                    {question.title}
-                                  </Typography>
-                                  <Typography
-                                    variant="body2"
-                                    color="text.secondary"
-                                    mb={2}
-                                  >
-                                    Select {question.votesRequired} option
-                                    {question.votesRequired > 1 ? "s" : ""}
-                                  </Typography>
-
-                                  <Divider sx={{ mb: 2 }} />
-
-                                  <Stack spacing={2}>
-                                    {question.options.map((option, index) => {
-                                      const isWinner =
-                                        index < question.votesRequired;
-
-                                      return (
-                                        <Box key={option.id}>
-                                          <Box
-                                            display="flex"
-                                            justifyContent="space-between"
-                                            mb={0.5}
-                                          >
-                                            <Typography
-                                              variant="body1"
-                                              fontWeight={isWinner ? 700 : 400}
-                                            >
-                                              {option.name}{" "}
-                                              {isWinner && "(Winner)"}
-                                            </Typography>
-                                            <Typography
-                                              variant="body1"
-                                              fontWeight={600}
-                                            >
-                                              {option.percentage}%
-                                            </Typography>
-                                          </Box>
-
-                                          <Box
-                                            display="flex"
-                                            justifyContent="space-between"
-                                            mb={1}
-                                          >
-                                            <Typography
-                                              variant="body2"
-                                              color="text.secondary"
-                                            >
-                                              {option.votes} votes
-                                            </Typography>
-                                          </Box>
-
-                                          <StyledLinearProgress
-                                            variant="determinate"
-                                            value={option.percentage}
-                                            color={
-                                              isWinner ? "success" : "info"
-                                            }
-                                          />
-                                        </Box>
-                                      );
-                                    })}
-                                  </Stack>
-                                </CardContent>
-                              </ResultCard>
-                            </Grid>
-                          ))}
-                        </Grid>
-                      </Box>
-                    </Grid>
-                  ))}
-                </Grid>
-              </Box>
-            </TabPanel>
-
-            {electionResults.categories.map((category, index) => (
-              <TabPanel key={category.id} value={tabValue} index={index + 1}>
-                <Box>
-                  <Box display="flex" alignItems="center" mb={3}>
-                    <VoteIcon color="primary" sx={{ mr: 1 }} />
-                    <Typography variant="h5" fontWeight={600}>
-                      {category.name} Results
+                {category.questions[0].options.map((option) => (
+                  <Box key={option.id} sx={{ mb: 1.5 }}>
+                    <Typography variant="body2" mb={0.5}>
+                      {option.name}
                     </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center" }}>
+                      <Box sx={{ flexGrow: 1, mr: 2 }}>
+                        <StyledLinearProgress
+                          variant="determinate"
+                          value={option.percentage}
+                        />
+                      </Box>
+                      <Typography variant="body2" sx={{ minWidth: 40 }}>
+                        {option.percentage.toFixed(2)}%
+                      </Typography>
+                    </Box>
                   </Box>
-
-                  <Typography variant="body1" mb={3}>
-                    {category.description}
-                  </Typography>
-
-                  <Divider sx={{ mb: 3 }} />
-
-                  <Grid container spacing={3}>
-                    {category.questions.map((question) => (
-                      <Grid item xs={12} md={6} lg={4} key={question.id}>
-                        <ResultCard>
-                          <CardContent>
-                            <Typography variant="h6" fontWeight={600} mb={2}>
-                              {question.title}
-                            </Typography>
-                            <Typography
-                              variant="body2"
-                              color="text.secondary"
-                              mb={2}
-                            >
-                              Select {question.votesRequired} option
-                              {question.votesRequired > 1 ? "s" : ""}
-                            </Typography>
-
-                            <Divider sx={{ mb: 2 }} />
-
-                            <Stack spacing={2}>
-                              {question.options.map((option, index) => {
-                                const isWinner = index < question.votesRequired;
-
-                                return (
-                                  <Box key={option.id}>
-                                    <Box
-                                      display="flex"
-                                      justifyContent="space-between"
-                                      mb={0.5}
-                                    >
-                                      <Typography
-                                        variant="body1"
-                                        fontWeight={isWinner ? 700 : 400}
-                                      >
-                                        {option.name} {isWinner && "(Winner)"}
-                                      </Typography>
-                                      <Typography
-                                        variant="body1"
-                                        fontWeight={600}
-                                      >
-                                        {option.percentage}%
-                                      </Typography>
-                                    </Box>
-
-                                    <Box
-                                      display="flex"
-                                      justifyContent="space-between"
-                                      mb={1}
-                                    >
-                                      <Typography
-                                        variant="body2"
-                                        color="text.secondary"
-                                      >
-                                        {option.votes} votes
-                                      </Typography>
-                                    </Box>
-
-                                    <StyledLinearProgress
-                                      variant="determinate"
-                                      value={option.percentage}
-                                      color={isWinner ? "success" : "info"}
-                                    />
-                                  </Box>
-                                );
-                              })}
-                            </Stack>
-                          </CardContent>
-                        </ResultCard>
-                      </Grid>
-                    ))}
-                  </Grid>
-                </Box>
-              </TabPanel>
+                ))}
+              </Box>
             ))}
-          </Paper>
-        </Box>
+          </Box>
+        </Paper>
       </Box>
     </MainLayout>
   );

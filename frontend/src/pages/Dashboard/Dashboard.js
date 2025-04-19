@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -25,7 +25,9 @@ const Dashboard = () => {
   const { user } = useSelector((state) => state.auth);
   const navigate = useNavigate();
 
-  // Use state to trigger re-render when user data changes
+  // Use a ref to track if we've already attempted to fetch data - refs don't trigger rerenders
+  const dataFetchedRef = useRef(false);
+
   const [userDisplayName, setUserDisplayName] = useState("Guest");
   const [recentElections, setRecentElections] = useState([]);
   const [upcomingElections, setUpcomingElections] = useState([]);
@@ -33,27 +35,40 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Load the user display name and fetch elections when the component mounts
-  useEffect(() => {
-    const name = getUserDisplayName();
-    setUserDisplayName(name);
-
-    // Set up an interval to check for changes in user data
-    const intervalId = setInterval(() => {
-      const newName = getUserDisplayName();
-      if (newName !== userDisplayName) {
-        setUserDisplayName(newName);
+  // Function to get user's name from storage or email
+  const getUserDisplayName = () => {
+    try {
+      // Force reload user data from localStorage each time
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        const userData = JSON.parse(storedUser);
+        // Always prioritize email username over name field
+        if (userData.email) return userData.email.split("@")[0];
+        if (userData.name) return userData.name;
       }
-    }, 1000);
 
-    // Fetch elections data
-    fetchElectionsData();
+      // Try direct email approach
+      const email = localStorage.getItem("userEmail");
+      if (email) return email.split("@")[0];
 
-    return () => clearInterval(intervalId);
-  }, []);
+      // Last resort, check Redux
+      if (user && user.email) return user.email.split("@")[0];
+
+      return "Guest";
+    } catch (error) {
+      console.error("Error getting user display name:", error);
+      return "Guest";
+    }
+  };
 
   // Function to fetch elections data from the API
   const fetchElectionsData = async () => {
+    // Skip if we've already attempted to fetch data
+    if (dataFetchedRef.current) return;
+
+    // Mark that we're fetching data to prevent future attempts
+    dataFetchedRef.current = true;
+
     setLoading(true);
     setError(null);
 
@@ -69,18 +84,54 @@ const Dashboard = () => {
         // Get summary data
         const summaryResponse = await electionService.getSummary();
 
+        // Process elections to add fallback dates if needed
+        const processElections = (elections) => {
+          return elections.map((ballot) => {
+            // If dates are null, create fallback dates
+            if (!ballot.startDate && !ballot.endDate) {
+              const createdDate = new Date(ballot.createdAt || Date.now());
+
+              // Create a start date (day after creation)
+              const startDate = new Date(createdDate);
+              startDate.setDate(startDate.getDate() + 1);
+
+              // Create an end date (week after start)
+              const endDate = new Date(startDate);
+              endDate.setDate(endDate.getDate() + 7);
+
+              // Add these dates to the ballot
+              ballot.startDate = startDate.toISOString();
+              ballot.endDate = endDate.toISOString();
+
+              console.log(`Added fallback dates for ballot ${ballot.id}:`, {
+                startDate: ballot.startDate,
+                endDate: ballot.endDate,
+              });
+            }
+            return ballot;
+          });
+        };
+
+        const processedRecentElections = processElections(
+          recentResponse.data.data || []
+        );
+        const processedUpcomingElections = processElections(
+          upcomingResponse.data.data || []
+        );
+
         // Set active election (first active election if any)
         const allElections = [
-          ...(recentResponse.data.data || []),
-          ...(upcomingResponse.data.data || []),
+          ...processedRecentElections,
+          ...processedUpcomingElections,
         ];
+
         const activeElection = allElections.find(
           (election) =>
             election.status === "active" || election.status === "live"
         );
 
-        setRecentElections(recentResponse.data.data || []);
-        setUpcomingElections(upcomingResponse.data.data || []);
+        setRecentElections(processedRecentElections);
+        setUpcomingElections(processedUpcomingElections);
         setActiveElection(activeElection || null);
       } catch (apiError) {
         console.error(
@@ -132,37 +183,68 @@ const Dashboard = () => {
     }
   };
 
-  // Function to get user's name from storage or email - matching MainLayout approach
-  const getUserDisplayName = () => {
+  // Load the user display name and fetch elections when the component mounts
+  useEffect(() => {
+    // Set the display name
+    const name = getUserDisplayName();
+    setUserDisplayName(name);
+
+    // Fetch data only once when component mounts
+    fetchElectionsData();
+
+    // Important: Empty dependency array means this only runs once
+  }, []);
+
+  // Combine recent and upcoming elections for display, ensuring no duplicates
+  const elections = [...recentElections];
+
+  // Only add upcoming elections that don't already exist in the recent elections array
+  upcomingElections.forEach((upcoming) => {
+    if (!elections.some((election) => election.id === upcoming.id)) {
+      elections.push(upcoming);
+    }
+  });
+
+  // Helper function to calculate time remaining
+  const formatTimeRemaining = (election) => {
+    if (!election) return "N/A";
+
     try {
-      // Force reload user data from localStorage each time
-      const storedUser = localStorage.getItem("user");
-      if (storedUser) {
-        const userData = JSON.parse(storedUser);
-        // Always prioritize email username over name field
-        if (userData.email) return userData.email.split("@")[0];
-        if (userData.name) return userData.name;
+      // Try multiple fallbacks for date fields
+      const endDateString =
+        election._endDate || election.endDate || election.end_date;
+
+      if (!endDateString) {
+        console.warn("No end date in election:", election);
+        return "N/A";
       }
 
-      // Try direct email approach
-      const email = localStorage.getItem("userEmail");
-      if (email) return email.split("@")[0];
+      console.log("Using end date for remaining time:", endDateString);
+      const endDate = new Date(endDateString);
 
-      // Last resort, check Redux
-      if (user && user.email) return user.email.split("@")[0];
+      // Check if the date is valid
+      if (isNaN(endDate.getTime())) {
+        console.warn("Invalid end date:", endDateString);
+        return "N/A";
+      }
 
-      return "Guest";
+      const now = new Date();
+
+      if (endDate <= now) return "Ended";
+
+      const diffMs = endDate - now;
+      const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      const diffSecs = Math.floor((diffMs % (1000 * 60)) / 1000);
+
+      return `${diffHrs}:${diffMins.toString().padStart(2, "0")}:${diffSecs
+        .toString()
+        .padStart(2, "0")}s`;
     } catch (error) {
-      console.error("Error getting user display name:", error);
-      return "Guest";
+      console.error("Error formatting time remaining:", error);
+      return "N/A";
     }
   };
-
-  // Ensure fresh data on every render
-  const displayName = getUserDisplayName();
-
-  // Combine recent and upcoming elections for display
-  const elections = [...recentElections, ...upcomingElections];
 
   // Helper function to format election status
   const formatStatus = (status) => {
@@ -183,23 +265,74 @@ const Dashboard = () => {
     }
   };
 
-  // Helper function to calculate time remaining
-  const formatTimeRemaining = (endDate) => {
-    if (!endDate) return "N/A";
+  // Helper function to format time for display
+  const formatTimeInfo = (election) => {
+    try {
+      if (!election) return "";
 
-    const end = new Date(endDate);
-    const now = new Date();
+      // Try multiple fallbacks for date fields
+      const startDateString =
+        election._startDate || election.startDate || election.start_date;
+      const endDateString =
+        election._endDate || election.endDate || election.end_date;
 
-    if (end <= now) return "Ended";
+      if (!startDateString || !endDateString) {
+        console.warn("Missing date information for election:", election.id);
+        return "Date information not available";
+      }
 
-    const diffMs = end - now;
-    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    const diffSecs = Math.floor((diffMs % (1000 * 60)) / 1000);
+      const now = new Date();
+      const startDate = new Date(startDateString);
+      const endDate = new Date(endDateString);
 
-    return `${diffHrs}:${diffMins.toString().padStart(2, "0")}:${diffSecs
-      .toString()
-      .padStart(2, "0")}s`;
+      console.log("Dashboard parsed dates for election", election.id, ":", {
+        startDateValue: startDateString,
+        endDateValue: endDateString,
+        startDateObj: startDate.toISOString(),
+        endDateObj: endDate.toISOString(),
+        valid: !isNaN(startDate) && !isNaN(endDate),
+      });
+
+      // Check if dates are valid
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        console.warn("Invalid date format:", {
+          startDate: startDateString,
+          endDate: endDateString,
+        });
+        return "Date information not available";
+      }
+
+      if (startDate > now) {
+        return `Election starts ${startDate.toLocaleString()}`;
+      } else if (endDate > now) {
+        const diffMs = endDate - now;
+        const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        const diffSecs = Math.floor((diffMs % (1000 * 60)) / 1000);
+
+        return `${diffHrs}:${diffMins.toString().padStart(2, "0")}:${diffSecs
+          .toString()
+          .padStart(2, "0")}s remaining`;
+      } else {
+        return "Completed";
+      }
+    } catch (error) {
+      console.error("Error in formatTimeInfo:", error);
+      return "Date information not available";
+    }
+  };
+
+  // Helper function to safely format a date
+  const formatDateDisplay = (dateString) => {
+    if (!dateString) return "Date unavailable";
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "Invalid date";
+      return date.toLocaleDateString();
+    } catch (error) {
+      console.error("Error formatting date display:", error);
+      return "Date error";
+    }
   };
 
   return (
@@ -287,7 +420,7 @@ const Dashboard = () => {
 
           <Box sx={{ display: "flex", alignItems: "baseline" }}>
             <Typography variant="h4" sx={{ fontWeight: 700 }}>
-              {formatTimeRemaining(activeElection.end_date)}
+              {formatTimeRemaining(activeElection)}
             </Typography>
             <Typography variant="h4" sx={{ fontWeight: 400, ml: 1 }}>
               Remaining
@@ -306,8 +439,13 @@ const Dashboard = () => {
             Voting time
           </Typography>
           <Typography variant="body1">
-            {new Date(activeElection.start_date).toLocaleDateString()} -{" "}
-            {new Date(activeElection.end_date).toLocaleDateString()}
+            {formatDateDisplay(
+              activeElection.startDate || activeElection.start_date
+            )}{" "}
+            -{" "}
+            {formatDateDisplay(
+              activeElection.endDate || activeElection.end_date
+            )}
           </Typography>
         </Box>
       )}
@@ -393,8 +531,8 @@ const Dashboard = () => {
                   </TableSortLabel>
                 </TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell>Ballots Recieved / # of Voters</TableCell>
-                <TableCell>Election Time</TableCell>
+                <TableCell>Ballots Received / Total Voters</TableCell>
+                <TableCell>Time</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -455,17 +593,7 @@ const Dashboard = () => {
                       </Typography>
                     </Box>
                   </TableCell>
-                  <TableCell>
-                    {election.status === "active" || election.status === "live"
-                      ? formatTimeRemaining(election.end_date) + " remaining"
-                      : election.status === "scheduled"
-                      ? `Election starts ${new Date(
-                          election.start_date
-                        ).toLocaleString()}`
-                      : `Election ended ${new Date(
-                          election.end_date
-                        ).toLocaleDateString()}`}
-                  </TableCell>
+                  <TableCell>{formatTimeInfo(election)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

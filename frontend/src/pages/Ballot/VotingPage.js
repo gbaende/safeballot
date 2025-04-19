@@ -359,6 +359,138 @@ const VotingPage = () => {
       setLoading(true);
       setDigitalKey(enteredKey); // Update the key from dialog
 
+      // Get the voter ID from localStorage - try multiple possible storage locations
+      let voterId = null;
+
+      // First try to get from voterUser object
+      try {
+        const voterData = JSON.parse(localStorage.getItem("voterUser") || "{}");
+        if (voterData && voterData.id) {
+          voterId = voterData.id;
+          console.log("Found voter ID in voterUser:", voterId);
+        }
+      } catch (e) {
+        console.error("Error parsing voterUser from localStorage:", e);
+      }
+
+      // If not found, try alternate storage locations
+      if (!voterId) {
+        voterId = localStorage.getItem("voterId");
+        if (voterId) {
+          console.log("Found voter ID in direct voterId key:", voterId);
+        }
+      }
+
+      // Also check the user object (might be used in some cases)
+      if (!voterId) {
+        try {
+          const userData = JSON.parse(localStorage.getItem("user") || "{}");
+          if (userData && userData.id) {
+            voterId = userData.id;
+            console.log("Found voter ID in user object:", voterId);
+          }
+        } catch (e) {
+          console.error("Error parsing user from localStorage:", e);
+        }
+      }
+
+      // Check for ballot-specific voter ID
+      if (!voterId) {
+        voterId = localStorage.getItem(`voter_id_${id}`);
+        if (voterId) {
+          console.log("Found ballot-specific voter ID:", voterId);
+        }
+      }
+
+      // Check for verification status to get the ID
+      if (!voterId) {
+        // The voter ID might be stored with the ballot verification status
+        const verificationData = JSON.parse(
+          localStorage.getItem(`verified_data_${id}`) || "{}"
+        );
+        if (verificationData && verificationData.id) {
+          voterId = verificationData.id;
+          console.log("Found voter ID in verification data:", voterId);
+        }
+      }
+
+      // If still no voter ID but we have a verification status, generate one and register the voter
+      if (!voterId && localStorage.getItem(`verified_${id}`) === "true") {
+        try {
+          // First try to register the voter with the backend
+          console.log(
+            "Attempting to register voter before voting for ballot:",
+            id
+          );
+
+          try {
+            // Register the voter with the ballot
+            const registerResponse = await ballotService.registerVoter(id);
+            console.log("Voter registration response:", registerResponse);
+
+            if (
+              registerResponse.data &&
+              registerResponse.data.data &&
+              registerResponse.data.data.id
+            ) {
+              // Use the voter ID from the registration response
+              voterId = registerResponse.data.data.id;
+              console.log("Registered voter with ID:", voterId);
+
+              // Store it for future use
+              localStorage.setItem(`voter_id_${id}`, voterId);
+            } else {
+              throw new Error("Registration did not return a voter ID");
+            }
+          } catch (regError) {
+            console.error("Failed to register voter:", regError);
+
+            // Generate a fallback UUID-like voter ID for debugging
+            voterId =
+              "voter-" +
+              Math.random().toString(36).substring(2, 10) +
+              "-" +
+              Math.random().toString(36).substring(2, 6) +
+              "-" +
+              Math.random().toString(36).substring(2, 12);
+
+            // Store it for future use
+            localStorage.setItem(`voter_id_${id}`, voterId);
+            console.log("Generated fallback voter ID:", voterId);
+          }
+        } catch (e) {
+          console.error("Error during voter registration:", e);
+
+          // Last resort, generate a voter ID
+          voterId =
+            "voter-" +
+            Math.random().toString(36).substring(2, 10) +
+            "-" +
+            Math.random().toString(36).substring(2, 6) +
+            "-" +
+            Math.random().toString(36).substring(2, 12);
+
+          localStorage.setItem(`voter_id_${id}`, voterId);
+          console.log("Generated last-resort voter ID:", voterId);
+        }
+      }
+
+      if (!voterId) {
+        console.error("No voter ID found in any localStorage location");
+        setError("Voter ID not found. Please register as a voter first.");
+        setLoading(false);
+
+        // For debugging - show what's in localStorage
+        console.log("Available localStorage keys:", Object.keys(localStorage));
+        console.log("Digital key:", localStorage.getItem(`digital_key_${id}`));
+        console.log(
+          "Verification status:",
+          localStorage.getItem(`verified_${id}`)
+        );
+
+        return;
+      }
+
       // Prepare the ballot response data from our response objects
       const ballotResponses = Object.entries(responses).map(
         ([questionIndex, response]) => {
@@ -367,7 +499,7 @@ const VotingPage = () => {
             ballot.questions[parseInt(questionIndex)].id || questionIndex;
 
           // Get the answer value - either the option index or write-in text
-          let optionId = "";
+          let choiceId = "";
           let writeIn = "";
 
           if (typeof response === "object") {
@@ -390,23 +522,30 @@ const VotingPage = () => {
                   ];
 
                 // Use the option ID if available, otherwise use the index
-                optionId =
+                choiceId =
                   typeof option === "object" && option.id
                     ? option.id.toString()
                     : optionIndex.toString();
               } else {
                 // Fallback to the index itself
-                optionId = response.index;
+                choiceId = response.index;
               }
             }
           } else {
             // Backward compatibility with old format
-            optionId = response;
+            choiceId = response;
           }
 
+          // Ensure choiceId is not empty
+          if (!choiceId && !writeIn) {
+            choiceId = "0"; // Default choice ID if none is selected
+          }
+
+          // Use the field names expected by the backend (questionId, choiceId)
           return {
-            question_id: questionId,
-            option_id: optionId || undefined,
+            questionId: questionId,
+            choiceId: choiceId || undefined,
+            rank: null, // Include rank as it's expected by the backend
             write_in: writeIn || undefined,
           };
         }
@@ -414,14 +553,14 @@ const VotingPage = () => {
 
       // Make sure the payload exactly matches what the backend expects
       const voteData = {
+        voterId: voterId, // Include the voter ID
         votes: ballotResponses,
-        ballot_id: id,
       };
 
       console.log("Submitting vote:", voteData);
 
       try {
-        // Try with the votes array and ballot_id
+        // Send the vote with the properly formatted payload
         const response = await ballotService.castVote(id, voteData);
         console.log("Vote submitted successfully:", response);
       } catch (apiError) {
