@@ -18,6 +18,7 @@ import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 // Auth pages
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
+import VoterLogin from "./pages/Verify/VoterLogin";
 
 // Regular pages (maintain backward compatibility)
 import Dashboard from "./pages/Dashboard/Dashboard";
@@ -94,6 +95,7 @@ function App() {
             path="/register"
             element={!isAuthenticated ? <Register /> : <Navigate to="/" />}
           />
+          <Route path="/voter/login" element={<VoterLogin />} />
 
           {/* Voter Flow Routes */}
           <Route path="/vote/:id/:slug" element={<VotingPage />} />

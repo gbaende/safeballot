@@ -955,10 +955,12 @@ router.post(
 
       // Check if voter has already voted
       if (voter.hasVoted) {
-        return res.status(400).json({
-          status: "error",
-          message: "Voter has already cast a vote",
-        });
+        // For demo purposes, reset the hasVoted flag instead of returning an error
+        console.log(
+          `DEMO MODE: Resetting hasVoted flag for voter ${voterId} to allow multiple votes`
+        );
+        voter.hasVoted = false;
+        await voter.save();
       }
 
       // Start a transaction

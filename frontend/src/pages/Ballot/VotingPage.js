@@ -803,6 +803,16 @@ const VotingPage = () => {
     }
   };
 
+  // Add a utility function to reset voter status in localStorage
+  const resetVoterStatus = () => {
+    const id = slug.split("-")[0]; // Extract ID from slug
+    localStorage.removeItem(`voter_id_${id}`);
+    console.log(`Cleared voter ID for ballot ${id} from localStorage`);
+    alert(
+      "Voter status reset in localStorage. Please refresh the page to restart the voting process."
+    );
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -833,8 +843,16 @@ const VotingPage = () => {
             variant="outlined"
             startIcon={<ArrowBackIcon />}
             onClick={() => navigate("/")}
+            sx={{ mr: 2 }}
           >
             Return Home
+          </Button>
+          <Button
+            variant="outlined"
+            color="secondary"
+            onClick={resetVoterStatus}
+          >
+            Reset Voter Status (Debug)
           </Button>
         </Box>
       </Container>

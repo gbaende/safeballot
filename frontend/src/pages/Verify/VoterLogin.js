@@ -23,6 +23,8 @@ const VoterLogin = () => {
   const queryParams = new URLSearchParams(location.search);
   const redirectUrl = queryParams.get("redirect") || "/voter/dashboard";
 
+  console.log("Voter login - redirect URL:", redirectUrl);
+
   // Form states
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -54,18 +56,22 @@ const VoterLogin = () => {
     setError("");
 
     try {
-      // Login using the voter-specific login function
-      const response = await authService.voterLogin({
-        email,
-        password,
-      });
+      console.log("Attempting voter login with email:", email);
+
+      // Login using the voter-specific login function with correct parameters
+      const response = await authService.voterLogin(email, password);
 
       console.log("Voter login successful:", response);
 
-      // Token handling is now done inside the voterLogin function
-
-      // Redirect user to the specified redirect URL or default to voter dashboard
-      navigate(redirectUrl);
+      // Check if the redirect URL is to a preregister page
+      if (redirectUrl && redirectUrl.includes("/preregister/")) {
+        console.log("Redirecting to preregistration page:", redirectUrl);
+        navigate(redirectUrl);
+      } else {
+        // Default fallback
+        console.log("Redirecting to default page:", redirectUrl);
+        navigate(redirectUrl);
+      }
     } catch (err) {
       console.error("Login error:", err);
 
