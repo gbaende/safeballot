@@ -57,14 +57,45 @@ const MyElections = () => {
     setLoading(true);
     setError(null);
 
+    // Clear any potentially cached data for ballots endpoint
+    localStorage.removeItem("api_cache_/ballots");
+
     try {
       // Try the API first
       try {
+        console.log("Fetching ballots from API...");
         const response = await ballotService.getBallots();
         console.log("API response:", response);
 
         // Log raw data to inspect the election objects
         if (response.data && response.data.data) {
+          console.log("Total elections received:", response.data.data.length);
+
+          // If we got zero ballots but we should have some, try emergency access
+          if (response.data.data.length === 0) {
+            console.log("No ballots found, attempting emergency access...");
+            try {
+              const emergencyResponse =
+                await ballotService.getDirectDatabaseBallots();
+              console.log("Emergency data access response:", emergencyResponse);
+
+              if (
+                emergencyResponse.data &&
+                emergencyResponse.data.data &&
+                emergencyResponse.data.data.length > 0
+              ) {
+                console.log(
+                  "Retrieved",
+                  emergencyResponse.data.data.length,
+                  "ballots via emergency access"
+                );
+                response.data.data = emergencyResponse.data.data;
+              }
+            } catch (emergencyError) {
+              console.error("Emergency data access failed:", emergencyError);
+            }
+          }
+
           const firstElection = response.data.data[0];
           if (firstElection) {
             console.log(

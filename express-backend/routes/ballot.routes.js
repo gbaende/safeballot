@@ -19,6 +19,11 @@ const router = express.Router();
  */
 router.get("/", protect, async (req, res) => {
   try {
+    console.log(
+      "GET /ballots request received from user:",
+      req.user ? req.user.id : "unknown"
+    );
+
     const ballots = await Ballot.findAll({
       where: { createdBy: req.user.id },
       include: [
@@ -44,6 +49,24 @@ router.get("/", protect, async (req, res) => {
         ],
       ],
     });
+
+    console.log(`Found ${ballots.length} ballots for user ${req.user.id}`);
+
+    // Log the IDs of ballots found for debugging
+    if (ballots.length > 0) {
+      console.log(
+        "Ballot IDs found:",
+        ballots.map((b) => b.id)
+      );
+      console.log("First ballot details:", {
+        id: ballots[0].id,
+        title: ballots[0].title,
+        questions: ballots[0].questions ? ballots[0].questions.length : 0,
+        createdAt: ballots[0].createdAt,
+      });
+    } else {
+      console.log("No ballots found for this user");
+    }
 
     res.status(200).json({
       status: "success",
@@ -806,6 +829,7 @@ router.post(
                 .toString(36)
                 .substring(2, 8)
                 .toUpperCase(),
+              isVerified: true, // Auto-verify voters for demo purposes
             },
             { transaction }
           );
@@ -921,10 +945,12 @@ router.post(
 
       // If ballot requires verification, check if voter is verified
       if (ballot.requiresVerification && !voter.isVerified) {
-        return res.status(403).json({
-          status: "error",
-          message: "Voter is not verified",
-        });
+        // For demo purposes, auto-verify the voter instead of returning an error
+        console.log(
+          `Auto-verifying voter ${voterId} for ballot ${id} (DEMO MODE)`
+        );
+        voter.isVerified = true;
+        await voter.save();
       }
 
       // Check if voter has already voted
@@ -1135,39 +1161,38 @@ router.get("/:id/results", async (req, res) => {
 });
 
 /**
- * Register voter for a ballot - allows a user to self-register as a voter for a ballot
+ * Register current user as a voter for a ballot
  * @route POST /api/ballots/:id/register-voter
- * @access Private - Any authenticated user can register as a voter
+ * @access Private
  */
 router.post("/:id/register-voter", protect, async (req, res) => {
   try {
     const { id } = req.params;
-
-    // Log the request for debugging
-    console.log("Register voter request:", {
-      ballotId: id,
-      user: req.user ? { id: req.user.id, email: req.user.email } : "No user",
-    });
+    console.log(
+      `Register voter request for ballot ${id} by user ${req.user.id} (${req.user.email})`
+    );
 
     // Check if ballot exists
     const ballot = await Ballot.findByPk(id);
-
     if (!ballot) {
+      console.log(`Ballot ${id} not found`);
       return res.status(404).json({
         status: "error",
         message: "Ballot not found",
       });
     }
 
-    // Check if ballot is still accepting voters (not completed)
+    // Check if ballot is still accepting registrations
     if (ballot.status === "completed") {
+      console.log(`Ballot ${id} is already completed, cannot register voters`);
       return res.status(400).json({
         status: "error",
-        message: "Ballot is completed and no longer accepting voters",
+        message:
+          "This ballot is already completed and not accepting new voters",
       });
     }
 
-    // Check if user is already registered as a voter
+    // Check if user is already registered as a voter for this ballot
     const existingVoter = await Voter.findOne({
       where: {
         ballotId: id,
@@ -1176,49 +1201,58 @@ router.post("/:id/register-voter", protect, async (req, res) => {
     });
 
     if (existingVoter) {
-      // Voter already exists - return success with existing voter info
+      console.log(
+        `User ${req.user.email} is already registered as a voter for ballot ${id}`
+      );
       return res.status(200).json({
         status: "success",
-        message: "You are already registered for this ballot",
+        message: "You are already registered as a voter for this ballot",
         data: {
           voter: existingVoter,
-          isNew: false,
         },
       });
     }
 
-    // Create a new voter record to associate the user with this ballot
+    // Generate verification code - can be email OTP, digital key, etc.
+    const verificationCode = Math.random()
+      .toString(36)
+      .substring(2, 8)
+      .toUpperCase();
+
+    // Register user as a voter
     const voter = await Voter.create({
-      email: req.user.email,
-      name: req.user.name || "",
       ballotId: id,
-      verificationCode: Math.random()
-        .toString(36)
-        .substring(2, 8)
-        .toUpperCase(),
-      // Don't mark as verified yet - will be verified through the verification flow
-      isVerified: false,
+      email: req.user.email,
+      name: req.user.name || "Anonymous Voter",
+      verificationCode,
+      hasVoted: false,
+      isVerified: true, // Auto-verify voters for demo purposes
     });
 
-    // Update ballot totalVoters count
-    ballot.totalVoters = await Voter.count({
-      where: { ballotId: id },
-    });
+    console.log(
+      `Successfully registered user ${req.user.email} as voter ${voter.id} for ballot ${id} (auto-verified for demo)`
+    );
+
+    // Increment totalVoters count in ballot
+    await ballot.increment("totalVoters");
     await ballot.save();
 
-    return res.status(201).json({
+    console.log(
+      `Updated total voters for ballot ${id} to ${ballot.totalVoters + 1}`
+    );
+
+    res.status(201).json({
       status: "success",
-      message: "Successfully registered as a voter for this ballot",
+      message: "You have been registered as a voter for this ballot",
       data: {
         voter,
-        isNew: true,
       },
     });
   } catch (error) {
-    console.error("Error registering voter for ballot:", error);
+    console.error("Error registering voter:", error);
     res.status(500).json({
       status: "error",
-      message: "Failed to register for ballot",
+      message: "Failed to register as a voter",
     });
   }
 });

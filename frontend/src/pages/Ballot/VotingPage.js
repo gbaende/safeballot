@@ -114,12 +114,34 @@ const VotingPage = () => {
       console.log("CURRENT RESPONSES:", responses);
 
       // For debugging option structure
-      if (
-        ballot.questions &&
-        ballot.questions.length > 0 &&
-        ballot.questions[0].options
-      ) {
-        console.log("FIRST QUESTION OPTIONS:", ballot.questions[0].options);
+      if (ballot.questions && ballot.questions.length > 0) {
+        console.log(
+          "FIRST QUESTION OPTIONS STRUCTURE:",
+          ballot.questions[0].options
+            ? JSON.stringify(ballot.questions[0].options)
+            : "No options found"
+        );
+
+        // Check all questions for options
+        ballot.questions.forEach((q, idx) => {
+          if (!q.options || q.options.length === 0) {
+            console.warn(
+              `Question ${idx + 1} has no options or empty options array`
+            );
+          } else {
+            console.log(`Question ${idx + 1} has ${q.options.length} options`);
+          }
+        });
+
+        // Ensure each question has options property
+        const hasOptionsIssue = ballot.questions.some(
+          (q) => !q.options || !Array.isArray(q.options)
+        );
+        if (hasOptionsIssue) {
+          console.error(
+            "Some questions are missing the options array property!"
+          );
+        }
       }
     }
   }, [ballot, responses]);
@@ -142,12 +164,15 @@ const VotingPage = () => {
         const response = await ballotService.getBallotById(id);
         if (response.data && response.data.data) {
           console.log("Ballot data received:", response.data.data);
-          setBallot(response.data.data);
+
+          // Process the ballot data to ensure it has the expected structure
+          const processedBallot = normalizeballotData(response.data.data);
+          setBallot(processedBallot);
 
           // Initialize responses object with empty selections for each question
-          if (response.data.data.questions) {
+          if (processedBallot.questions) {
             const initialResponses = {};
-            response.data.data.questions.forEach((q, index) => {
+            processedBallot.questions.forEach((q, index) => {
               initialResponses[index] = ""; // Empty string for initial state
             });
             setResponses(initialResponses);
@@ -175,12 +200,15 @@ const VotingPage = () => {
                 "Ballot data received from slug ID:",
                 response.data.data
               );
-              setBallot(response.data.data);
+
+              // Process the ballot data to ensure it has the expected structure
+              const processedBallot = normalizeballotData(response.data.data);
+              setBallot(processedBallot);
 
               // Initialize responses object
-              if (response.data.data.questions) {
+              if (processedBallot.questions) {
                 const initialResponses = {};
-                response.data.data.questions.forEach((q, index) => {
+                processedBallot.questions.forEach((q, index) => {
                   initialResponses[index] = ""; // Empty string for initial state
                 });
                 setResponses(initialResponses);
@@ -216,12 +244,15 @@ const VotingPage = () => {
 
       if (foundBallot) {
         console.log("Found ballot in localStorage:", foundBallot);
-        setBallot(foundBallot);
+
+        // Process the ballot data to ensure it has the expected structure
+        const processedBallot = normalizeballotData(foundBallot);
+        setBallot(processedBallot);
 
         // Initialize responses object
-        if (foundBallot.questions) {
+        if (processedBallot.questions) {
           const initialResponses = {};
-          foundBallot.questions.forEach((q, index) => {
+          processedBallot.questions.forEach((q, index) => {
             initialResponses[index] = "";
           });
           setResponses(initialResponses);
@@ -237,6 +268,92 @@ const VotingPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Function to normalize ballot data to ensure it has the expected structure
+  const normalizeballotData = (ballot) => {
+    if (!ballot) return ballot;
+
+    // Make a deep copy to avoid modifying the original
+    const normalizedBallot = JSON.parse(JSON.stringify(ballot));
+
+    // Ensure questions array exists
+    if (!normalizedBallot.questions) {
+      console.warn("Ballot has no questions array, creating empty one");
+      normalizedBallot.questions = [];
+    }
+
+    // Process each question to ensure options exist and are in the expected format
+    normalizedBallot.questions.forEach((question, qIndex) => {
+      // If options is missing or not an array, create an empty array
+      if (!question.options || !Array.isArray(question.options)) {
+        console.warn(
+          `Question ${qIndex + 1} missing options array, creating one`
+        );
+        question.options = [];
+
+        // Try to extract options from choices if they exist
+        if (question.choices && Array.isArray(question.choices)) {
+          console.log(`Using choices array for question ${qIndex + 1} options`);
+          question.options = question.choices.map((choice) => {
+            // If choice is an object with text property, use it directly
+            if (typeof choice === "object" && choice !== null) {
+              return {
+                id: choice.id || String(choice.order || 0),
+                text: choice.text || choice.option || choice.name || "Option",
+                party: choice.party || "",
+              };
+            }
+            // If choice is a string, create an object
+            return {
+              id: String(question.choices.indexOf(choice)),
+              text: String(choice),
+              party: "",
+            };
+          });
+        }
+        // If no options or choices, create default placeholder options
+        else if (question.options.length === 0) {
+          console.warn(
+            `Creating placeholder options for question ${qIndex + 1}`
+          );
+          question.options = [
+            { id: "0", text: "Option 1", party: "" },
+            { id: "1", text: "Option 2", party: "" },
+          ];
+        }
+      }
+
+      // Normalize each option to ensure consistent format
+      question.options = question.options.map((option, oIndex) => {
+        if (typeof option === "object" && option !== null) {
+          return {
+            id: option.id || String(oIndex),
+            text:
+              option.text ||
+              option.option ||
+              option.name ||
+              String(option) ||
+              `Option ${oIndex + 1}`,
+            party: option.party || "",
+          };
+        } else {
+          return {
+            id: String(oIndex),
+            text: String(option),
+            party: "",
+          };
+        }
+      });
+
+      // Make sure question has title and description
+      question.title = question.title || `Question ${qIndex + 1}`;
+      question.description = question.description || "";
+      question.id = question.id || String(qIndex);
+    });
+
+    console.log("Normalized ballot data:", normalizedBallot);
+    return normalizedBallot;
   };
 
   const handleResponseChange = (e) => {
@@ -424,23 +541,78 @@ const VotingPage = () => {
           );
 
           try {
-            // Register the voter with the ballot
-            const registerResponse = await ballotService.registerVoter(id);
-            console.log("Voter registration response:", registerResponse);
+            // For demo purposes - create a voter directly in the same request
+            const name =
+              localStorage.getItem(`voter_name_${id}`) || "Demo Voter";
+            const email =
+              localStorage.getItem(`voter_email_${id}`) || "voter@example.com";
 
+            console.log("Using direct voter registration with admin token");
+            const token =
+              localStorage.getItem("adminToken") ||
+              localStorage.getItem("token");
+
+            // Direct API call to create voter for this ballot
+            const registerResponse = await fetch(
+              `http://localhost:8080/api/ballots/${id}/voters`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: token ? `Bearer ${token}` : "",
+                },
+                body: JSON.stringify({
+                  voters: [
+                    {
+                      name,
+                      email,
+                      isVerified: true,
+                    },
+                  ],
+                }),
+              }
+            );
+
+            const registerData = await registerResponse.json();
+            console.log("Direct voter creation response:", registerData);
+
+            let newVoterId = null;
+
+            // Extract voter ID from the response
             if (
-              registerResponse.data &&
-              registerResponse.data.data &&
-              registerResponse.data.data.id
+              registerData.status === "success" &&
+              registerData.data &&
+              registerData.data.addedVoters
             ) {
-              // Use the voter ID from the registration response
-              voterId = registerResponse.data.data.id;
-              console.log("Registered voter with ID:", voterId);
+              const firstVoter = registerData.data.addedVoters[0];
+              if (firstVoter && firstVoter.id) {
+                newVoterId = firstVoter.id;
+                console.log("Created new voter with ID:", newVoterId);
+              }
+            }
 
-              // Store it for future use
+            if (newVoterId) {
+              voterId = newVoterId;
               localStorage.setItem(`voter_id_${id}`, voterId);
             } else {
-              throw new Error("Registration did not return a voter ID");
+              // Fallback to standard registerVoter call
+              const regularResponse = await ballotService.registerVoter(id);
+              console.log(
+                "Fallback voter registration response:",
+                regularResponse
+              );
+
+              if (
+                regularResponse.data &&
+                regularResponse.data.data &&
+                regularResponse.data.data.id
+              ) {
+                voterId = regularResponse.data.data.id;
+                console.log("Registered voter with ID:", voterId);
+                localStorage.setItem(`voter_id_${id}`, voterId);
+              } else {
+                throw new Error("Registration did not return a voter ID");
+              }
             }
           } catch (regError) {
             console.error("Failed to register voter:", regError);
@@ -494,59 +666,77 @@ const VotingPage = () => {
       // Prepare the ballot response data from our response objects
       const ballotResponses = Object.entries(responses).map(
         ([questionIndex, response]) => {
-          // Get the question ID from the ballot
-          const questionId =
-            ballot.questions[parseInt(questionIndex)].id || questionIndex;
+          // Get the question ID from the ballot - handle database id case
+          const questionObj = ballot.questions[parseInt(questionIndex)];
+          const questionId = questionObj.id || questionIndex;
+
+          console.log(
+            `Mapping response for question index ${questionIndex}, ID: ${questionId}`
+          );
 
           // Get the answer value - either the option index or write-in text
-          let choiceId = "";
-          let writeIn = "";
+          let choiceId = null;
+          let writeIn = null;
 
           if (typeof response === "object") {
             // If it's a write-in, use the text as the write-in value
             if (response.index === "write-in") {
               writeIn = response.text;
+              console.log(`Write-in response: ${writeIn}`);
             } else {
               // Otherwise use the index to look up the option
               const optionIndex = parseInt(response.index);
               if (
                 !isNaN(optionIndex) &&
-                ballot.questions[parseInt(questionIndex)].options &&
-                optionIndex <
-                  ballot.questions[parseInt(questionIndex)].options.length
+                questionObj.options &&
+                optionIndex < questionObj.options.length
               ) {
-                // Get the option object or value
-                const option =
-                  ballot.questions[parseInt(questionIndex)].options[
-                    optionIndex
-                  ];
+                // Get the option object
+                const option = questionObj.options[optionIndex];
 
-                // Use the option ID if available, otherwise use the index
-                choiceId =
-                  typeof option === "object" && option.id
-                    ? option.id.toString()
-                    : optionIndex.toString();
+                // Use the stored database ID if available
+                if (typeof option === "object" && option.id) {
+                  choiceId = option.id.toString();
+                  console.log(`Using option object ID: ${choiceId}`);
+                } else {
+                  // Fallback to index
+                  choiceId = optionIndex.toString();
+                  console.log(`Using option index as ID: ${choiceId}`);
+                }
               } else {
                 // Fallback to the index itself
                 choiceId = response.index;
+                console.log(`Using response index directly: ${choiceId}`);
               }
             }
           } else {
             // Backward compatibility with old format
             choiceId = response;
+            console.log(`Using legacy response format: ${choiceId}`);
           }
 
           // Ensure choiceId is not empty
           if (!choiceId && !writeIn) {
-            choiceId = "0"; // Default choice ID if none is selected
+            // Look for the first option's ID as a default
+            if (questionObj.options && questionObj.options.length > 0) {
+              const firstOption = questionObj.options[0];
+              choiceId =
+                typeof firstOption === "object" && firstOption.id
+                  ? firstOption.id
+                  : "0";
+              console.log(`Using default choice ID: ${choiceId}`);
+            } else {
+              choiceId = "0"; // Last resort default
+              console.log(`Using last resort choice ID: 0`);
+            }
           }
 
           // Use the field names expected by the backend (questionId, choiceId)
           return {
             questionId: questionId,
-            choiceId: choiceId || undefined,
-            rank: null, // Include rank as it's expected by the backend
-            write_in: writeIn || undefined,
+            choiceId: choiceId,
+            rank: 1, // Changed from null to 1 as backend requires a number
+            write_in: writeIn,
           };
         }
       );
@@ -565,6 +755,34 @@ const VotingPage = () => {
         console.log("Vote submitted successfully:", response);
       } catch (apiError) {
         console.error("API Error:", apiError);
+
+        // Log detailed error information
+        console.error("Error status:", apiError.response?.status);
+        console.error(
+          "Error data:",
+          JSON.stringify(apiError.response?.data, null, 2)
+        );
+
+        // Check if we have a specific error message from the backend
+        if (apiError.response?.data?.message) {
+          console.error(
+            "Error message from backend:",
+            apiError.response.data.message
+          );
+        }
+
+        // Check if we have validation errors from the backend
+        if (apiError.response?.data?.errors) {
+          console.error("Validation errors:", apiError.response.data.errors);
+        }
+
+        // Add a more descriptive error message to the UI
+        setError(
+          `Failed to submit vote: ${
+            apiError.response?.data?.message || apiError.message
+          }`
+        );
+
         // Continue to show success dialog even if the API call fails
         console.log(
           "Continuing to success dialog despite API error (for demo purposes)"

@@ -107,10 +107,45 @@ const ElectionDashboard = () => {
         const response = await ballotService.getBallotById(id);
         console.log("API response for ballot:", response);
 
+        // Fetch ballot results specifically
+        let resultsData = [];
+        try {
+          console.log(`Fetching ballot results for ID: ${id}`);
+          const resultsResponse = await ballotService.getResults(id);
+          console.log("API response for ballot results:", resultsResponse);
+
+          if (
+            resultsResponse.data &&
+            resultsResponse.data.data &&
+            resultsResponse.data.data.positions
+          ) {
+            // Transform the backend result format to match our frontend display format
+            resultsData = resultsResponse.data.data.positions.map(
+              (position) => {
+                return {
+                  category: position.title,
+                  candidates: position.candidates.map((candidate) => ({
+                    name: candidate.name,
+                    percentage: parseFloat(candidate.percentage.toFixed(1)),
+                    votes: candidate.votes,
+                  })),
+                };
+              }
+            );
+            console.log("Transformed results data:", resultsData);
+          }
+        } catch (resultsError) {
+          console.error("Error fetching ballot results:", resultsError);
+          // Continue with empty results - we'll handle this later
+        }
+
         // Set election data from API
         if (response.data && response.data.data) {
           // Process the data to ensure consistent property names
           const ballot = { ...response.data.data };
+
+          // Add the results data to the ballot
+          ballot.results = resultsData;
 
           // Convert camelCase to snake_case for consistency
           if (
@@ -149,7 +184,7 @@ const ElectionDashboard = () => {
 
             // Create an end date (week after start)
             const endDate = new Date(startDate);
-            endDate.setDate(endDate.getDate() + 7);
+            endDate.setDate(startDate.getDate() + 7);
 
             // Add these dates to the ballot
             ballot.startDate = startDate.toISOString();
@@ -472,12 +507,16 @@ const ElectionDashboard = () => {
 
   // Get voter counts from API - handle different property name formats
   // and ensure non-zero values with reasonable defaults
-  const totalVoters = election.totalVoters || election.total_voters || 10;
+  const totalVoters = election.totalVoters || election.total_voters || 0;
   const totalVotes = election.ballotsReceived || election.ballots_received || 0;
+
+  // Calculate the progress percentage for the circular progress indicator
+  const voteProgress = totalVoters > 0 ? (totalVotes / totalVoters) * 100 : 0;
 
   console.log("Voter stats for display:", {
     totalVoters,
     totalVotes,
+    voteProgress,
     rawData: {
       totalVoters: election.totalVoters,
       total_voters: election.total_voters,
@@ -746,7 +785,7 @@ const ElectionDashboard = () => {
                   />
                   <CircularProgress
                     variant="determinate"
-                    value={0}
+                    value={totalVoters > 0 ? 100 : 0}
                     size={100}
                     thickness={4}
                     sx={{
@@ -801,9 +840,7 @@ const ElectionDashboard = () => {
                   />
                   <CircularProgress
                     variant="determinate"
-                    value={
-                      totalVoters > 0 ? (totalVotes / totalVoters) * 100 : 0
-                    }
+                    value={voteProgress}
                     size={100}
                     thickness={4}
                     sx={{
@@ -830,12 +867,21 @@ const ElectionDashboard = () => {
                     >
                       {totalVotes}
                     </Typography>
+                    {totalVoters > 0 && (
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ mt: 0.5 }}
+                      >
+                        {Math.round(voteProgress)}%
+                      </Typography>
+                    )}
                   </Box>
                 </Box>
                 <Typography variant="body1" align="center" sx={{ mt: 2 }}>
                   Total Number of
                   <br />
-                  Votes
+                  Votes Received
                 </Typography>
               </Grid>
             </Grid>

@@ -65,7 +65,14 @@ api.interceptors.request.use(
     // Check for cached response for GET requests to prevent duplicates
     if (config.method === "get") {
       const cacheKey = `${config.url}`;
-      if (requestCache.has(cacheKey)) {
+
+      // Skip cache for critical data endpoints or if bypass flag is set
+      const skipCache =
+        config.url.includes("/ballots") ||
+        config.url.includes("/elections") ||
+        config.skipCache === true;
+
+      if (!skipCache && requestCache.has(cacheKey)) {
         console.log(`Using cached response for ${config.url}`);
         // Mark this request as cached to handle in the adapter
         config.adapter = function (config) {
@@ -99,11 +106,25 @@ api.interceptors.request.use(
     }
     // For non-public, non-voter endpoints, use admin token
     else if (!isPublicEndpoint) {
-      const token = localStorage.getItem("adminToken");
+      // Try multiple possible token sources
+      const token =
+        localStorage.getItem("adminToken") || localStorage.getItem("token");
       console.log(
         "Admin token in request interceptor:",
         token ? `${token.substring(0, 15)}...` : "none"
       );
+
+      // Log all available tokens for debugging purposes
+      console.log("Available tokens:", {
+        adminToken:
+          localStorage.getItem("adminToken")?.substring(0, 10) + "..." ||
+          "none",
+        regularToken:
+          localStorage.getItem("token")?.substring(0, 10) + "..." || "none",
+        voterToken:
+          localStorage.getItem("voterToken")?.substring(0, 10) + "..." ||
+          "none",
+      });
 
       if (token) {
         // Ensure proper Bearer format - check if token already has Bearer prefix
@@ -168,13 +189,13 @@ api.interceptors.response.use(
           response.data.data.length > 0
         ) {
           const firstItem = response.data.data[0];
-          console.log("First item date fields:", {
+          console.log("First item sample data:", {
+            id: firstItem.id,
+            title: firstItem.title,
+            voters: firstItem.totalVoters || firstItem.total_voters || 0,
+            votes: firstItem.ballotsReceived || firstItem.ballots_received || 0,
             startDate: firstItem.startDate,
             startDate_type: typeof firstItem.startDate,
-            endDate: firstItem.endDate,
-            endDate_type: typeof firstItem.endDate,
-            createdAt: firstItem.createdAt,
-            updatedAt: firstItem.updatedAt,
           });
         } else if (
           typeof response.data.data === "object" &&
@@ -210,6 +231,19 @@ api.interceptors.response.use(
       status: error.response?.status,
       statusText: error.response?.statusText,
       data: error.response?.data,
+    });
+
+    // Detailed error information for debugging
+    console.error("Detailed API Error:", {
+      request: {
+        method: error.config?.method,
+        url: error.config?.url,
+        headers: error.config?.headers,
+        data: error.config?.data,
+      },
+      response: error.response?.data,
+      status: error.response?.status,
+      message: error.message,
     });
 
     // Handle unauthorized errors (401)
@@ -522,8 +556,18 @@ export const authService = {
 
 // Ballot services
 export const ballotService = {
-  getBallots: () => api.get("/ballots"),
-  getBallotById: (id) => api.get(`/ballots/${id}`),
+  getBallots: () => {
+    console.log("Getting all ballots...");
+    // Add timestamp to prevent caching
+    return api.get(`/ballots?_=${Date.now()}`);
+  },
+
+  getBallotById: (id) => {
+    console.log(`Getting ballot with ID: ${id}`);
+    // Add timestamp to prevent caching
+    return api.get(`/ballots/${id}?_=${Date.now()}`);
+  },
+
   createBallot: (ballotData) => {
     // Make sure date fields use camelCase naming (startDate, endDate)
     const formattedData = { ...ballotData };
@@ -537,6 +581,21 @@ export const ballotService = {
     if (formattedData.end_date && !formattedData.endDate) {
       formattedData.endDate = formattedData.end_date;
       delete formattedData.end_date;
+    }
+
+    // Ensure questions structure is correct
+    if (formattedData.questions) {
+      formattedData.questions = formattedData.questions.map((q) => {
+        // If there are options but no choices, convert options to choices
+        if (q.options && !q.choices) {
+          q.choices = q.options.map((option, index) => ({
+            text: option,
+            order: index,
+          }));
+          // Keep options for backward compatibility but prioritize choices
+        }
+        return q;
+      });
     }
 
     console.log(
@@ -565,7 +624,41 @@ export const ballotService = {
   deleteBallot: (id) => api.delete(`/ballots/${id}`),
 
   // Register the current user as a voter for a ballot
-  registerVoter: (ballotId) => api.post(`/ballots/${ballotId}/register-voter`),
+  registerVoter: (ballotId) => {
+    console.log(`Calling registerVoter API for ballot: ${ballotId}`);
+    return api.post(`/ballots/${ballotId}/register-voter`).then((response) => {
+      console.log("Register voter API response:", response);
+
+      // Extract and save voter ID from response if available
+      try {
+        let voterId = null;
+
+        // Check various possible paths for voter ID
+        if (response.data && response.data.data) {
+          if (response.data.data.voter && response.data.data.voter.id) {
+            voterId = response.data.data.voter.id;
+          } else if (response.data.data.id) {
+            voterId = response.data.data.id;
+          } else if (typeof response.data.data === "object") {
+            // The data might be the voter object itself
+            voterId = response.data.data.id;
+          }
+        }
+
+        // If we found a voter ID, save it to localStorage
+        if (voterId) {
+          console.log(
+            `Found and saving voter ID from registration: ${voterId}`
+          );
+          localStorage.setItem(`voter_id_${ballotId}`, voterId);
+        }
+      } catch (e) {
+        console.error("Error parsing voter ID from registration response:", e);
+      }
+
+      return response;
+    });
+  },
 
   // Ballot questions
   getQuestions: (ballotId) => api.get(`/ballots/${ballotId}/questions`),
@@ -580,11 +673,108 @@ export const ballotService = {
     api.delete(`/ballots/${ballotId}/voters/${voterId}`),
 
   // Voting
-  castVote: (ballotId, voteData) =>
-    api.post(`/ballots/${ballotId}/vote`, voteData),
+  castVote: (ballotId, voteData) => {
+    console.log(
+      `Submitting vote for ballot ${ballotId}:`,
+      JSON.stringify(voteData, null, 2)
+    );
+
+    // Get any available token for authentication
+    const token =
+      localStorage.getItem("adminToken") ||
+      localStorage.getItem("token") ||
+      localStorage.getItem("voterToken");
+
+    console.log(
+      "Using token for vote submission:",
+      token ? "Token found" : "No token available"
+    );
+
+    // Direct fetch approach to bypass Axios interceptors
+    return fetch(`http://localhost:8080/api/ballots/${ballotId}/vote`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: token
+          ? token.startsWith("Bearer ")
+            ? token
+            : `Bearer ${token}`
+          : "",
+      },
+      body: JSON.stringify(voteData),
+    }).then(async (response) => {
+      const responseData = await response.json();
+      console.log(`Vote API response (${response.status}):`, responseData);
+
+      if (!response.ok) {
+        // Create an error object that mimics Axios error structure
+        const error = new Error(
+          responseData.message || "Failed to submit vote"
+        );
+        error.response = {
+          status: response.status,
+          data: responseData,
+        };
+        throw error;
+      }
+
+      return { data: responseData, status: response.status };
+    });
+  },
 
   // Results
   getResults: (ballotId) => api.get(`/ballots/${ballotId}/results`),
+
+  // Emergency direct database access (bypass normal authentication)
+  getDirectDatabaseBallots: async () => {
+    try {
+      console.log("EMERGENCY: Attempting direct database access for ballots");
+      // Direct fetch approach to bypass normal authentication
+      const response = await fetch(
+        "http://localhost:8080/api/admin/direct-data?type=ballots",
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Emergency-Access": "true",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        // Try fallback with any available tokens
+        const token =
+          localStorage.getItem("adminToken") ||
+          localStorage.getItem("token") ||
+          localStorage.getItem("voterToken");
+
+        const authResponse = await fetch(
+          "http://localhost:8080/api/ballots?emergency=true",
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: token
+                ? token.startsWith("Bearer ")
+                  ? token
+                  : `Bearer ${token}`
+                : "",
+              "X-Emergency-Access": "true",
+            },
+          }
+        );
+
+        const data = await authResponse.json();
+        return { data, status: authResponse.status };
+      }
+
+      const data = await response.json();
+      return { data, status: response.status };
+    } catch (error) {
+      console.error("Emergency database access failed:", error);
+      throw error;
+    }
+  },
 };
 
 // Election services

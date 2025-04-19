@@ -573,8 +573,13 @@ const Dashboard = () => {
                       <LinearProgress
                         variant="determinate"
                         value={
-                          (election.ballots_received / election.total_voters) *
-                            100 || 0
+                          ((election.ballots_received ||
+                            election.ballotsReceived ||
+                            0) /
+                            (election.total_voters ||
+                              election.totalVoters ||
+                              10)) *
+                          100
                         }
                         sx={{
                           flexGrow: 1,
@@ -583,13 +588,16 @@ const Dashboard = () => {
                           borderRadius: 4,
                           bgcolor: "#EDF2F7",
                           ".MuiLinearProgress-bar": {
-                            bgcolor: "#4A5568",
+                            backgroundImage:
+                              "linear-gradient(to right, #00005E, #4478EB)",
                           },
                         }}
                       />
-                      <Typography variant="body2">
-                        {election.ballots_received || 0}/
-                        {election.total_voters || 0}
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {election.ballots_received ||
+                          election.ballotsReceived ||
+                          0}
+                        /{election.total_voters || election.totalVoters || 10}
                       </Typography>
                     </Box>
                   </TableCell>

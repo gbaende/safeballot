@@ -1,57 +1,67 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { v4 as uuidv4 } from "uuid";
 import {
   Box,
   Typography,
+  Grid,
   Paper,
   Button,
   TextField,
-  Stepper,
-  Step,
-  StepLabel,
-  Grid,
-  IconButton,
-  Checkbox,
-  FormControlLabel,
-  InputAdornment,
+  FormControl,
   InputLabel,
-  OutlinedInput,
   Select,
   MenuItem,
-  Link,
+  FormControlLabel,
+  Switch,
+  IconButton,
+  Divider,
+  Card,
+  CardContent,
+  CardActions,
+  Chip,
+  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
+  Stepper,
+  Step,
+  StepLabel,
   CircularProgress,
-  Alert,
+  Checkbox,
+  InputAdornment,
 } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
-import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
-import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
-import AccessTimeIcon from "@mui/icons-material/AccessTime";
-import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
-import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
-import CreditCardIcon from "@mui/icons-material/CreditCard";
-import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-
-// Add import for date-time pickers
-import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import {
+  Add as AddIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  ArrowBack as ArrowBackIcon,
+  ArrowForward as ArrowForwardIcon,
+  ArrowUpward as ArrowUpwardIcon,
+  ArrowDownward as ArrowDownwardIcon,
+  ContentCopy as ContentCopyIcon,
+  AccessTime as AccessTimeIcon,
+  Event as EventIcon,
+  Person as PersonIcon,
+  Link as LinkIcon,
+  Check as CheckIcon,
+  CalendarToday as CalendarTodayIcon,
+  RemoveCircleOutline as RemoveCircleOutlineIcon,
+  AddCircleOutline as AddCircleOutlineIcon,
+  CreditCard as CreditCardIcon,
+  AccountBalance as AccountBalanceIcon,
+  KeyboardArrowDown as KeyboardArrowDownIcon,
+} from "@mui/icons-material";
+import { format, isValid, addHours, parse, set } from "date-fns";
 import {
   LocalizationProvider,
   DatePicker,
   TimePicker,
-  DateTimePicker,
 } from "@mui/x-date-pickers";
-import { format, parse, isValid } from "date-fns";
-import { ballotService, electionService } from "../../services/api";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import { v4 as uuidv4 } from "uuid";
 import axios from "axios";
+import { ballotService, electionService } from "../../services/api";
 
 const steps = [
   "Build Ballot",
@@ -368,13 +378,29 @@ const BallotBuilder = () => {
 
       // Format questions for API - filter out empty options
       const formattedQuestions = questions
-        .map((q) => ({
-          title: q.title || "Untitled Question",
-          description: q.description || "",
-          options: q.options.filter((option) => option.trim() !== ""),
-          allow_write_in: allowWriteIn,
-        }))
-        .filter((q) => q.options.length > 0); // Only include questions with at least one option
+        .map((q) => {
+          // Filter out empty options first
+          const validOptions = q.options.filter(
+            (option) => option.trim() !== ""
+          );
+
+          // Create properly formatted choices array from options
+          const choices = validOptions.map((optionText, index) => ({
+            text: optionText,
+            description: "",
+            order: index,
+          }));
+
+          return {
+            title: q.title || "Untitled Question",
+            description: q.description || "",
+            questionType: "single_choice",
+            maxSelections: 1,
+            choices: choices, // This is the key change - backend expects 'choices', not 'options'
+            allow_write_in: allowWriteIn,
+          };
+        })
+        .filter((q) => q.choices.length > 0); // Only include questions with at least one choice
 
       // Check if there are any valid questions
       if (formattedQuestions.length === 0) {
@@ -401,127 +427,165 @@ const BallotBuilder = () => {
         JSON.stringify(ballotData, null, 2)
       );
 
-      // DIRECT FETCH approach - bypassing axios interceptors entirely
+      // First try the ballotService API approach
       try {
-        console.log("Using direct fetch API...");
+        console.log("Using ballotService.createBallot API...");
+        const response = await ballotService.createBallot(ballotData);
 
-        // Create fetch request with explicit headers
-        const response = await fetch("http://localhost:8080/api/ballots", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(ballotData),
-        });
+        console.log("API response status:", response.status);
+        console.log("API response data:", response.data);
 
-        // Get response status and data
-        const status = response.status;
-        const responseData = await response.json();
-
-        console.log("Fetch response status:", status);
-        console.log("Fetch response data:", responseData);
-
-        if (status >= 200 && status < 300) {
-          // Success!
+        if (response.status >= 200 && response.status < 300 && response.data) {
+          // Success! Use the ID from the response
           setSubmitSuccess(true);
-          setTimeout(() => {
-            navigate("/my-elections");
-          }, 1500);
 
-          // Store the ballot data in localStorage to show in My Elections
+          // Get the actual ballot ID from the API response
+          const createdBallotId = response.data.data.id;
+          console.log("Received ballot ID from API:", createdBallotId);
+
+          // Store the ballot data in localStorage with the real ID from API
           try {
             const existingBallots = JSON.parse(
               localStorage.getItem("userBallots") || "[]"
             );
+
+            // Use the ID returned from the API
             const newBallot = {
-              id: uuidv4(),
-              ...ballotData,
-              status: "scheduled",
-              created_at: new Date().toISOString(),
+              ...response.data.data,
+              shareableLink: generateShareableLink(response.data.data),
             };
-
-            // Generate a shareable voter registration link
-            const baseUrl = window.location.origin;
-            // Create a URL-friendly slug from the title
-            const slug = (ballotData.title || "Untitled Ballot")
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, "-")
-              .replace(/(^-|-$)/g, "");
-            // Generate a unique code using only the ID's first 8 characters
-            const idPart = newBallot.id.toString().substring(0, 8);
-            // Format: baseUrl/voter-registration/electionId/slug-uniqueCode
-            const shareableLink = `${baseUrl}/voter-registration/${newBallot.id}/${slug}-${idPart}`;
-
-            // Save the shareable link with the ballot
-            newBallot.shareableLink = shareableLink;
 
             localStorage.setItem(
               "userBallots",
               JSON.stringify([...existingBallots, newBallot])
             );
+
             console.log(
-              "Saved ballot to localStorage with shareable link:",
-              shareableLink
+              "Saved ballot to localStorage with ID:",
+              createdBallotId
             );
           } catch (e) {
             console.error("Error saving to localStorage:", e);
           }
 
+          setTimeout(() => {
+            navigate("/my-elections");
+          }, 1500);
           return;
-        } else {
-          throw new Error(`Error ${status}: ${JSON.stringify(responseData)}`);
         }
-      } catch (fetchError) {
-        console.error("Direct fetch approach failed:", fetchError);
+      } catch (apiError) {
+        console.error("ballotService approach failed:", apiError);
 
-        // Last resort: hardcoded success
-        console.log("USING LAST RESORT: Simulating successful submission");
-        setSubmitSuccess(true);
-
-        // Store the ballot data in localStorage to show in My Elections
+        // Fall back to direct fetch approach
         try {
-          const existingBallots = JSON.parse(
-            localStorage.getItem("userBallots") || "[]"
-          );
-          const newBallot = {
-            id: uuidv4(),
-            ...ballotData,
-            status: "scheduled",
-            created_at: new Date().toISOString(),
-          };
+          console.log("Falling back to direct fetch API...");
 
-          // Generate a shareable voter registration link
-          const baseUrl = window.location.origin;
-          // Create a URL-friendly slug from the title
-          const slug = (ballotData.title || "Untitled Ballot")
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/(^-|-$)/g, "");
-          // Generate a unique code using only the ID's first 8 characters
-          const idPart = newBallot.id.toString().substring(0, 8);
-          // Format: baseUrl/voter-registration/electionId/slug-uniqueCode
-          const shareableLink = `${baseUrl}/voter-registration/${newBallot.id}/${slug}-${idPart}`;
+          // Create fetch request with explicit headers
+          const response = await fetch("http://localhost:8080/api/ballots", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(ballotData),
+          });
 
-          // Save the shareable link with the ballot
-          newBallot.shareableLink = shareableLink;
+          // Get response status and data
+          const status = response.status;
+          const responseData = await response.json();
 
-          localStorage.setItem(
-            "userBallots",
-            JSON.stringify([...existingBallots, newBallot])
-          );
-          console.log(
-            "Saved ballot to localStorage with shareable link:",
-            shareableLink
-          );
-        } catch (e) {
-          console.error("Error saving to localStorage:", e);
+          console.log("Fetch response status:", status);
+          console.log("Fetch response data:", responseData);
+
+          if (status >= 200 && status < 300) {
+            // Success!
+            setSubmitSuccess(true);
+            setTimeout(() => {
+              navigate("/my-elections");
+            }, 1500);
+
+            // Store the ballot data in localStorage to show in My Elections
+            try {
+              const existingBallots = JSON.parse(
+                localStorage.getItem("userBallots") || "[]"
+              );
+
+              // Use the ID from the API response if available
+              const newBallot = {
+                ...(responseData.data || {}),
+                id: responseData.data?.id || uuidv4(),
+                ...ballotData,
+                status: "scheduled",
+                created_at: new Date().toISOString(),
+                shareableLink: generateShareableLink(
+                  responseData.data || { id: uuidv4(), title: ballotData.title }
+                ),
+              };
+
+              localStorage.setItem(
+                "userBallots",
+                JSON.stringify([...existingBallots, newBallot])
+              );
+              console.log(
+                "Saved ballot to localStorage with ID:",
+                newBallot.id
+              );
+            } catch (e) {
+              console.error("Error saving to localStorage:", e);
+            }
+
+            return;
+          } else {
+            throw new Error(`Error ${status}: ${JSON.stringify(responseData)}`);
+          }
+        } catch (fetchError) {
+          console.error("All API approaches failed:", fetchError);
+          // Continue to local storage fallback
         }
-
-        setTimeout(() => {
-          navigate("/my-elections");
-        }, 1500);
       }
+
+      // Last resort: localStorage only with clear warning
+      console.warn(
+        "⚠️ WARNING: USING LOCAL STORAGE FALLBACK ONLY - BALLOT WILL NOT BE AVAILABLE IN DATABASE"
+      );
+      alert(
+        "⚠️ Warning: Could not connect to server. Ballot will be saved locally only and may not be accessible to voters unless you're on the same device."
+      );
+
+      setSubmitSuccess(true);
+
+      // Store the ballot data in localStorage to show in My Elections
+      try {
+        const existingBallots = JSON.parse(
+          localStorage.getItem("userBallots") || "[]"
+        );
+        const localId = uuidv4();
+        const newBallot = {
+          id: localId,
+          ...ballotData,
+          status: "scheduled",
+          created_at: new Date().toISOString(),
+          _localOnly: true, // Mark as local-only ballot
+        };
+
+        // Generate a shareable voter registration link
+        newBallot.shareableLink = generateShareableLink(newBallot);
+
+        localStorage.setItem(
+          "userBallots",
+          JSON.stringify([...existingBallots, newBallot])
+        );
+        console.log(
+          "⚠️ Saved ballot to localStorage ONLY (not in database):",
+          newBallot.shareableLink
+        );
+      } catch (e) {
+        console.error("Error saving to localStorage:", e);
+      }
+
+      setTimeout(() => {
+        navigate("/my-elections");
+      }, 1500);
     } catch (error) {
       console.error("Error submitting ballot:", error);
       setSubmitError(
@@ -530,6 +594,20 @@ const BallotBuilder = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Helper function to generate a shareable link
+  const generateShareableLink = (ballot) => {
+    const baseUrl = window.location.origin;
+    // Create a URL-friendly slug from the title
+    const slug = (ballot.title || "Untitled Ballot")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+    // Generate a unique code using only the ID's first 8 characters
+    const idPart = ballot.id.toString().substring(0, 8);
+    // Format: baseUrl/voter-registration/electionId/slug-uniqueCode
+    return `${baseUrl}/voter-registration/${ballot.id}/${slug}-${idPart}`;
   };
 
   // Add a test function to check authentication status

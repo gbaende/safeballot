@@ -15,9 +15,10 @@ const setupDatabase = require("./setup-db");
 
 // Import routes
 const authRoutes = require("./routes/auth.routes");
+const userRoutes = require("./routes/user.routes");
 const ballotRoutes = require("./routes/ballot.routes");
 const electionRoutes = require("./routes/election.routes");
-const userRoutes = require("./routes/user.routes");
+const adminRoutes = require("./routes/admin.routes");
 
 // Initialize express app
 const app = express();
@@ -39,9 +40,10 @@ app.use(cookieParser()); // Parse cookies
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/ballots", ballotRoutes);
 app.use("/api/elections", electionRoutes);
-app.use("/api/users", userRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

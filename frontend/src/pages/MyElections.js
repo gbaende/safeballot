@@ -25,6 +25,7 @@ import {
   Tooltip,
   CircularProgress,
   Alert,
+  LinearProgress,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import {
@@ -358,6 +359,134 @@ const MyElections = () => {
   const filteredElections = elections.filter((election) =>
     election.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Add a visual indicator for localStorage-only ballots
+  const renderBallotRow = (election) => {
+    const isLocalOnly = election._localOnly === true;
+
+    // Calculate time remaining or format time as needed
+    const timeInfo = formatTimeInfo(election);
+
+    // Calculate participation rate
+    const participationRate =
+      election.totalVoters > 0
+        ? (election.ballotsReceived / election.totalVoters) * 100
+        : 0;
+
+    return (
+      <TableRow
+        key={election.id}
+        hover
+        onClick={() => handleRowClick(election.id)}
+        sx={{
+          cursor: "pointer",
+          backgroundColor: isLocalOnly ? "#fff8e6" : "inherit",
+          "&:hover": {
+            backgroundColor: isLocalOnly ? "#fff2d9" : "#f5f8fa",
+          },
+        }}
+      >
+        <TableCell padding="checkbox">
+          <Checkbox
+            checked={isSelected(election.id)}
+            onChange={(event) => {
+              event.stopPropagation();
+              handleSelectClick(election.id);
+            }}
+            sx={{
+              color: "#CBD5E0",
+              "&.Mui-checked": {
+                color: "#3182CE",
+              },
+            }}
+          />
+        </TableCell>
+        <TableCell>
+          <Box>
+            <Typography variant="subtitle1" fontWeight={500}>
+              {election.title}
+              {isLocalOnly && (
+                <Chip
+                  label="Local Only"
+                  size="small"
+                  color="warning"
+                  sx={{ ml: 1, fontSize: "0.7rem" }}
+                />
+              )}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {election.description || "No description provided"}
+              {isLocalOnly && (
+                <Typography
+                  variant="caption"
+                  sx={{ display: "block", color: "warning.main", mt: 0.5 }}
+                >
+                  ⚠️ This ballot exists only on this device. API operations will
+                  fail.
+                </Typography>
+              )}
+            </Typography>
+          </Box>
+        </TableCell>
+        <TableCell>
+          <Chip
+            label={getStatus(election)}
+            size="small"
+            sx={{
+              backgroundColor:
+                getStatus(election) === "Live"
+                  ? "#C6F6D5"
+                  : getStatus(election) === "Registration"
+                  ? "#BEE3F8"
+                  : getStatus(election) === "Inactive"
+                  ? "#E2E8F0"
+                  : "#FED7D7",
+              color:
+                getStatus(election) === "Live"
+                  ? "#22543D"
+                  : getStatus(election) === "Registration"
+                  ? "#2A4365"
+                  : getStatus(election) === "Inactive"
+                  ? "#4A5568"
+                  : "#822727",
+            }}
+          />
+        </TableCell>
+        <TableCell>
+          <Box>
+            <Box
+              display="flex"
+              alignItems="center"
+              justifyContent="space-between"
+            >
+              <Typography variant="body2">
+                {election.ballotsReceived || 0} / {election.totalVoters || 0}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {participationRate.toFixed(0)}%
+              </Typography>
+            </Box>
+            <LinearProgress
+              variant="determinate"
+              value={participationRate}
+              sx={{
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: "#EDF2F7",
+                "& .MuiLinearProgress-bar": {
+                  borderRadius: 3,
+                  backgroundColor: "#3182CE",
+                },
+              }}
+            />
+          </Box>
+        </TableCell>
+        <TableCell>
+          <Typography variant="body2">{timeInfo}</Typography>
+        </TableCell>
+      </TableRow>
+    );
+  };
 
   return (
     <MainLayout>
