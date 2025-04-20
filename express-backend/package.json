@@ -26,6 +26,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.2.0",
     "morgan": "^1.10.0",
+    "@onfido/api": "^2.6.0",
     "pg": "^8.11.3",
     "sequelize": "^6.37.1"
   },

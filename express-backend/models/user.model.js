@@ -42,6 +42,14 @@ const User = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    onfidoApplicantId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    onfidoCheckId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   },
   {
     // Table options
