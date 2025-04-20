@@ -48,6 +48,23 @@ router.get("/", protect, async (req, res) => {
           "ASC",
         ],
       ],
+      attributes: [
+        "id",
+        "title",
+        "description",
+        "status",
+        "startDate",
+        "endDate",
+        "isPublic",
+        "requiresVerification",
+        "verificationMethod",
+        "totalVoters",
+        "ballotsReceived",
+        "allowedVoters",
+        "createdBy",
+        "createdAt",
+        "updatedAt",
+      ],
     });
 
     console.log(`Found ${ballots.length} ballots for user ${req.user.id}`);
@@ -68,9 +85,60 @@ router.get("/", protect, async (req, res) => {
       console.log("No ballots found for this user");
     }
 
+    // Map response data and enhance with proper field names
+    const responseData = ballots.map((ballot) => {
+      const ballotData = ballot.toJSON();
+
+      // First add all standard fields
+      ballotData.total_voters = ballotData.totalVoters;
+      ballotData.ballots_received = ballotData.ballotsReceived;
+      ballotData.start_date = ballotData.startDate;
+      ballotData.end_date = ballotData.endDate;
+
+      // IMPORTANT: Set the proper maximum voter count - this is the admin-set value
+      // from ballot creation, not the number of registered voters
+
+      // First check if we explicitly have allowedVoters (the admin-set value)
+      if (
+        ballotData.allowedVoters !== undefined &&
+        ballotData.allowedVoters > 0
+      ) {
+        // Make sure this value is copied to all relevant fields for compatibility
+        console.log(
+          `Ballot ${ballotData.id}: Using allowedVoters (${ballotData.allowedVoters})`
+        );
+        ballotData.voterCount = ballotData.allowedVoters;
+        ballotData.maxVoters = ballotData.allowedVoters;
+      }
+      // If no allowedVoters but we have voterCount from submission, use that
+      else if (
+        ballotData.voterCount !== undefined &&
+        ballotData.voterCount > 0
+      ) {
+        console.log(
+          `Ballot ${ballotData.id}: Using voterCount (${ballotData.voterCount})`
+        );
+        ballotData.allowedVoters = ballotData.voterCount;
+        ballotData.maxVoters = ballotData.voterCount;
+      }
+      // If no admin-set value found, default to totalVoters with a minimum of 10
+      else {
+        // Fallback: Use totalVoters but ensure it's at least 10
+        const defaultValue = Math.max(ballotData.totalVoters || 0, 10);
+        console.log(
+          `Ballot ${ballotData.id}: Using fallback value (${defaultValue})`
+        );
+        ballotData.allowedVoters = defaultValue;
+        ballotData.voterCount = defaultValue;
+        ballotData.maxVoters = defaultValue;
+      }
+
+      return ballotData;
+    });
+
     res.status(200).json({
       status: "success",
-      data: ballots,
+      data: responseData,
     });
   } catch (error) {
     console.error("Error getting ballots:", error);
@@ -215,6 +283,10 @@ router.post(
       .optional()
       .isIn(["email", "sms", "id_document", "digital_key"])
       .withMessage("Invalid verification method"),
+    body("voterCount")
+      .optional()
+      .isInt()
+      .withMessage("voterCount must be an integer"),
   ],
   async (req, res) => {
     try {
@@ -236,6 +308,7 @@ router.post(
         requiresVerification,
         verificationMethod,
         questions,
+        voterCount,
       } = req.body;
 
       // Additional validation
@@ -250,6 +323,11 @@ router.post(
       const transaction = await sequelize.transaction();
 
       try {
+        // Make sure voter count is stored properly
+        console.log(
+          `Setting allowedVoters to ${voterCount || 0} for new ballot`
+        );
+
         // Create ballot
         const ballot = await Ballot.create(
           {
@@ -266,6 +344,10 @@ router.post(
               startDate && new Date(startDate) <= new Date()
                 ? "active"
                 : "scheduled",
+            // Make sure to store the admin-set voter count
+            allowedVoters: parseInt(voterCount, 10) || 10,
+            // totalVoters starts at 0 (actual registered voters count)
+            totalVoters: 0,
           },
           { transaction }
         );

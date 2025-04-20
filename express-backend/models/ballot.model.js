@@ -49,13 +49,21 @@ const Ballot = sequelize.define(
         key: "id",
       },
     },
+    allowedVoters: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      comment:
+        "Number of voters allowed to register, as set by admin during creation",
+    },
     totalVoters: {
       type: DataTypes.INTEGER,
       defaultValue: 0,
+      comment: "Number of voters who have registered",
     },
     ballotsReceived: {
       type: DataTypes.INTEGER,
       defaultValue: 0,
+      comment: "Number of completed votes received",
     },
   },
   {

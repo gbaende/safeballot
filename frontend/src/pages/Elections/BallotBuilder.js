@@ -416,14 +416,23 @@ const BallotBuilder = () => {
         startDate: startDateTime.toISOString(),
         endDate: endDateTime.toISOString(),
         questions: formattedQuestions,
-        totalVoters: voterCount,
-        total_voters: voterCount,
-        ballotsReceived: 0,
-        ballots_received: 0,
+
+        // CRITICAL: Set the admin-defined number of voters allowed
+        // This is the number set in Step 3 of the ballot creation process
+        voterCount: parseInt(voterCount, 10),
+        allowedVoters: parseInt(voterCount, 10),
+        maxVoters: parseInt(voterCount, 10),
+
+        // These start at zero - they're the runtime counters
+        totalVoters: 0, // Number of registered voters
+        total_voters: 0, // Same as above (snake_case)
+        ballotsReceived: 0, // Number of votes cast
+        ballots_received: 0, // Same as above (snake_case)
       };
 
       console.log(
-        "Ballot data being submitted:",
+        "Ballot data being submitted with voter count:",
+        voterCount,
         JSON.stringify(ballotData, null, 2)
       );
 

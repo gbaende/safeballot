@@ -583,6 +583,15 @@ export const ballotService = {
       delete formattedData.end_date;
     }
 
+    // Make sure voterCount is passed through
+    if (formattedData.voterCount) {
+      console.log(`Using admin-set voter count: ${formattedData.voterCount}`);
+    } else {
+      // Default to 10 if not specified
+      formattedData.voterCount = formattedData.voterCount || 10;
+      console.log(`Using default voter count: ${formattedData.voterCount}`);
+    }
+
     // Ensure questions structure is correct
     if (formattedData.questions) {
       formattedData.questions = formattedData.questions.map((q) => {

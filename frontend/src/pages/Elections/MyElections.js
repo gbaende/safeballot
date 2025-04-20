@@ -317,6 +317,63 @@ const MyElections = () => {
     }
   };
 
+  // Function to get the maximum voter count set by admin
+  const getMaxVoterCount = (election) => {
+    // Log all the relevant fields for debugging
+    const fields = {
+      allowedVoters: election.allowedVoters,
+      voterCount: election.voterCount,
+      maxVoters: election.maxVoters,
+      totalVoters: election.totalVoters,
+      total_voters: election.total_voters,
+    };
+
+    console.log(
+      `Getting max voter count for election "${election.title}" (${election.id}):`,
+      fields
+    );
+
+    // The allowedVoters is STRICTLY what was set by the admin during ballot creation in Step 3
+    if (election.allowedVoters && election.allowedVoters > 0) {
+      console.log(`Using admin-set allowedVoters: ${election.allowedVoters}`);
+      return election.allowedVoters;
+    }
+
+    // Fallbacks in order of preference
+    if (election.voterCount && election.voterCount > 0) {
+      console.log(`Using ballot creation voterCount: ${election.voterCount}`);
+      return election.voterCount;
+    }
+
+    if (election.maxVoters && election.maxVoters > 0) {
+      console.log(`Using maxVoters: ${election.maxVoters}`);
+      return election.maxVoters;
+    }
+
+    // Use a default of 10 if no admin-set value is found
+    const fallback = Math.max(
+      election.totalVoters || election.total_voters || 0,
+      10
+    );
+    console.log(`Using fallback value: ${fallback}`);
+    return fallback;
+  };
+
+  // Update the percentage calculation for the progress bar
+  const percentage = (election) => {
+    // Get the ballots received (actual votes cast)
+    const received = election.ballots_received || election.ballotsReceived || 0;
+
+    // Get the admin-set maximum voter count (NOT the count of registered voters)
+    const total = getMaxVoterCount(election);
+
+    // Prevent division by zero
+    if (total <= 0) return 0;
+
+    // Calculate percentage with a cap at 100%
+    return Math.min(Math.round((received / total) * 100), 100);
+  };
+
   const filteredElections = elections.filter((election) =>
     election.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -580,15 +637,7 @@ const MyElections = () => {
                       <Box sx={{ display: "flex", alignItems: "center" }}>
                         <LinearProgress
                           variant="determinate"
-                          value={
-                            ((election.ballots_received ||
-                              election.ballotsReceived ||
-                              0) /
-                              (election.total_voters ||
-                                election.totalVoters ||
-                                10)) *
-                            100
-                          }
+                          value={percentage(election)}
                           sx={{
                             flexGrow: 1,
                             mr: 2,
@@ -605,7 +654,7 @@ const MyElections = () => {
                           {election.ballots_received ||
                             election.ballotsReceived ||
                             0}
-                          /{election.total_voters || election.totalVoters || 10}
+                          /{getMaxVoterCount(election)}
                         </Typography>
                       </Box>
                     </TableCell>
