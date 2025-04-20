@@ -319,6 +319,29 @@ const MyElections = () => {
 
   // Function to get the maximum voter count set by admin
   const getMaxVoterCount = (election) => {
+    // Add an immediate console log to confirm this function is called
+    console.log(
+      "MYELECTIONS: getMaxVoterCount CALLED for election:",
+      election.id,
+      election.title
+    );
+
+    // FORCE CRITICAL PREPROCESSING - this ensures data is consistent
+    if (!election.allowedVoters || election.allowedVoters <= 0) {
+      const sourceValue =
+        election.voterCount ||
+        election.maxVoters ||
+        election.totalVoters ||
+        election.total_voters ||
+        10;
+      console.log(
+        `MYELECTIONS: Adding missing allowedVoters=${sourceValue} for election ${election.id}`
+      );
+      election.allowedVoters = sourceValue;
+      election.voterCount = sourceValue;
+      election.maxVoters = sourceValue;
+    }
+
     // Log all the relevant fields for debugging
     const fields = {
       allowedVoters: election.allowedVoters,
@@ -329,34 +352,12 @@ const MyElections = () => {
     };
 
     console.log(
-      `Getting max voter count for election "${election.title}" (${election.id}):`,
+      `MYELECTIONS: Voter count fields for "${election.title}" (${election.id}):`,
       fields
     );
 
-    // The allowedVoters is STRICTLY what was set by the admin during ballot creation in Step 3
-    if (election.allowedVoters && election.allowedVoters > 0) {
-      console.log(`Using admin-set allowedVoters: ${election.allowedVoters}`);
-      return election.allowedVoters;
-    }
-
-    // Fallbacks in order of preference
-    if (election.voterCount && election.voterCount > 0) {
-      console.log(`Using ballot creation voterCount: ${election.voterCount}`);
-      return election.voterCount;
-    }
-
-    if (election.maxVoters && election.maxVoters > 0) {
-      console.log(`Using maxVoters: ${election.maxVoters}`);
-      return election.maxVoters;
-    }
-
-    // Use a default of 10 if no admin-set value is found
-    const fallback = Math.max(
-      election.totalVoters || election.total_voters || 0,
-      10
-    );
-    console.log(`Using fallback value: ${fallback}`);
-    return fallback;
+    // Return the exact same allowedVoters value we've standardized
+    return election.allowedVoters;
   };
 
   // Update the percentage calculation for the progress bar

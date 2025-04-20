@@ -205,6 +205,28 @@ const Dashboard = () => {
     }
   });
 
+  // Ensure all elections have consistent voter count fields
+  elections.forEach((election) => {
+    // CRITICAL: Force proper setting of allowedVoters for all election objects
+    if (!election.allowedVoters || election.allowedVoters <= 0) {
+      // Try each possible source field
+      const sourceValue =
+        election.voterCount ||
+        election.maxVoters ||
+        election.totalVoters ||
+        election.total_voters ||
+        10;
+      console.log(
+        `DASHBOARD PREPROCESS: Adding missing allowedVoters=${sourceValue} for election ${election.id}`
+      );
+      election.allowedVoters = sourceValue;
+    }
+
+    // Ensure all voter count fields are consistent
+    election.voterCount = election.allowedVoters;
+    election.maxVoters = election.allowedVoters;
+  });
+
   // Helper function to calculate time remaining
   const formatTimeRemaining = (election) => {
     if (!election) return "N/A";
@@ -333,6 +355,61 @@ const Dashboard = () => {
       console.error("Error formatting date display:", error);
       return "Date error";
     }
+  };
+
+  // Function to get the maximum voter count set by admin - WITH EXPLICIT LOGGING
+  const getMaxVoterCount = (election) => {
+    // Add an immediate console log to confirm this function is called
+    console.log(
+      "DASHBOARD: getMaxVoterCount CALLED for election:",
+      election.id,
+      election.title
+    );
+
+    // Since we've already preprocessed allowedVoters in the elections array,
+    // we can just return that value directly for consistency
+
+    // Log fields for debugging only
+    const fields = {
+      allowedVoters: election.allowedVoters,
+      voterCount: election.voterCount,
+      maxVoters: election.maxVoters,
+      totalVoters: election.totalVoters,
+      total_voters: election.total_voters,
+    };
+
+    console.log(
+      `DASHBOARD: Voter count fields for "${election.title}" (${election.id}):`,
+      fields
+    );
+
+    // Return the pre-processed allowedVoters value
+    return election.allowedVoters;
+  };
+
+  // Calculate percentage for the progress bar - WITH EXPLICIT LOGGING
+  const calculatePercentage = (election) => {
+    console.log(
+      "DASHBOARD: calculatePercentage CALLED for election:",
+      election.id,
+      election.title
+    );
+
+    // Get the ballots received (actual votes cast)
+    const received = election.ballots_received || election.ballotsReceived || 0;
+
+    // Get the admin-set maximum voter count (NOT the count of registered voters)
+    const total = getMaxVoterCount(election);
+
+    // Prevent division by zero
+    if (total <= 0) return 0;
+
+    // Calculate percentage with a cap at 100%
+    const result = Math.min(Math.round((received / total) * 100), 100);
+    console.log(
+      `DASHBOARD: Calculated percentage ${result}% (${received}/${total})`
+    );
+    return result;
   };
 
   return (
@@ -572,15 +649,7 @@ const Dashboard = () => {
                     <Box sx={{ display: "flex", alignItems: "center" }}>
                       <LinearProgress
                         variant="determinate"
-                        value={
-                          ((election.ballots_received ||
-                            election.ballotsReceived ||
-                            0) /
-                            (election.total_voters ||
-                              election.totalVoters ||
-                              10)) *
-                          100
-                        }
+                        value={calculatePercentage(election)}
                         sx={{
                           flexGrow: 1,
                           mr: 2,
@@ -594,10 +663,15 @@ const Dashboard = () => {
                         }}
                       />
                       <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {/* Add a console log right where we're rendering to verify the function call */}
+                        {console.log(
+                          "DASHBOARD RENDER: About to call getMaxVoterCount for",
+                          election.id
+                        )}
                         {election.ballots_received ||
                           election.ballotsReceived ||
                           0}
-                        /{election.total_voters || election.totalVoters || 10}
+                        /{getMaxVoterCount(election)}
                       </Typography>
                     </Box>
                   </TableCell>

@@ -182,7 +182,7 @@ const DirectVoterRegistration = () => {
           {/* Logo */}
           <Box
             component="img"
-            src="/logo-shield.png"
+            src="/images/logo.svg"
             alt="SafeBallot Logo"
             sx={{
               width: 60,

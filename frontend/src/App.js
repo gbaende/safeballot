@@ -82,6 +82,62 @@ function App() {
     }
   }, [dispatch]);
 
+  // Add this useEffect to clear API caches when the app starts
+  useEffect(() => {
+    // Clear API caches for election data
+    console.log("App startup: Clearing election data caches");
+    localStorage.removeItem("api_cache_/elections/recent");
+    localStorage.removeItem("api_cache_/elections/upcoming");
+    localStorage.removeItem("api_cache_/elections/summary");
+
+    // Normalize any existing ballot data in localStorage
+    try {
+      const existingBallots = JSON.parse(
+        localStorage.getItem("userBallots") || "[]"
+      );
+
+      if (existingBallots.length > 0) {
+        console.log(
+          `App startup: Normalizing ${existingBallots.length} ballots in localStorage`
+        );
+
+        // Process each ballot to ensure consistent voter data fields
+        const normalizedBallots = existingBallots.map((ballot) => {
+          // Skip if no valid ID
+          if (!ballot.id) return ballot;
+
+          // Ensure each ballot has the allowedVoters field properly set
+          if (!ballot.allowedVoters || ballot.allowedVoters <= 0) {
+            const sourceValue =
+              ballot.voterCount ||
+              ballot.maxVoters ||
+              ballot.totalVoters ||
+              ballot.total_voters ||
+              10;
+            console.log(
+              `App startup: Setting allowedVoters=${sourceValue} for ballot ${ballot.id}`
+            );
+            ballot.allowedVoters = sourceValue;
+          }
+
+          // Ensure all related fields are consistent with allowedVoters
+          ballot.voterCount = ballot.allowedVoters;
+          ballot.maxVoters = ballot.allowedVoters;
+
+          return ballot;
+        });
+
+        // Save normalized data back to localStorage
+        localStorage.setItem("userBallots", JSON.stringify(normalizedBallots));
+        console.log(
+          "App startup: Successfully normalized ballot data in localStorage"
+        );
+      }
+    } catch (error) {
+      console.error("App startup: Error normalizing ballot data:", error);
+    }
+  }, []); // Empty dependency array means this runs once on app startup
+
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <Router>

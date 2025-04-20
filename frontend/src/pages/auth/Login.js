@@ -187,8 +187,8 @@ const Login = () => {
       >
         <Box
           component="img"
-          src="/logo.png"
-          alt="VoteChain Logo"
+          src="/images/logo.svg"
+          alt="SafeBallot Logo"
           sx={{ width: "60px", height: "60px", mb: 2 }}
         />
 

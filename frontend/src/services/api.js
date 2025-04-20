@@ -786,11 +786,144 @@ export const ballotService = {
   },
 };
 
+// Add a utility function to normalize ballot data and update local storage
+const normalizeAndCacheBallots = (ballots) => {
+  try {
+    // Process each ballot to ensure consistent voter data fields
+    const normalizedBallots = ballots.map((ballot) => {
+      // 1. Ensure each ballot has the allowedVoters field properly set
+      if (!ballot.allowedVoters || ballot.allowedVoters <= 0) {
+        const sourceValue =
+          ballot.voterCount ||
+          ballot.maxVoters ||
+          ballot.totalVoters ||
+          ballot.total_voters ||
+          10;
+        console.log(
+          `API Utils: Setting allowedVoters=${sourceValue} for ballot ${ballot.id}`
+        );
+        ballot.allowedVoters = sourceValue;
+      }
+
+      // 2. Ensure all related fields are consistent with allowedVoters
+      ballot.voterCount = ballot.allowedVoters;
+      ballot.maxVoters = ballot.allowedVoters;
+
+      return ballot;
+    });
+
+    // Update localStorage to ensure consistent data
+    localStorage.setItem("userBallots", JSON.stringify(normalizedBallots));
+    console.log(
+      `API Utils: Updated localStorage with ${normalizedBallots.length} normalized ballots`
+    );
+
+    return normalizedBallots;
+  } catch (error) {
+    console.error("Error normalizing ballots:", error);
+    return ballots; // Return original ballots if error
+  }
+};
+
 // Election services
 export const electionService = {
   getSummary: () => api.get("/elections/summary"),
-  getRecentElections: () => api.get("/elections/recent"),
-  getUpcomingElections: () => api.get("/elections/upcoming"),
+
+  // Add cache busting and process data consistently
+  getRecentElections: async () => {
+    // Clear API cache first
+    localStorage.removeItem("api_cache_/elections/recent");
+
+    // Add timestamp to prevent caching
+    const response = await api.get(`/elections/recent?_=${Date.now()}`);
+
+    // Process the data before returning to ensure consistency
+    if (response.data && response.data.data) {
+      response.data.data = response.data.data.map((ballot) => {
+        // Ensure allowedVoters is properly set for all elections
+        if (!ballot.allowedVoters || ballot.allowedVoters <= 0) {
+          console.log(
+            `API Processor: Setting default allowedVoters for ${ballot.id}`
+          );
+          ballot.allowedVoters = Math.max(
+            ballot.voterCount || ballot.totalVoters || 0,
+            10
+          );
+        }
+
+        // Ensure all voter count fields are consistent
+        ballot.voterCount = ballot.allowedVoters;
+        ballot.maxVoters = ballot.allowedVoters;
+
+        console.log(
+          `API Processor: Processed ballot ${ballot.id} with allowedVoters=${ballot.allowedVoters}`
+        );
+        return ballot;
+      });
+
+      // Update local storage with this normalized data
+      normalizeAndCacheBallots(response.data.data);
+    }
+
+    return response;
+  },
+
+  // Add cache busting and process data consistently for upcoming
+  getUpcomingElections: async () => {
+    // Clear API cache first
+    localStorage.removeItem("api_cache_/elections/upcoming");
+
+    // Add timestamp to prevent caching
+    const response = await api.get(`/elections/upcoming?_=${Date.now()}`);
+
+    // Process the data before returning to ensure consistency
+    if (response.data && response.data.data) {
+      response.data.data = response.data.data.map((ballot) => {
+        // Ensure allowedVoters is properly set for all elections
+        if (!ballot.allowedVoters || ballot.allowedVoters <= 0) {
+          console.log(
+            `API Processor: Setting default allowedVoters for ${ballot.id}`
+          );
+          ballot.allowedVoters = Math.max(
+            ballot.voterCount || ballot.totalVoters || 0,
+            10
+          );
+        }
+
+        // Ensure all voter count fields are consistent
+        ballot.voterCount = ballot.allowedVoters;
+        ballot.maxVoters = ballot.allowedVoters;
+
+        console.log(
+          `API Processor: Processed ballot ${ballot.id} with allowedVoters=${ballot.allowedVoters}`
+        );
+        return ballot;
+      });
+
+      // Update local storage with this normalized data too
+      const existingBallots = JSON.parse(
+        localStorage.getItem("userBallots") || "[]"
+      );
+      const upcomingIds = response.data.data.map((b) => b.id);
+
+      // Filter out upcoming ballots from existing data
+      const filteredBallots = existingBallots.filter(
+        (b) => !upcomingIds.includes(b.id)
+      );
+
+      // Add the normalized upcoming ballots
+      const updatedBallots = [...filteredBallots, ...response.data.data];
+
+      // Save to localStorage
+      localStorage.setItem("userBallots", JSON.stringify(updatedBallots));
+      console.log(
+        `API Utils: Updated localStorage with upcoming elections, total: ${updatedBallots.length} ballots`
+      );
+    }
+
+    return response;
+  },
+
   getElectionStatus: (id) => api.get(`/elections/status?id=${id}`),
   startElection: (id) => api.post(`/elections/start?id=${id}`),
   endElection: (id) => api.post(`/elections/end?id=${id}`),

@@ -149,7 +149,7 @@ const Register = () => {
         {/* SafeBallot Logo */}
         <Box sx={{ mb: 2, width: "60px", height: "60px" }}>
           <img
-            src="/images/logo.png"
+            src="/images/logo.svg"
             alt="SafeBallot Logo"
             style={{ width: "100%", height: "100%" }}
           />

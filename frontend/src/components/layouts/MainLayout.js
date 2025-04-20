@@ -186,7 +186,7 @@ const MainLayout = () => {
         <Box sx={{ p: 2, mb: 2 }}>
           <Box
             component="img"
-            src="/logo.png"
+            src="/images/logo.svg"
             alt="SafeBallot Logo"
             sx={{ height: 40, mt: 1 }}
           />

@@ -75,11 +75,54 @@ router.get("/recent", protect, async (req, res) => {
           attributes: ["id", "name", "email"],
         },
       ],
+      attributes: [
+        "id",
+        "title",
+        "description",
+        "status",
+        "startDate",
+        "endDate",
+        "totalVoters",
+        "ballotsReceived",
+        "allowedVoters",
+        "createdAt",
+        "updatedAt",
+      ],
+    });
+
+    const processedBallots = recentBallots.map((ballot) => {
+      const ballotData = ballot.toJSON();
+
+      ballotData.total_voters = ballotData.totalVoters;
+      ballotData.ballots_received = ballotData.ballotsReceived;
+      ballotData.start_date = ballotData.startDate;
+      ballotData.end_date = ballotData.endDate;
+
+      if (
+        ballotData.allowedVoters !== undefined &&
+        ballotData.allowedVoters > 0
+      ) {
+        console.log(
+          `Election ${ballotData.id}: Using allowedVoters (${ballotData.allowedVoters})`
+        );
+        ballotData.voterCount = ballotData.allowedVoters;
+        ballotData.maxVoters = ballotData.allowedVoters;
+      } else {
+        const defaultValue = Math.max(ballotData.totalVoters || 0, 10);
+        console.log(
+          `Election ${ballotData.id}: Setting default allowedVoters (${defaultValue})`
+        );
+        ballotData.allowedVoters = defaultValue;
+        ballotData.voterCount = defaultValue;
+        ballotData.maxVoters = defaultValue;
+      }
+
+      return ballotData;
     });
 
     res.status(200).json({
       status: "success",
-      data: recentBallots,
+      data: processedBallots,
     });
   } catch (error) {
     console.error("Error getting recent elections:", error);
@@ -123,11 +166,60 @@ router.get("/upcoming", protect, async (req, res) => {
           attributes: ["id", "name", "email"],
         },
       ],
+      // Explicitly include allowedVoters in the attributes
+      attributes: [
+        "id",
+        "title",
+        "description",
+        "status",
+        "startDate",
+        "endDate",
+        "totalVoters",
+        "ballotsReceived",
+        "allowedVoters",
+        "createdAt",
+        "updatedAt",
+      ],
+    });
+
+    // Process the ballots to ensure correct data for display
+    const processedBallots = upcomingBallots.map((ballot) => {
+      const ballotData = ballot.toJSON();
+
+      // Add snake_case versions for frontend compatibility
+      ballotData.total_voters = ballotData.totalVoters;
+      ballotData.ballots_received = ballotData.ballotsReceived;
+      ballotData.start_date = ballotData.startDate;
+      ballotData.end_date = ballotData.endDate;
+
+      // CRITICAL: Ensure the admin-set voter count fields are properly set
+      if (
+        ballotData.allowedVoters !== undefined &&
+        ballotData.allowedVoters > 0
+      ) {
+        console.log(
+          `Election ${ballotData.id}: Using allowedVoters (${ballotData.allowedVoters})`
+        );
+        ballotData.voterCount = ballotData.allowedVoters;
+        ballotData.maxVoters = ballotData.allowedVoters;
+      }
+      // If no allowedVoters but we have totalVoters, set a reasonable default
+      else {
+        const defaultValue = Math.max(ballotData.totalVoters || 0, 10);
+        console.log(
+          `Election ${ballotData.id}: Setting default allowedVoters (${defaultValue})`
+        );
+        ballotData.allowedVoters = defaultValue;
+        ballotData.voterCount = defaultValue;
+        ballotData.maxVoters = defaultValue;
+      }
+
+      return ballotData;
     });
 
     res.status(200).json({
       status: "success",
-      data: upcomingBallots,
+      data: processedBallots,
     });
   } catch (error) {
     console.error("Error getting upcoming elections:", error);

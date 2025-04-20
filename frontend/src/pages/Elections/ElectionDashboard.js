@@ -505,9 +505,35 @@ const ElectionDashboard = () => {
 
   const status = getElectionStatus();
 
-  // Get voter counts from API - handle different property name formats
-  // and ensure non-zero values with reasonable defaults
-  const totalVoters = election.totalVoters || election.total_voters || 0;
+  // Function to get the maximum voter count set by admin
+  const getMaxVoterCount = (election) => {
+    // Check for admin-set values in this priority order
+    if (election.allowedVoters && election.allowedVoters > 0) {
+      console.log(`Using admin-set allowedVoters: ${election.allowedVoters}`);
+      return election.allowedVoters;
+    }
+
+    if (election.voterCount && election.voterCount > 0) {
+      console.log(`Using ballot creation voterCount: ${election.voterCount}`);
+      return election.voterCount;
+    }
+
+    if (election.maxVoters && election.maxVoters > 0) {
+      console.log(`Using maxVoters: ${election.maxVoters}`);
+      return election.maxVoters;
+    }
+
+    // Use a default of 10 if no admin-set value is found
+    const fallback = Math.max(
+      election.totalVoters || election.total_voters || 0,
+      10
+    );
+    console.log(`Using fallback value: ${fallback}`);
+    return fallback;
+  };
+
+  // Get voter counts from API - use the admin-set count for total voters
+  const totalVoters = getMaxVoterCount(election);
   const totalVotes = election.ballotsReceived || election.ballots_received || 0;
 
   // Calculate the progress percentage for the circular progress indicator
@@ -518,6 +544,9 @@ const ElectionDashboard = () => {
     totalVotes,
     voteProgress,
     rawData: {
+      allowedVoters: election.allowedVoters,
+      voterCount: election.voterCount,
+      maxVoters: election.maxVoters,
       totalVoters: election.totalVoters,
       total_voters: election.total_voters,
       ballotsReceived: election.ballotsReceived,
