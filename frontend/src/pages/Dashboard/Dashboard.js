@@ -42,9 +42,10 @@ const Dashboard = () => {
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
         const userData = JSON.parse(storedUser);
-        // Always prioritize email username over name field
-        if (userData.email) return userData.email.split("@")[0];
+        // Prioritize name field over email username
         if (userData.name) return userData.name;
+        // Fallback to email username if name is not available
+        if (userData.email) return userData.email.split("@")[0];
       }
 
       // Try direct email approach
@@ -52,6 +53,7 @@ const Dashboard = () => {
       if (email) return email.split("@")[0];
 
       // Last resort, check Redux
+      if (user && user.name) return user.name;
       if (user && user.email) return user.email.split("@")[0];
 
       return "Guest";
