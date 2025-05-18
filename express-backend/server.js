@@ -19,10 +19,11 @@ const userRoutes = require("./routes/user.routes");
 const ballotRoutes = require("./routes/ballot.routes");
 const electionRoutes = require("./routes/election.routes");
 const adminRoutes = require("./routes/admin.routes");
+const paymentRoutes = require("./routes/payment.routes");
 
 // Initialize express app
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 8000;
 
 // Middlewares
 app.use(helmet()); // Security headers
@@ -44,12 +45,31 @@ app.use("/api/users", userRoutes);
 app.use("/api/ballots", ballotRoutes);
 app.use("/api/elections", electionRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/payment", paymentRoutes);
+
+// Special handling for Stripe webhook route which needs the raw body
+app.use("/api/payment/webhook", (req, res, next) => {
+  if (req.originalUrl === "/api/payment/webhook") {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
+
+// Serve static files from the React app in production
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "../frontend/build")));
+
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend/build", "index.html"));
+  });
+}
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
   res.status(200).json({
     status: "success",
-    message: "API is running",
+    message: "Server is running",
   });
 });
 

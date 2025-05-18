@@ -69,8 +69,24 @@ const VoterRegistration = () => {
       // Now that the user is registered and token is set, register them as a voter for this ballot
       try {
         console.log("Registering user as voter for ballot:", id);
-        const voterResponse = await ballotService.registerVoter(id);
+
+        // Create the voter info object
+        const voterInfoData = {
+          name: name,
+          email: email,
+        };
+
+        // Use public registration endpoint instead of protected endpoint
+        const voterResponse = await ballotService.publicRegisterVoter(
+          id,
+          voterInfoData
+        );
         console.log("Voter registration response:", voterResponse);
+
+        // Store voter info in localStorage for future reference
+        localStorage.setItem(`voter_info_${id}`, JSON.stringify(voterInfoData));
+        localStorage.setItem(`verified_name_${id}`, name);
+        localStorage.setItem(`verified_email_${id}`, email);
       } catch (voterError) {
         console.error("Error registering as voter for ballot:", voterError);
         // Continue even if voter registration fails - we'll try again later

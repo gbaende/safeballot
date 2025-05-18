@@ -25,6 +25,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { ballotService } from "../../services/api";
+import { getVoterInfo } from "../../services/ballotService";
 import VotingConfirmationDialog from "../../components/VotingConfirmationDialog";
 
 // Styled components
@@ -472,332 +473,170 @@ const VotingPage = () => {
   };
 
   const handleSubmitBallot = async (enteredKey) => {
+    setLoading(true);
+
     try {
-      setLoading(true);
-      setDigitalKey(enteredKey); // Update the key from dialog
-
-      // Get the voter ID from localStorage - try multiple possible storage locations
-      let voterId = null;
-
-      // First try to get from voterUser object
-      try {
-        const voterData = JSON.parse(localStorage.getItem("voterUser") || "{}");
-        if (voterData && voterData.id) {
-          voterId = voterData.id;
-          console.log("Found voter ID in voterUser:", voterId);
-        }
-      } catch (e) {
-        console.error("Error parsing voterUser from localStorage:", e);
+      // Store any relevant verification keys
+      if (
+        ballot.requiresVerification &&
+        ballot.verificationMethod === "digital_key"
+      ) {
+        localStorage.setItem(`digital_key_${id}`, enteredKey);
       }
 
-      // If not found, try alternate storage locations
-      if (!voterId) {
-        voterId = localStorage.getItem("voterId");
-        if (voterId) {
-          console.log("Found voter ID in direct voterId key:", voterId);
-        }
+      // Get the voter ID - either from local storage or create a new one
+      let voterId = localStorage.getItem(`voter_id_${id}`);
+      console.log(`Found ballot-specific voter ID: ${voterId}`);
+
+      // Get voter information using utility function from ballotService
+      const voterInfo = getVoterInfo(id);
+
+      if (voterInfo) {
+        console.log(`Using voter info:`, {
+          name: voterInfo.name,
+          hasEmail: !!voterInfo.email,
+        });
+      } else {
+        console.warn(`No voter info found, vote will be recorded as anonymous`);
       }
 
-      // Also check the user object (might be used in some cases)
-      if (!voterId) {
-        try {
-          const userData = JSON.parse(localStorage.getItem("user") || "{}");
-          if (userData && userData.id) {
-            voterId = userData.id;
-            console.log("Found voter ID in user object:", voterId);
-          }
-        } catch (e) {
-          console.error("Error parsing user from localStorage:", e);
+      // Transform responses into the array format expected by the API
+      const userSelections = [];
+      // Create an object with question index as key and selected option index as value
+      Object.keys(responses).forEach((questionIndex) => {
+        const response = responses[questionIndex];
+        if (response) {
+          const index =
+            typeof response === "object" ? response.index : response;
+          // For numeric indices, convert to number, otherwise keep as is
+          userSelections[parseInt(questionIndex)] = !isNaN(parseInt(index))
+            ? parseInt(index)
+            : index;
+        } else {
+          userSelections[parseInt(questionIndex)] = null;
         }
-      }
+      });
 
-      // Check for ballot-specific voter ID
-      if (!voterId) {
-        voterId = localStorage.getItem(`voter_id_${id}`);
-        if (voterId) {
-          console.log("Found ballot-specific voter ID:", voterId);
-        }
-      }
+      console.log("User selections by question index:", userSelections);
 
-      // Check for verification status to get the ID
-      if (!voterId) {
-        // The voter ID might be stored with the ballot verification status
-        const verificationData = JSON.parse(
-          localStorage.getItem(`verified_data_${id}`) || "{}"
-        );
-        if (verificationData && verificationData.id) {
-          voterId = verificationData.id;
-          console.log("Found voter ID in verification data:", voterId);
-        }
-      }
+      // Get the full questions data to pass to the API for correct ID mapping
+      const questionsData = ballot.questions.map((question) => ({
+        id: question.id,
+        title: question.title,
+        choices: question.options.map((option, index) => ({
+          id: option.id || String(index),
+          text: option.text || option.toString(),
+          order: index,
+        })),
+      }));
 
-      // If still no voter ID but we have a verification status, generate one and register the voter
-      if (!voterId && localStorage.getItem(`verified_${id}`) === "true") {
-        try {
-          // First try to register the voter with the backend
-          console.log(
-            "Attempting to register voter before voting for ballot:",
-            id
-          );
-
-          try {
-            // For demo purposes - create a voter directly in the same request
-            const name =
-              localStorage.getItem(`voter_name_${id}`) || "Demo Voter";
-            const email =
-              localStorage.getItem(`voter_email_${id}`) || "voter@example.com";
-
-            console.log("Using direct voter registration with admin token");
-            const token =
-              localStorage.getItem("adminToken") ||
-              localStorage.getItem("token");
-
-            // Direct API call to create voter for this ballot
-            const registerResponse = await fetch(
-              `http://localhost:8080/api/ballots/${id}/voters`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: token ? `Bearer ${token}` : "",
-                },
-                body: JSON.stringify({
-                  voters: [
-                    {
-                      name,
-                      email,
-                      isVerified: true,
-                    },
-                  ],
-                }),
-              }
-            );
-
-            const registerData = await registerResponse.json();
-            console.log("Direct voter creation response:", registerData);
-
-            let newVoterId = null;
-
-            // Extract voter ID from the response
-            if (
-              registerData.status === "success" &&
-              registerData.data &&
-              registerData.data.addedVoters
-            ) {
-              const firstVoter = registerData.data.addedVoters[0];
-              if (firstVoter && firstVoter.id) {
-                newVoterId = firstVoter.id;
-                console.log("Created new voter with ID:", newVoterId);
-              }
-            }
-
-            if (newVoterId) {
-              voterId = newVoterId;
-              localStorage.setItem(`voter_id_${id}`, voterId);
-            } else {
-              // Fallback to standard registerVoter call
-              const regularResponse = await ballotService.registerVoter(id);
-              console.log(
-                "Fallback voter registration response:",
-                regularResponse
-              );
-
-              if (
-                regularResponse.data &&
-                regularResponse.data.data &&
-                regularResponse.data.data.id
-              ) {
-                voterId = regularResponse.data.data.id;
-                console.log("Registered voter with ID:", voterId);
-                localStorage.setItem(`voter_id_${id}`, voterId);
-              } else {
-                throw new Error("Registration did not return a voter ID");
-              }
-            }
-          } catch (regError) {
-            console.error("Failed to register voter:", regError);
-
-            // Generate a fallback UUID-like voter ID for debugging
-            voterId =
-              "voter-" +
-              Math.random().toString(36).substring(2, 10) +
-              "-" +
-              Math.random().toString(36).substring(2, 6) +
-              "-" +
-              Math.random().toString(36).substring(2, 12);
-
-            // Store it for future use
-            localStorage.setItem(`voter_id_${id}`, voterId);
-            console.log("Generated fallback voter ID:", voterId);
-          }
-        } catch (e) {
-          console.error("Error during voter registration:", e);
-
-          // Last resort, generate a voter ID
-          voterId =
-            "voter-" +
-            Math.random().toString(36).substring(2, 10) +
-            "-" +
-            Math.random().toString(36).substring(2, 6) +
-            "-" +
-            Math.random().toString(36).substring(2, 12);
-
-          localStorage.setItem(`voter_id_${id}`, voterId);
-          console.log("Generated last-resort voter ID:", voterId);
-        }
-      }
-
-      if (!voterId) {
-        console.error("No voter ID found in any localStorage location");
-        setError("Voter ID not found. Please register as a voter first.");
-        setLoading(false);
-
-        // For debugging - show what's in localStorage
-        console.log("Available localStorage keys:", Object.keys(localStorage));
-        console.log("Digital key:", localStorage.getItem(`digital_key_${id}`));
-        console.log(
-          "Verification status:",
-          localStorage.getItem(`verified_${id}`)
-        );
-
-        return;
-      }
-
-      // Prepare the ballot response data from our response objects
-      const ballotResponses = Object.entries(responses).map(
-        ([questionIndex, response]) => {
-          // Get the question ID from the ballot - handle database id case
-          const questionObj = ballot.questions[parseInt(questionIndex)];
-          const questionId = questionObj.id || questionIndex;
-
-          console.log(
-            `Mapping response for question index ${questionIndex}, ID: ${questionId}`
-          );
-
-          // Get the answer value - either the option index or write-in text
-          let choiceId = null;
-          let writeIn = null;
-
-          if (typeof response === "object") {
-            // If it's a write-in, use the text as the write-in value
-            if (response.index === "write-in") {
-              writeIn = response.text;
-              console.log(`Write-in response: ${writeIn}`);
-            } else {
-              // Otherwise use the index to look up the option
-              const optionIndex = parseInt(response.index);
-              if (
-                !isNaN(optionIndex) &&
-                questionObj.options &&
-                optionIndex < questionObj.options.length
-              ) {
-                // Get the option object
-                const option = questionObj.options[optionIndex];
-
-                // Use the stored database ID if available
-                if (typeof option === "object" && option.id) {
-                  choiceId = option.id.toString();
-                  console.log(`Using option object ID: ${choiceId}`);
-                } else {
-                  // Fallback to index
-                  choiceId = optionIndex.toString();
-                  console.log(`Using option index as ID: ${choiceId}`);
-                }
-              } else {
-                // Fallback to the index itself
-                choiceId = response.index;
-                console.log(`Using response index directly: ${choiceId}`);
-              }
-            }
-          } else {
-            // Backward compatibility with old format
-            choiceId = response;
-            console.log(`Using legacy response format: ${choiceId}`);
-          }
-
-          // Ensure choiceId is not empty
-          if (!choiceId && !writeIn) {
-            // Look for the first option's ID as a default
-            if (questionObj.options && questionObj.options.length > 0) {
-              const firstOption = questionObj.options[0];
-              choiceId =
-                typeof firstOption === "object" && firstOption.id
-                  ? firstOption.id
-                  : "0";
-              console.log(`Using default choice ID: ${choiceId}`);
-            } else {
-              choiceId = "0"; // Last resort default
-              console.log(`Using last resort choice ID: 0`);
-            }
-          }
-
-          // Use the field names expected by the backend (questionId, choiceId)
-          return {
-            questionId: questionId,
-            choiceId: choiceId,
-            rank: 1, // Changed from null to 1 as backend requires a number
-            write_in: writeIn,
-          };
-        }
-      );
+      console.log("Questions data with choices:", questionsData);
 
       // Make sure the payload exactly matches what the backend expects
       const voteData = {
         voterId: voterId, // Include the voter ID
-        votes: ballotResponses,
+        voterInfo: voterInfo, // Include voter info if available
+        userSelections, // Include the array of user selections
+        questionsData, // Include the full questions data for proper ID mapping
+        // We'll let the API service build the votes array from these two pieces of data
       };
 
-      console.log("Submitting vote:", voteData);
+      console.log("Submitting vote with full question data:", voteData);
 
       try {
+        // IMPORTANT: Check for admin tokens and prevent using them for voting
+        const adminToken = localStorage.getItem("adminToken");
+        const regularToken = localStorage.getItem("token");
+
+        // Remove any admin-related tokens from localStorage temporarily to ensure we don't
+        // vote as an admin through the API client's Authorization header
+        if (adminToken) {
+          console.log(
+            "Temporarily removing admin token to prevent voting as admin"
+          );
+          localStorage.removeItem("adminToken");
+        }
+
+        if (regularToken) {
+          console.log(
+            "Temporarily removing regular token to prevent voting as admin"
+          );
+          localStorage.removeItem("token");
+        }
+
+        // Create a specific voter token if we don't have one
+        if (!localStorage.getItem("voterToken") && voterId) {
+          // Generate a simple identifier token for this voter
+          const voterToken = `voter_${voterId}_${Date.now()}`;
+          localStorage.setItem("voterToken", voterToken);
+          console.log(`Created voter token: ${voterToken}`);
+        }
+
         // Send the vote with the properly formatted payload
         const response = await ballotService.castVote(id, voteData);
         console.log("Vote submitted successfully:", response);
-      } catch (apiError) {
-        console.error("API Error:", apiError);
 
-        // Log detailed error information
-        console.error("Error status:", apiError.response?.status);
-        console.error(
-          "Error data:",
-          JSON.stringify(apiError.response?.data, null, 2)
-        );
-
-        // Check if we have a specific error message from the backend
-        if (apiError.response?.data?.message) {
-          console.error(
-            "Error message from backend:",
-            apiError.response.data.message
-          );
+        // Restore admin tokens if they existed
+        if (adminToken) {
+          localStorage.setItem("adminToken", adminToken);
         }
 
-        // Check if we have validation errors from the backend
-        if (apiError.response?.data?.errors) {
-          console.error("Validation errors:", apiError.response.data.errors);
+        if (regularToken) {
+          localStorage.setItem("token", regularToken);
         }
 
-        // Add a more descriptive error message to the UI
-        setError(
-          `Failed to submit vote: ${
-            apiError.response?.data?.message || apiError.message
-          }`
-        );
+        // Store the voter ID that was used or created by the backend
+        if (response.data?.data?.voterId) {
+          localStorage.setItem(`voter_id_${id}`, response.data.data.voterId);
+          console.log(`Updated voter ID to: ${response.data.data.voterId}`);
 
-        // Continue to show success dialog even if the API call fails
-        console.log(
-          "Continuing to success dialog despite API error (for demo purposes)"
-        );
+          // Also update the voter name if returned (for confirmation)
+          if (response.data?.data?.voterName) {
+            console.log(`Vote recorded for: ${response.data.data.voterName}`);
+          }
+        }
+
+        // Close confirmation dialog and show success dialog
+        setShowConfirmDialog(false);
+        setShowSuccessDialog(true);
+      } catch (error) {
+        // Restore admin tokens if they existed even if there was an error
+        const adminToken = localStorage.getItem("adminToken");
+        const regularToken = localStorage.getItem("token");
+
+        if (adminToken) {
+          localStorage.setItem("adminToken", adminToken);
+        }
+
+        if (regularToken) {
+          localStorage.setItem("token", regularToken);
+        }
+
+        console.error("API Error:", error);
+
+        // Check if this is the admin voting error
+        if (error.response && error.response.status === 403) {
+          console.error("Error status:", error.response.status);
+          console.error("Error data:", error.response.data);
+
+          const errorMessage =
+            error.response.data?.message || "You cannot vote in this ballot.";
+          console.error("Error message from backend:", errorMessage);
+
+          // Show an error message to the user
+          setError(errorMessage);
+          setShowConfirmDialog(false);
+          return;
+        }
+
+        // For demo purposes, still show success dialog even on non-admin errors
+        setShowConfirmDialog(false);
+        setShowSuccessDialog(true);
       }
-
-      // Close confirmation dialog and show success dialog
-      setShowConfirmDialog(false);
-      setShowSuccessDialog(true);
     } catch (error) {
       console.error("Error submitting ballot:", error);
-
-      // For demo purposes, still show success dialog even on error
+      setError("There was a problem submitting your ballot. Please try again.");
       setShowConfirmDialog(false);
-      setShowSuccessDialog(true);
     } finally {
       setLoading(false);
     }
@@ -1332,63 +1171,17 @@ const VotingPage = () => {
       >
         <DialogContent sx={{ textAlign: "center", py: 4 }}>
           <Box
+            component="img"
+            src="/images/i-voted-sticker.png"
+            alt="I Voted Sticker"
             sx={{
-              width: 120,
-              height: 120,
+              width: 150,
+              height: 150,
               mb: 3,
               borderRadius: "50%",
-              mx: "auto",
-              background: "#e13b43",
-              position: "relative",
-              overflow: "hidden",
-              boxShadow: "0 2px 10px rgba(0,0,0,0.2)",
+              boxShadow: "0px 3px 8px rgba(0, 0, 0, 0.15)",
             }}
-          >
-            {/* Horizontal stripes */}
-            <Box
-              sx={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                top: "40%",
-                height: "20%",
-                background: "#fff",
-              }}
-            />
-
-            {/* Blue circle */}
-            <Box
-              sx={{
-                position: "absolute",
-                top: "22%",
-                left: "40%",
-                width: 45,
-                height: 45,
-                borderRadius: "50%",
-                background: "#2a4199",
-              }}
-            />
-
-            {/* Text */}
-            <Box
-              sx={{
-                position: "absolute",
-                bottom: "28%",
-                left: 0,
-                right: 0,
-                textAlign: "center",
-              }}
-            >
-              <Typography
-                variant="h6"
-                fontWeight="bold"
-                color="#2a4199"
-                sx={{ fontSize: "1rem", textTransform: "uppercase" }}
-              >
-                I Voted
-              </Typography>
-            </Box>
-          </Box>
+          />
           <Typography
             variant="h5"
             id="vote-success-dialog-title"

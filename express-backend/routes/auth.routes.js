@@ -4,30 +4,100 @@ const bcrypt = require("bcrypt");
 const { body, validationResult } = require("express-validator");
 const { User } = require("../models/user.model");
 const { protect } = require("../middleware/auth.middleware");
-const Onfido = require("@onfido/api");
+const axios = require("axios");
+const crypto = require("crypto");
+
+// Try-catch for Onfido import to prevent startup failures
+let Onfido;
+let onfidoApi;
+try {
+  Onfido = require("@onfido/api");
+} catch (err) {
+  console.warn(
+    "Onfido API package not found. Will use mock implementation instead."
+  );
+}
 
 const router = express.Router();
 
 // Initialize Onfido client (will use mock functionality if API key not available)
-let onfidoApi;
 try {
-  onfidoApi = new Onfido({
-    apiToken: process.env.ONFIDO_API_KEY || "api_sandbox_token", // Use sandbox token if no API key set
-    region: "us", // or 'eu' based on where your account is registered
-  });
-  console.log("Onfido API initialized successfully");
+  if (Onfido) {
+    onfidoApi = new Onfido({
+      apiToken: process.env.ONFIDO_API_KEY || "api_sandbox_token", // Use sandbox token if no API key set
+      region: "us", // or 'eu' based on where your account is registered
+    });
+    console.log("Onfido API initialized successfully");
+  } else {
+    // Create a mock Onfido API with the same methods
+    onfidoApi = {
+      applicants: {
+        create: async (data) => ({ id: "mock-applicant-id", ...data }),
+        find: async (id) => ({ id, created_at: new Date().toISOString() }),
+      },
+      checks: {
+        create: async (data) => ({
+          id: "mock-check-id",
+          status: "in_progress",
+          ...data,
+        }),
+        find: async (id) => ({ id, status: "complete", result: "clear" }),
+      },
+      sdkToken: {
+        generate: async (data) => ({ token: "mock-sdk-token", ...data }),
+      },
+      documents: {
+        upload: async (data) => ({
+          id: "mock-document-id",
+          type: data.type || "passport",
+        }),
+      },
+    };
+    console.log("Using mock Onfido API implementation");
+  }
 } catch (err) {
   console.error("Failed to initialize Onfido API:", err.message);
-  // We'll continue without the Onfido API and use mock responses
+  // Create the mock Onfido API
+  onfidoApi = {
+    applicants: {
+      create: async (data) => ({ id: "mock-applicant-id", ...data }),
+      find: async (id) => ({ id, created_at: new Date().toISOString() }),
+    },
+    checks: {
+      create: async (data) => ({
+        id: "mock-check-id",
+        status: "in_progress",
+        ...data,
+      }),
+      find: async (id) => ({ id, status: "complete", result: "clear" }),
+    },
+    sdkToken: {
+      generate: async (data) => ({ token: "mock-sdk-token", ...data }),
+    },
+    documents: {
+      upload: async (data) => ({
+        id: "mock-document-id",
+        type: data.type || "passport",
+      }),
+    },
+  };
+  console.log("Using mock Onfido API due to initialization failure");
 }
 
 /**
- * Helper function to generate JWT token
+ * Helper function to generate token
  */
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN,
-  });
+const generateToken = (id, role = "admin") => {
+  return jwt.sign(
+    {
+      id,
+      role,
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: process.env.JWT_EXPIRES_IN,
+    }
+  );
 };
 
 /**
@@ -42,99 +112,122 @@ const generateRefreshToken = (id) => {
 /**
  * Register a new user
  * @route POST /api/auth/register
+ * @body {string} name - User's name
+ * @body {string} email - User's email
+ * @body {string} password - User's password
  * @access Public
  */
 router.post(
   "/register",
   [
-    // Validation middleware
     body("name").notEmpty().withMessage("Name is required"),
-    body("email").isEmail().withMessage("Please provide a valid email"),
+    body("email").isEmail().withMessage("Please include a valid email"),
     body("password")
       .isLength({ min: 6 })
       .withMessage("Password must be at least 6 characters long"),
-    body("role")
-      .optional()
-      .isIn(["admin", "user"])
-      .withMessage("Role must be either 'admin' or 'user'"),
   ],
   async (req, res) => {
     try {
       // Check for validation errors
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        console.log("Validation errors:", errors.array());
         return res.status(400).json({
           status: "error",
           errors: errors.array(),
         });
       }
 
-      const { name, email, password, role = "user" } = req.body;
+      const { name, email, password } = req.body;
+
       console.log("Registration attempt with:", {
         name,
         email,
-        role,
+        role: req.body.role || "user",
         password: "***",
       });
 
       // Check if user already exists
-      const userExists = await User.findOne({ where: { email } });
-      if (userExists) {
-        console.log("User already exists with email:", email);
+      const existingUser = await User.findOne({ where: { email } });
+
+      if (existingUser) {
         return res.status(400).json({
           status: "error",
-          message: "User already exists with this email",
+          message: "User already exists",
         });
       }
 
-      // Create new user
-      try {
-        const user = await User.create({
-          name,
-          email,
-          password,
-          role, // Explicitly set the role from request
-        });
-        console.log("User created successfully:", user.id, "with role:", role);
+      // Hash password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Generate tokens
-        const token = generateToken(user.id);
-        const refreshToken = generateRefreshToken(user.id);
+      // Determine user role - default to 'user' unless explicitly specified
+      // CRITICAL FIX: For voter registration, make sure role is 'voter' not 'user'
+      // This is particularly important for the ballot access flow
+      const isVoterRegistration =
+        req.originalUrl.includes("register-with-key") ||
+        req.body.isVoter === true;
 
-        // Update user with refresh token
-        user.refreshToken = refreshToken;
-        await user.save();
-        console.log("Refresh token saved to user");
+      const role = isVoterRegistration ? "voter" : req.body.role || "user";
 
-        // Return response with tokens and user data
-        res.status(201).json({
-          status: "success",
-          message: "User registered successfully",
-          data: {
-            user: user.toJSON(),
-            token,
-            refreshToken,
+      console.log(`Setting role for new registration: ${role}`);
+
+      // Create user
+      const user = await User.create({
+        name,
+        email,
+        password: hashedPassword,
+        role,
+        isVerified: false, // User needs to verify email
+      });
+
+      console.log(
+        `User created successfully: ${user.id} with role: ${user.role}`
+      );
+
+      // Generate JWT token
+      const payload = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      };
+
+      const token = jwt.sign(payload, process.env.JWT_SECRET, {
+        expiresIn: process.env.JWT_EXPIRES_IN || "30d",
+      });
+
+      // Generate refresh token
+      const refreshToken = crypto.randomBytes(40).toString("hex");
+
+      // Save refresh token to user
+      user.refreshToken = refreshToken;
+      await user.save();
+      console.log("Refresh token saved to user");
+
+      // Store voter token for debugging
+      if (user.role === "voter") {
+        console.log(`Stored voter token: ${token.substring(0, 15)}...`);
+      }
+
+      res.status(201).json({
+        status: "success",
+        message: "User registered successfully",
+        data: {
+          token,
+          refreshToken,
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
           },
-        });
-      } catch (createError) {
-        console.error("Error creating user in database:", createError);
-        throw createError; // Re-throw to be caught by outer catch
-      }
+        },
+      });
     } catch (error) {
-      console.error("Error registering user:", error);
-      console.error("Error details:", error.name, error.message);
-      if (error.errors) {
-        console.error("Validation errors:", error.errors);
-      }
-      if (error.parent) {
-        console.error("Parent error:", error.parent.message);
-      }
+      console.error("Registration error:", error);
       res.status(500).json({
         status: "error",
-        message: "Failed to register user",
-        details:
-          process.env.NODE_ENV === "development" ? error.message : undefined,
+        message: "Server error",
       });
     }
   }
@@ -199,7 +292,7 @@ router.post(
       }
 
       // Generate tokens
-      const token = generateToken(user.id);
+      const token = generateToken(user.id, user.role);
       const refreshToken = generateRefreshToken(user.id);
 
       // Update user with refresh token
@@ -261,7 +354,7 @@ router.post("/refresh-token", async (req, res) => {
     }
 
     // Generate new tokens
-    const token = generateToken(user.id);
+    const token = generateToken(user.id, user.role);
     const refreshToken = generateRefreshToken(user.id);
 
     // Update user with new refresh token
@@ -890,5 +983,214 @@ router.post("/verify/digital-key", async (req, res) => {
     });
   }
 });
+
+/**
+ * Validate token and get role information
+ * @route GET /api/auth/validate-token
+ * @access Public
+ */
+router.get("/validate-token", async (req, res) => {
+  try {
+    // Get token from Authorization header
+    let token = req.header("Authorization");
+
+    // Check if token exists
+    if (!token) {
+      return res.status(401).json({
+        status: "error",
+        message: "No authentication token provided",
+      });
+    }
+
+    // Remove Bearer prefix if present
+    if (token.startsWith("Bearer ")) {
+      token = token.slice(7);
+    }
+
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Check token type
+    if (decoded.role === "voter") {
+      // This is a voter token
+      return res.status(200).json({
+        status: "success",
+        data: {
+          isValid: true,
+          role: "voter",
+          voterId: decoded.voterId,
+          ballotId: decoded.ballotId,
+          email: decoded.email,
+          name: decoded.name,
+        },
+      });
+    } else if (decoded.role === "admin" || decoded.role === "user") {
+      // This is an admin token - verify the user exists
+      const user = await User.findByPk(decoded.id);
+      if (!user) {
+        return res.status(401).json({
+          status: "error",
+          message: "Invalid token - user not found",
+        });
+      }
+
+      return res.status(200).json({
+        status: "success",
+        data: {
+          isValid: true,
+          role: decoded.role,
+          userId: user.id,
+          email: user.email,
+          name: user.name,
+        },
+      });
+    } else {
+      // Unknown role
+      return res.status(401).json({
+        status: "error",
+        message: "Invalid token role",
+      });
+    }
+  } catch (error) {
+    console.error("Token validation error:", error);
+    return res.status(401).json({
+      status: "error",
+      message: "Invalid or expired token",
+    });
+  }
+});
+
+// Add a function to validate the token
+const validateToken = async () => {
+  try {
+    const response = await axios.get("/api/auth/validate-token");
+    console.log("Token validation:", response.data);
+    return response.data.status === "success";
+  } catch (error) {
+    console.error("Token validation failed:", error);
+    return false;
+  }
+};
+
+// After successful registration with /ballots/register-with-key
+function handleRegistrationSuccess(response) {
+  // Extract token and voter info
+  const { token, voter, ballot } = response.data.data;
+
+  // Store token in localStorage
+  localStorage.setItem("voterToken", token);
+
+  // Also store voter info for later use
+  localStorage.setItem(
+    "voterInfo",
+    JSON.stringify({
+      name: voter.name,
+      email: voter.email,
+      voterId: voter.id,
+      ballotId: ballot.id,
+    })
+  );
+
+  console.log("Voter token stored:", token.substring(0, 15) + "...");
+
+  return { voter, ballot };
+}
+
+// Function to register voter with ballot after successful registration
+async function registerVoterWithBallot(ballotId) {
+  try {
+    // Debug: Check if token exists
+    const token = localStorage.getItem("voterToken");
+    console.log(
+      "Token being sent:",
+      token ? token.substring(0, 15) + "..." : "NO TOKEN"
+    );
+
+    // Make API call using the interceptor
+    const response = await api.post(`/ballots/${ballotId}/register-voter`);
+
+    console.log("Voter registered with ballot:", response.data);
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error(
+      "Failed to register voter with ballot:",
+      error.response?.data || error.message
+    );
+    return {
+      success: false,
+      error: error.response?.data?.message || "Failed to register with ballot",
+    };
+  }
+}
+
+// Instead of using the interceptor, make the call with explicit headers
+async function registerVoterManually(ballotId) {
+  try {
+    const token = localStorage.getItem("voterToken");
+    if (!token) {
+      throw new Error("No voter token available");
+    }
+
+    // Make API call with explicit headers
+    const response = await axios({
+      method: "post",
+      url: `/api/ballots/${ballotId}/register-voter`,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    console.log("Voter registered with ballot:", response.data);
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error(
+      "Failed to register voter with ballot:",
+      error.response?.data || error.message
+    );
+    return {
+      success: false,
+      error: error.response?.data?.message || "Failed to register with ballot",
+    };
+  }
+}
+
+// Debug function to check token in localStorage
+function checkVoterToken() {
+  const token = localStorage.getItem("voterToken");
+  if (token) {
+    console.log("Voter token exists:", token.substring(0, 15) + "...");
+    return true;
+  } else {
+    console.warn("No voter token found in localStorage");
+    return false;
+  }
+}
+
+// Debug function to validate token with backend
+async function validateVoterToken() {
+  try {
+    const token = localStorage.getItem("voterToken");
+    if (!token) {
+      console.warn("No token to validate");
+      return false;
+    }
+
+    const response = await axios.get("/api/auth/validate-token", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    console.log("Token validation response:", response.data);
+    return response.data.status === "success";
+  } catch (error) {
+    console.error(
+      "Token validation failed:",
+      error.response?.data || error.message
+    );
+    return false;
+  }
+}
 
 module.exports = router;

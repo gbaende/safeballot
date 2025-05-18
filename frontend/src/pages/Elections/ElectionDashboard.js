@@ -554,6 +554,52 @@ const ElectionDashboard = () => {
     },
   });
 
+  // Admin actions section
+  const renderAdminActions = () => {
+    const status = getElectionStatus();
+
+    return (
+      <Box sx={{ mt: 4, mb: 2 }}>
+        <Typography variant="h6" gutterBottom>
+          Admin Actions
+        </Typography>
+        <Grid container spacing={2}>
+          <Grid item>
+            <Button
+              variant="outlined"
+              component={Link}
+              to={`/elections/${id}/voters`}
+              startIcon={<AddIcon />}
+            >
+              Manage Voters
+            </Button>
+          </Grid>
+          <Grid item>
+            <Button
+              variant="outlined"
+              component={Link}
+              to={`/elections/${id}/results`}
+              startIcon={<ArrowForwardIcon />}
+            >
+              View Results
+            </Button>
+          </Grid>
+          <Grid item>
+            <Button
+              variant="outlined"
+              color="secondary"
+              component={Link}
+              to={`/elections/${id}/debug`}
+              sx={{ borderColor: "#888888", color: "#888888" }}
+            >
+              Debug Data
+            </Button>
+          </Grid>
+        </Grid>
+      </Box>
+    );
+  };
+
   return (
     <Box sx={{ pt: 4 }}>
       {/* Header with Title and Create Button */}
@@ -636,13 +682,12 @@ const ElectionDashboard = () => {
               />
             </Box>
 
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="center">
-                <AccessTimeIcon
-                  color="primary"
-                  fontSize="large"
-                  style={{ marginRight: "8px" }}
-                />
+            <CardContent sx={{ pl: 1 }}>
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="flex-start"
+              >
                 <Typography variant="h4" component="div">
                   {remainingTime === "N/A" ||
                   remainingTime === "Error" ||
@@ -919,83 +964,108 @@ const ElectionDashboard = () => {
 
         {/* Right Column - Voting Results */}
         <Grid item xs={12} md={6}>
-          <Paper
+          {/* Title and View All button outside of cards */}
+          <Box
             sx={{
-              p: 3,
-              height: "100%",
-              border: "1px solid #E2E8F0",
-              boxShadow: "none",
+              display: "flex",
+              justifyContent: "space-between",
+              mb: 3,
             }}
           >
-            <Box
-              sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}
+            <Typography variant="h5" sx={{ fontWeight: 600 }}>
+              Live Voting Results
+            </Typography>
+            <Button
+              endIcon={<ArrowForwardIcon />}
+              sx={{
+                color: "#2D3748",
+                textTransform: "none",
+                fontSize: "14px",
+                border: "1px solid #E2E8F0",
+                borderRadius: "4px",
+                px: 2,
+                py: 0.5,
+              }}
+              component={Link}
+              to={`/elections/${id}/results`}
             >
-              <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                Live Voting Results
-              </Typography>
-              <Button
-                endIcon={<ArrowForwardIcon />}
+              View All
+            </Button>
+          </Box>
+
+          {/* Cards for each question */}
+          {election.results && election.results.length > 0 ? (
+            election.results.map((category, index) => (
+              <Paper
+                key={index}
                 sx={{
-                  color: "#2D3748",
-                  textTransform: "none",
-                  fontSize: "14px",
+                  p: 3,
+                  mb: 3,
                   border: "1px solid #E2E8F0",
-                  borderRadius: "4px",
-                  px: 2,
-                  py: 0.5,
+                  boxShadow: "none",
+                  borderRadius: "8px",
                 }}
-                component={Link}
-                to={`/elections/${id}/details`}
               >
-                View All
-              </Button>
-            </Box>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    fontWeight: 500,
+                    mb: 2,
+                    color: "#718096", // Light grey color for the title
+                  }}
+                >
+                  {category.category}
+                </Typography>
 
-            {election.results && election.results.length > 0 ? (
-              election.results.map((category, index) => (
-                <Box key={index} sx={{ mb: 4 }}>
-                  <Typography variant="body1" sx={{ fontWeight: 500, mb: 2 }}>
-                    {category.category}
-                  </Typography>
-
-                  {category.candidates.map((candidate, idx) => (
-                    <Box key={idx} sx={{ mb: 2 }}>
-                      <Typography variant="body2" sx={{ mb: 1 }}>
-                        {candidate.name}
+                {category.candidates.map((candidate, idx) => (
+                  <Box key={idx} sx={{ mb: 2 }}>
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      {candidate.name}
+                    </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center" }}>
+                      <LinearProgress
+                        variant="determinate"
+                        value={candidate.percentage}
+                        sx={{
+                          flexGrow: 1,
+                          mr: 2,
+                          height: 8,
+                          borderRadius: 4,
+                          bgcolor: "#EDF2F7",
+                          ".MuiLinearProgress-bar": {
+                            backgroundImage:
+                              "linear-gradient(to right, #00005E, #4478EB)",
+                          },
+                        }}
+                      />
+                      <Typography variant="body2" sx={{ minWidth: 45 }}>
+                        {candidate.percentage}%
                       </Typography>
-                      <Box sx={{ display: "flex", alignItems: "center" }}>
-                        <LinearProgress
-                          variant="determinate"
-                          value={candidate.percentage}
-                          sx={{
-                            flexGrow: 1,
-                            mr: 2,
-                            height: 8,
-                            borderRadius: 4,
-                            bgcolor: "#EDF2F7",
-                            ".MuiLinearProgress-bar": {
-                              backgroundImage:
-                                "linear-gradient(to right, #00005E, #4478EB)",
-                            },
-                          }}
-                        />
-                        <Typography variant="body2" sx={{ minWidth: 45 }}>
-                          {candidate.percentage}%
-                        </Typography>
-                      </Box>
                     </Box>
-                  ))}
-                </Box>
-              ))
-            ) : (
-              <Typography color="text.secondary" align="center">
+                  </Box>
+                ))}
+              </Paper>
+            ))
+          ) : (
+            <Paper
+              sx={{
+                p: 3,
+                border: "1px solid #E2E8F0",
+                boxShadow: "none",
+                borderRadius: "8px",
+                textAlign: "center",
+              }}
+            >
+              <Typography color="text.secondary">
                 No voting results available yet. Results will appear here when
                 voting begins.
               </Typography>
-            )}
-          </Paper>
+            </Paper>
+          )}
         </Grid>
       </Grid>
+
+      {renderAdminActions()}
     </Box>
   );
 };

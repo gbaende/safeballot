@@ -37,10 +37,18 @@ api.interceptors.request.use(
       "/auth/refresh-token",
       "/auth/verify-email",
       "/auth/reset-password",
+      "/elections/",
+      "/ballots/:id/public-vote",
+      "/ballots/:id/public-register-voter",
     ];
 
     // Voter-specific endpoints that use voter tokens instead of admin tokens
-    const voterEndpoints = ["/ballots/:id/vote", "/voter/"];
+    const voterEndpoints = [
+      "/ballots/:id/vote",
+      "/voter/",
+      "/ballots/:id/voter-vote",
+      "/elections/",
+    ];
 
     // Check if the current request is to a public endpoint
     let isPublicEndpoint = publicEndpoints.some((endpoint) =>
@@ -70,6 +78,7 @@ api.interceptors.request.use(
       const skipCache =
         config.url.includes("/ballots") ||
         config.url.includes("/elections") ||
+        config.url.includes("/voters") ||
         config.skipCache === true;
 
       if (!skipCache && requestCache.has(cacheKey)) {
@@ -317,6 +326,26 @@ api.interceptors.response.use(
   }
 );
 
+// Helper function to clear all ballot-related data from localStorage
+const clearBallotCache = () => {
+  console.log("Clearing all ballot data from localStorage");
+  localStorage.removeItem("userBallots");
+  // Clear any keys that might contain cached ballot data
+  Object.keys(localStorage).forEach((key) => {
+    if (
+      key.includes("ballot") ||
+      key.includes("Ballot") ||
+      key.includes("election") ||
+      key.includes("Election") ||
+      key.includes("voter") ||
+      key.includes("Voter")
+    ) {
+      console.log(`Removing cached data: ${key}`);
+      localStorage.removeItem(key);
+    }
+  });
+};
+
 // Helper functions for token management
 const setAuthToken = (token, user) => {
   if (user.role === "admin") {
@@ -370,6 +399,9 @@ const handleLogout = (role = "all") => {
 export const authService = {
   // Admin authentication services
   adminLogin: (email, password) => {
+    // Clear existing ballot data to prevent data from previous sessions persisting
+    clearBallotCache();
+
     return api
       .post("/auth/login", { email, password, role: "admin" })
       .then((response) => {
@@ -381,6 +413,9 @@ export const authService = {
       });
   },
   adminRegister: (userData) => {
+    // Clear existing ballot data to prevent data from previous sessions persisting
+    clearBallotCache();
+
     return api
       .post("/auth/register", { ...userData, role: "admin" })
       .then((response) => {
@@ -392,6 +427,7 @@ export const authService = {
       });
   },
   adminLogout: () => {
+    clearBallotCache(); // Clear all ballot cache data
     api.post("/auth/logout").finally(() => {
       handleLogout("admin");
     });
@@ -490,6 +526,7 @@ export const authService = {
     }
   },
   voterLogout: () => {
+    clearBallotCache(); // Clear all ballot cache data
     api.post("/auth/logout").finally(() => {
       handleLogout("voter");
     });
@@ -497,6 +534,7 @@ export const authService = {
 
   // Common auth services
   logout: () => {
+    clearBallotCache(); // Clear all ballot cache data
     api.post("/auth/logout").finally(() => {
       handleLogout();
     });
@@ -554,10 +592,29 @@ export const authService = {
     api.post("/auth/verify/digital-key", { email, ballot_id: ballotId }),
 };
 
+// Helper function to get auth headers for API requests
+const authHeader = () => {
+  // Try multiple possible token sources
+  const token =
+    localStorage.getItem("adminToken") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("voterToken");
+
+  // Return headers with Authorization if token exists
+  if (token) {
+    return {
+      Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}`,
+    };
+  }
+  return {}; // Return empty object if no token
+};
+
 // Ballot services
 export const ballotService = {
   getBallots: () => {
     console.log("Getting all ballots...");
+    // Remove cached ballots to ensure fresh data
+    localStorage.removeItem("userBallots");
     // Add timestamp to prevent caching
     return api.get(`/ballots?_=${Date.now()}`);
   },
@@ -566,6 +623,83 @@ export const ballotService = {
     console.log(`Getting ballot with ID: ${id}`);
     // Add timestamp to prevent caching
     return api.get(`/ballots/${id}?_=${Date.now()}`);
+  },
+
+  // Debug method to get detailed ballot voter and vote data for troubleshooting
+  debugBallot: async (id) => {
+    console.log(`Getting debug data for ballot with ID: ${id}`);
+    try {
+      // Add timestamp to prevent caching
+      const response = await api.get(`/ballots/${id}/debug?_=${Date.now()}`);
+      console.log(`Debug data response for ballot ${id}:`, {
+        status: response.status,
+        hasData: !!response.data,
+      });
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching debug data for ballot ${id}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get raw voter data without filtering (diagnostic endpoint)
+   * @param {string} id - The ballot ID
+   * @returns {Promise<Object>} - The raw voter data
+   */
+  async getRawVoters(id) {
+    try {
+      console.log(`API: Getting raw voter data for ballot ${id}`);
+      // Add cache busting to prevent stale data
+      const timestamp = Date.now();
+      const response = await api.get(
+        `/ballots/${id}/raw-voters?_=${timestamp}`
+      );
+
+      const hasData =
+        response?.data?.data &&
+        (response.data.data.voterData?.length > 0 ||
+          response.data.data.rawVotes?.length > 0);
+
+      console.log(`API: Raw voter data response:`, {
+        status: response.status,
+        hasData,
+        voterCount: response.data?.data?.voterData?.length || 0,
+        totalVotes: response.data?.data?.totalVotes || 0,
+        orphanedCount: response.data?.data?.orphanedVoterIds?.length || 0,
+        inconsistentCount: response.data?.data?.inconsistentVoterCount || 0,
+      });
+
+      // Enhanced logging for orphaned voters if they exist
+      if (response.data?.data?.orphanedVoterIds?.length > 0) {
+        console.warn(
+          `API: Found ${response.data.data.orphanedVoterIds.length} orphaned voters!`
+        );
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error("API ERROR - getRawVoters:", error);
+      throw error;
+    }
+  },
+
+  // Repair ballot data to fix database inconsistencies
+  repairBallot: async (id) => {
+    console.log(`Repairing data for ballot with ID: ${id}`);
+    try {
+      // Add timestamp to prevent caching
+      const response = await api.post(`/ballots/${id}/repair?_=${Date.now()}`);
+      console.log(`Repair response for ballot ${id}:`, {
+        status: response.status,
+        hasData: !!response.data,
+        stats: response.data?.repairStats,
+      });
+      return response.data;
+    } catch (error) {
+      console.error(`Error repairing ballot ${id}:`, error);
+      throw error;
+    }
   },
 
   createBallot: (ballotData) => {
@@ -634,39 +768,79 @@ export const ballotService = {
 
   // Register the current user as a voter for a ballot
   registerVoter: (ballotId) => {
-    console.log(`Calling registerVoter API for ballot: ${ballotId}`);
-    return api.post(`/ballots/${ballotId}/register-voter`).then((response) => {
-      console.log("Register voter API response:", response);
+    console.log(
+      `[COMPATIBILITY] registerVoter being called for ballot: ${ballotId}`
+    );
+    console.log(
+      `[COMPATIBILITY] This method is deprecated - using publicRegisterVoter instead`
+    );
 
-      // Extract and save voter ID from response if available
-      try {
-        let voterId = null;
+    // Try to get voter info from localStorage or session
+    let voterInfo = null;
 
-        // Check various possible paths for voter ID
-        if (response.data && response.data.data) {
-          if (response.data.data.voter && response.data.data.voter.id) {
-            voterId = response.data.data.voter.id;
-          } else if (response.data.data.id) {
-            voterId = response.data.data.id;
-          } else if (typeof response.data.data === "object") {
-            // The data might be the voter object itself
-            voterId = response.data.data.id;
-          }
+    // Try to find voter info from various sources
+    try {
+      // First check if we have a user object stored
+      const userJson =
+        localStorage.getItem("user") || localStorage.getItem("voterUser");
+      if (userJson) {
+        const user = JSON.parse(userJson);
+        if (user && user.email) {
+          voterInfo = {
+            name: user.name || "Registered Voter",
+            email: user.email,
+          };
         }
-
-        // If we found a voter ID, save it to localStorage
-        if (voterId) {
-          console.log(
-            `Found and saving voter ID from registration: ${voterId}`
-          );
-          localStorage.setItem(`voter_id_${ballotId}`, voterId);
-        }
-      } catch (e) {
-        console.error("Error parsing voter ID from registration response:", e);
       }
 
-      return response;
-    });
+      // If no user info, check other storage locations
+      if (!voterInfo) {
+        const infoJson =
+          localStorage.getItem(`voter_info_${ballotId}`) ||
+          localStorage.getItem("voterInfo") ||
+          sessionStorage.getItem("voterInfo");
+        if (infoJson) {
+          voterInfo = JSON.parse(infoJson);
+        }
+      }
+
+      // Last resort - check for individual fields
+      if (!voterInfo) {
+        const name =
+          localStorage.getItem(`verified_name_${ballotId}`) ||
+          localStorage.getItem("voterName") ||
+          "Registered Voter";
+        const email =
+          localStorage.getItem(`verified_email_${ballotId}`) ||
+          localStorage.getItem("voterEmail") ||
+          localStorage.getItem("email");
+
+        if (email) {
+          voterInfo = { name, email };
+        }
+      }
+    } catch (e) {
+      console.error("[COMPATIBILITY] Error getting voter info:", e);
+    }
+
+    // If we have voter info, use publicRegisterVoter
+    if (voterInfo && voterInfo.email) {
+      console.log(
+        "[COMPATIBILITY] Using publicRegisterVoter with voter info:",
+        {
+          name: voterInfo.name,
+          email: voterInfo.email.substring(0, 3) + "...",
+        }
+      );
+
+      return ballotService.publicRegisterVoter(ballotId, voterInfo);
+    }
+
+    // Otherwise, log an error and try a fallback
+    console.error(
+      "[COMPATIBILITY] No voter info found for public registration - attempting fallback"
+    );
+    return api.post(`/ballots/${ballotId}/register-voter`);
   },
 
   // Ballot questions
@@ -675,9 +849,87 @@ export const ballotService = {
     api.post(`/ballots/${ballotId}/questions`, questionData),
 
   // Ballot voters
-  getVoters: (ballotId) => api.get(`/ballots/${ballotId}/voters`),
-  addVoters: (ballotId, voterData) =>
-    api.post(`/ballots/${ballotId}/voters`, voterData),
+  getVoters: async (ballotId, options = {}) => {
+    console.log(`Calling API to get voters for ballot ${ballotId}`);
+
+    try {
+      // Build query parameters
+      const queryParams = new URLSearchParams();
+
+      // Add cache busting to prevent stale data
+      queryParams.append("_", Date.now());
+
+      // Add optional parameters
+      if (options.includeAdmin === true)
+        queryParams.append("includeAdmin", "true");
+      if (options.includeAll === true) queryParams.append("includeAll", "true");
+      if (options.debug === true) queryParams.append("debug", "true");
+
+      // Construct the URL with query parameters
+      const url = `/ballots/${ballotId}/voters?${queryParams.toString()}`;
+      console.log(`Fetching voters with params: ${queryParams.toString()}`);
+
+      const response = await api.get(url);
+
+      console.log(`Got response from voters API for ballot ${ballotId}:`, {
+        status: response.status,
+        hasData: !!response.data,
+        votersCount: response.data?.data?.voters?.length || 0,
+      });
+
+      return response;
+    } catch (error) {
+      console.error(`Error fetching voters for ballot ${ballotId}:`, error);
+      throw error;
+    }
+  },
+  addVoters: async (ballotId, voterData) => {
+    try {
+      // Standardize the input - we need an array of voter objects with email and name
+      let voters = voterData;
+
+      // Check if voterData is just an array of emails
+      if (voterData.emails && Array.isArray(voterData.emails)) {
+        console.log(
+          "Converting simple emails array to voters array with names"
+        );
+        // Convert from {emails: ['a@b.com', 'c@d.com']} to [{email: 'a@b.com', name: 'A'}, {email: 'c@d.com', name: 'C'}]
+        voters = voterData.emails.map((email) => {
+          // Extract first part of email for name
+          let name = email.split("@")[0];
+          // Capitalize first letter and format nicely
+          name =
+            name.charAt(0).toUpperCase() + name.slice(1).replace(/[._-]/g, " ");
+          return {
+            email,
+            name: name || "Registered Voter",
+          };
+        });
+      } else if (!Array.isArray(voters)) {
+        // If not array, ensure it's properly formatted
+        voters = [voterData];
+      }
+
+      // Ensure all voters have names
+      voters = voters.map((voter) => ({
+        ...voter,
+        name:
+          voter.name ||
+          voter.email.split("@")[0].replace(/[._-]/g, " ") ||
+          "Registered Voter",
+      }));
+
+      console.log("Sending voters with names:", voters);
+
+      const response = await api.post(`/ballots/${ballotId}/voters`, {
+        voters,
+      });
+      return response;
+    } catch (error) {
+      console.error("Error in addVoters:", error);
+      throw error;
+    }
+  },
   removeVoter: (ballotId, voterId) =>
     api.delete(`/ballots/${ballotId}/voters/${voterId}`),
 
@@ -688,47 +940,188 @@ export const ballotService = {
       JSON.stringify(voteData, null, 2)
     );
 
-    // Get any available token for authentication
-    const token =
-      localStorage.getItem("adminToken") ||
-      localStorage.getItem("token") ||
-      localStorage.getItem("voterToken");
+    // Ensure voter information is included
+    if (
+      !voteData.voterInfo ||
+      !voteData.voterInfo.name ||
+      !voteData.voterInfo.email
+    ) {
+      // Try to get complete voter information from all available sources
+      try {
+        // First check voter_info specifically for this ballot
+        const ballotVoterInfo = localStorage.getItem(`voter_info_${ballotId}`);
+        if (ballotVoterInfo) {
+          const parsedInfo = JSON.parse(ballotVoterInfo);
+          if (parsedInfo && parsedInfo.name && parsedInfo.email) {
+            voteData.voterInfo = parsedInfo;
+            console.log("Using ballot-specific voter info:", {
+              name: parsedInfo.name,
+              emailStart: parsedInfo.email.substring(0, 3) + "...",
+            });
+          }
+        }
 
+        // If still missing info, check voterUser as a second source
+        if (
+          !voteData.voterInfo ||
+          !voteData.voterInfo.name ||
+          !voteData.voterInfo.email
+        ) {
+          const voterUser = localStorage.getItem("voterUser");
+          if (voterUser) {
+            const userData = JSON.parse(voterUser);
+            if (userData.name && userData.email) {
+              voteData.voterInfo = {
+                name: userData.name,
+                email: userData.email,
+              };
+              console.log("Using voterUser for voter information");
+            }
+          }
+        }
+
+        // As a fallback, check for individual fields
+        if (
+          !voteData.voterInfo ||
+          !voteData.voterInfo.name ||
+          !voteData.voterInfo.email
+        ) {
+          const name =
+            localStorage.getItem(`verified_name_${ballotId}`) ||
+            localStorage.getItem("voterName");
+          const email =
+            localStorage.getItem(`verified_email_${ballotId}`) ||
+            localStorage.getItem("voterEmail");
+
+          if (name || email) {
+            voteData.voterInfo = {
+              name: name || "Registered Voter",
+              email: email,
+            };
+            console.log("Constructed voter info from separate fields");
+          }
+        }
+      } catch (e) {
+        console.warn("Error completing voter info:", e);
+      }
+    }
+
+    // CRITICAL: Log the final voter info being sent
+    if (voteData.voterInfo) {
+      console.log("FINAL VOTER INFO BEING SENT:", {
+        name: voteData.voterInfo.name,
+        hasEmail: !!voteData.voterInfo.email,
+        emailStart: voteData.voterInfo.email
+          ? voteData.voterInfo.email.substring(0, 3) + "..."
+          : "none",
+      });
+    } else {
+      console.error("NO VOTER INFO AVAILABLE - Vote will be anonymous!");
+    }
+
+    // CRITICAL FIX: Ensure we're using the correct choice IDs directly from the questions data
+    // We should never use hardcoded or derived IDs that don't match the database
+    if (voteData.questionsData && voteData.userSelections) {
+      console.log("Using direct question/choice mapping for vote submission");
+
+      // Create a properly formatted rankings or votes structure
+      const formattedVotes = [];
+
+      voteData.userSelections.forEach((selectedIndex, questionIndex) => {
+        if (
+          selectedIndex !== null &&
+          selectedIndex !== undefined &&
+          voteData.questionsData[questionIndex]
+        ) {
+          const question = voteData.questionsData[questionIndex];
+          // Ensure the selectedIndex is within bounds of the available choices
+          if (question.choices && question.choices.length > selectedIndex) {
+            const choice = question.choices[selectedIndex];
+            formattedVotes.push({
+              questionId: question.id,
+              choiceId: choice.id, // Use the exact ID from the database
+              rank: 1,
+            });
+
+            console.log(
+              `Mapped question ${questionIndex} selection ${selectedIndex} to actual IDs:`,
+              {
+                questionId: question.id,
+                choiceId: choice.id,
+              }
+            );
+          } else {
+            console.error(
+              `Invalid selection for question ${questionIndex}: selected ${selectedIndex} but only have ${
+                question.choices?.length || 0
+              } choices`
+            );
+          }
+        }
+      });
+
+      // Use the properly formatted votes
+      if (formattedVotes.length > 0) {
+        voteData.votes = formattedVotes;
+
+        // Also format as rankings for newer API format
+        const rankings = {};
+        voteData.userSelections.forEach((selectedIndex, questionIndex) => {
+          if (selectedIndex !== null && selectedIndex !== undefined) {
+            rankings[questionIndex] = { index: selectedIndex };
+          }
+        });
+        voteData.rankings = rankings;
+      }
+    } else {
+      console.warn(
+        "No questionsData or userSelections provided - using existing vote format if available"
+      );
+
+      // Log the format we're using to help with debugging
+      if (voteData.votes) {
+        console.log("Using provided votes array:", voteData.votes);
+      } else if (voteData.rankings) {
+        console.log("Using provided rankings object:", voteData.rankings);
+      } else {
+        console.error(
+          "WARNING: No votes or rankings data found in the payload!"
+        );
+      }
+    }
+
+    // Final validation - log the complete payload
     console.log(
-      "Using token for vote submission:",
-      token ? "Token found" : "No token available"
+      "FINAL VOTE PAYLOAD:",
+      JSON.stringify(
+        {
+          rankings: voteData.rankings,
+          votes: voteData.votes,
+          voter: voteData.voterInfo,
+        },
+        null,
+        2
+      )
     );
 
-    // Direct fetch approach to bypass Axios interceptors
-    return fetch(`http://localhost:8080/api/ballots/${ballotId}/vote`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: token
-          ? token.startsWith("Bearer ")
-            ? token
-            : `Bearer ${token}`
-          : "",
-      },
-      body: JSON.stringify(voteData),
-    }).then(async (response) => {
-      const responseData = await response.json();
-      console.log(`Vote API response (${response.status}):`, responseData);
+    // Prepare the payload for the public vote endpoint
+    const publicVotePayload = {
+      rankings: voteData.rankings || {},
+      votes: voteData.votes || [],
+      voter: voteData.voterInfo || voteData.voter,
+    };
 
-      if (!response.ok) {
-        // Create an error object that mimics Axios error structure
-        const error = new Error(
-          responseData.message || "Failed to submit vote"
-        );
-        error.response = {
-          status: response.status,
-          data: responseData,
-        };
-        throw error;
-      }
+    // Use the public vote endpoint
+    return api
+      .post(`/ballots/${ballotId}/public-vote`, publicVotePayload)
+      .then((response) => {
+        console.log(`Vote API response (${response.status}):`, response.data);
 
-      return { data: responseData, status: response.status };
-    });
+        // Store that this user has voted on this ballot
+        localStorage.setItem(`hasVoted_${ballotId}`, "true");
+
+        return response;
+      });
   },
 
   // Results
@@ -781,6 +1174,283 @@ export const ballotService = {
       return { data, status: response.status };
     } catch (error) {
       console.error("Emergency database access failed:", error);
+      throw error;
+    }
+  },
+
+  // Repair anonymous voters by updating with real names from emails
+  repairAnonymousVoters: async (ballotId) => {
+    try {
+      console.log(`Repairing anonymous voters for ballot ${ballotId}...`);
+      const response = await api.post(`/ballots/${ballotId}/repair-voters`);
+
+      console.log("Repair response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("Error repairing anonymous voters:", error);
+      throw error;
+    }
+  },
+
+  // Create a direct voter record with explicit information
+  createDirectVoter: async (ballotId, voterData) => {
+    try {
+      console.log(`Creating direct voter for ballot ${ballotId}:`, {
+        name: voterData.name,
+        email: voterData.email
+          ? `${voterData.email.substring(0, 3)}...`
+          : "none",
+      });
+
+      const response = await api.post(
+        `/ballots/${ballotId}/create-direct-voter`,
+        {
+          voter: voterData,
+        }
+      );
+
+      console.log("Direct voter creation response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("Error creating direct voter:", error);
+      throw error;
+    }
+  },
+
+  // Register a voter for a ballot publicly without requiring authentication
+  publicRegisterVoter: async (ballotId, voterData) => {
+    try {
+      console.log(`Publicly registering voter for ballot ${ballotId}:`, {
+        name: voterData.name,
+        email: voterData.email
+          ? `${voterData.email.substring(0, 3)}...`
+          : "none",
+      });
+
+      // Use the restored public-register-voter endpoint
+      const response = await fetch(
+        `${API_URL}/ballots/${ballotId}/public-register-voter`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            voter: voterData,
+          }),
+        }
+      );
+
+      const data = await response.json();
+      console.log("Public voter registration response:", data);
+
+      // If successful, store the voter ID and any token in localStorage
+      if (response.ok && data?.data?.voter) {
+        // Store voter ID for this ballot
+        localStorage.setItem(`voter_id_${ballotId}`, data.data.voter.id);
+        console.log(
+          `Stored voter ID ${data.data.voter.id} for ballot ${ballotId}`
+        );
+
+        // If a token was provided, store it (for JWT-based authentication)
+        if (data.data.token) {
+          localStorage.setItem("voterToken", data.data.token);
+          console.log("Stored voter token for authenticated requests");
+
+          // Also store voter info in a format our interceptor can use
+          localStorage.setItem(
+            "voterUser",
+            JSON.stringify({
+              id: data.data.voter.id,
+              name: data.data.voter.name,
+              email: data.data.voter.email,
+              role: "voter",
+            })
+          );
+        }
+
+        // Store useful voter information for future use
+        localStorage.setItem(
+          `voter_info_${ballotId}`,
+          JSON.stringify(voterData)
+        );
+        localStorage.setItem(`verified_name_${ballotId}`, voterData.name);
+        localStorage.setItem(`verified_email_${ballotId}`, voterData.email);
+        localStorage.setItem("voterName", voterData.name);
+        localStorage.setItem("voterEmail", voterData.email);
+        localStorage.setItem("email", voterData.email);
+
+        return data.data;
+      }
+
+      return { error: data.message || "Registration failed" };
+    } catch (error) {
+      console.error("Error publicly registering voter:", error);
+
+      // Still store voter info in localStorage as a fallback
+      try {
+        localStorage.setItem(
+          `voter_info_${ballotId}`,
+          JSON.stringify(voterData)
+        );
+        localStorage.setItem(`verified_name_${ballotId}`, voterData.name);
+        localStorage.setItem(`verified_email_${ballotId}`, voterData.email);
+        localStorage.setItem("voterName", voterData.name);
+        localStorage.setItem("voterEmail", voterData.email);
+        localStorage.setItem("email", voterData.email);
+      } catch (storageError) {
+        console.error(
+          "Error storing voter info in localStorage:",
+          storageError
+        );
+      }
+
+      throw error;
+    }
+  },
+
+  /**
+   * Generate an access key for a ballot
+   * @param {string} ballotId - The ballot ID
+   * @param {object} options - Options for the access key
+   * @returns {Promise<Object>} - The response with the access key
+   */
+  generateAccessKey: async (ballotId, options = {}) => {
+    try {
+      console.log(`Generating access key for ballot ${ballotId}`);
+      const response = await api.post(
+        `/ballots/${ballotId}/generate-access-key`,
+        options
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error generating access key:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Validate a ballot access key and get basic ballot info
+   * @param {string} accessKey - The access key to validate
+   * @returns {Promise<Object>} - The response with the ballot info
+   */
+  validateAccessKey: async (accessKey) => {
+    try {
+      console.log(`Validating access key: ${accessKey.substring(0, 8)}...`);
+      const response = await api.get(`/ballots/access/${accessKey}`);
+      return response.data;
+    } catch (error) {
+      console.error("Error validating access key:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Register a voter using a ballot access key
+   * @param {object} data - Registration data including accessKey, name, email, password
+   * @returns {Promise<Object>} - The response with voter token and info
+   */
+  registerWithAccessKey: async (data) => {
+    try {
+      console.log(
+        `Registering voter with access key: ${data.accessKey.substring(
+          0,
+          8
+        )}...`
+      );
+      const response = await api.post("/ballots/register-with-key", data);
+
+      // If successful, store the voter token and info
+      if (response.data && response.data.status === "success") {
+        const { token, voter, ballot } = response.data.data;
+
+        // Store the voter token
+        localStorage.setItem("voterToken", token);
+
+        // Store voter information
+        localStorage.setItem("voter", JSON.stringify(voter));
+
+        // Store ballot-specific voter info
+        localStorage.setItem(
+          `voter_info_${ballot.id}`,
+          JSON.stringify({
+            name: voter.name,
+            email: voter.email,
+          })
+        );
+
+        // Store verified name and email
+        localStorage.setItem(`verified_name_${ballot.id}`, voter.name);
+        localStorage.setItem(`verified_email_${ballot.id}`, voter.email);
+
+        // Store voter ID
+        localStorage.setItem(`voter_id_${ballot.id}`, voter.id);
+
+        console.log(
+          `Voter registered successfully: ${voter.name} (${voter.id}) for ballot ${ballot.id}`
+        );
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error("Error registering with access key:", error);
+      throw error;
+    }
+  },
+
+  // Created a specific castVoteWithToken method for the token-based flow
+  // This is still useful for users who have a token and want to use it
+  castVoteWithToken: async (ballotId, voteData) => {
+    try {
+      console.log(`Casting vote for ballot ${ballotId} with voter token`);
+
+      // Get the voter token
+      const voterToken = localStorage.getItem("voterToken");
+      if (!voterToken) {
+        console.log(
+          "No voter token found, falling back to public voting endpoint"
+        );
+        // Fall back to regular castVote which uses the public-vote endpoint
+        return ballotService.castVote(ballotId, voteData);
+      }
+
+      // Log vote data being sent
+      console.log("Vote data being sent:", {
+        hasVotes: !!voteData.votes,
+        hasVoterInfo: !!voteData.voterInfo,
+      });
+
+      // Prepare the vote payload similar to castVote
+      const votePayload = {
+        rankings: voteData.rankings || voteData.votes,
+        votes: voteData.votes,
+        voter: voteData.voterInfo || voteData.voter,
+      };
+
+      // Use the api instance which will automatically use the voterToken
+      // from localStorage through the interceptor
+      const response = await api.post(
+        `/ballots/${ballotId}/voter-vote`,
+        votePayload
+      );
+
+      console.log("Vote cast successfully:", response.data);
+
+      // Store that this user has voted
+      localStorage.setItem(`hasVoted_${ballotId}`, "true");
+
+      return response.data;
+    } catch (error) {
+      console.error("Error casting vote with token:", error);
+
+      // If we get a 401 Unauthorized, fall back to public voting
+      if (error.response && error.response.status === 401) {
+        console.log(
+          "Voter token rejected, falling back to public voting endpoint"
+        );
+        return ballotService.castVote(ballotId, voteData);
+      }
+
       throw error;
     }
   },
@@ -963,4 +1633,98 @@ export const onfidoService = {
   },
 };
 
+// Payment services using Stripe
+export const paymentService = {
+  // Create a payment intent
+  createPaymentIntent: async (paymentData) => {
+    const response = await api.post("/payment/create-intent", paymentData);
+    return response.data;
+  },
+
+  // Confirm a payment
+  confirmPayment: async (paymentIntentId) => {
+    const response = await api.post("/payment/confirm", { paymentIntentId });
+    return response.data;
+  },
+
+  // Get saved payment methods
+  getPaymentMethods: async () => {
+    const response = await api.get("/payment/methods");
+    return response.data;
+  },
+
+  // Create a setup intent for saving payment method
+  createSetupIntent: async () => {
+    const response = await api.post("/payment/setup-intent");
+    return response.data;
+  },
+};
+
+// Service functions for voter-specific operations
+export const voterService = {
+  /**
+   * Check if there's a valid voter token
+   * @returns {boolean} - True if a valid voter token exists
+   */
+  hasValidVoterToken: () => {
+    const token = localStorage.getItem("voterToken");
+    return !!token;
+  },
+
+  /**
+   * Get voter information from localStorage
+   * @returns {object|null} - The voter information or null if not found
+   */
+  getVoterInfo: () => {
+    const voterJson = localStorage.getItem("voter");
+    if (!voterJson) return null;
+
+    try {
+      return JSON.parse(voterJson);
+    } catch (e) {
+      console.error("Error parsing voter info:", e);
+      return null;
+    }
+  },
+
+  /**
+   * Log out the voter
+   */
+  logoutVoter: () => {
+    // Remove voter token and info
+    localStorage.removeItem("voterToken");
+    localStorage.removeItem("voter");
+
+    // Don't clear ballot-specific data to prevent data loss
+    console.log("Voter logged out successfully");
+  },
+};
+
 export default api;
+
+/**
+ * Complete reset function to clear all localStorage data and cache.
+ * This can be used from the browser console to troubleshoot authentication issues.
+ * Usage: window.resetSafeBallotState()
+ */
+const resetSafeBallotState = () => {
+  console.log("🧹 Performing complete SafeBallot state reset...");
+
+  // Clear all cache
+  requestCache.clear();
+
+  // Clear all localStorage items
+  localStorage.clear();
+
+  console.log(
+    "✅ All state has been cleared. Please refresh the page and log in again."
+  );
+
+  // Optional: refresh the page automatically
+  // window.location.href = "/login";
+
+  return "Reset complete. Please refresh the page.";
+};
+
+// Make the function available in the global scope for debugging
+window.resetSafeBallotState = resetSafeBallotState;

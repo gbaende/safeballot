@@ -8,7 +8,7 @@ const {
   Vote,
 } = require("../models/ballot.model");
 const { User } = require("../models/user.model");
-const { protect } = require("../middleware/auth.middleware");
+const { protect, optionalVoterAuth } = require("../middleware/auth.middleware");
 const { sequelize } = require("../database/connection");
 
 const router = express.Router();
@@ -16,14 +16,51 @@ const router = express.Router();
 /**
  * Get election summary
  * @route GET /api/elections/summary
- * @access Private
+ * @access Public (with optional voter auth)
  */
-router.get("/summary", protect, async (req, res) => {
+router.get("/summary", optionalVoterAuth, async (req, res) => {
   try {
-    // Get user's ballots
-    const userId = req.user.id;
+    // Handle different authentication contexts
+    let userId;
+    if (req.user) {
+      userId = req.user.id;
+    } else if (req.voter) {
+      console.log(`Voter ${req.voter.id} accessing election summary`);
+      // For voters without admin privileges, return a simplified summary
+      return res.status(200).json({
+        status: "success",
+        data: {
+          // Default values for non-admin users
+          total_ballots: 0,
+          active_ballots: 0,
+          scheduled_ballots: 0,
+          completed_ballots: 0,
+          total_voters: 0,
+          total_votes: 0,
+          isAuthenticated: true,
+          role: "voter",
+        },
+      });
+    } else {
+      console.log("Unauthenticated user accessing election summary");
+      // For unauthenticated users, return a public summary
+      return res.status(200).json({
+        status: "success",
+        data: {
+          // Default values for unauthenticated users
+          total_ballots: 0,
+          active_ballots: 0,
+          scheduled_ballots: 0,
+          completed_ballots: 0,
+          total_voters: 0,
+          total_votes: 0,
+          isAuthenticated: false,
+          role: "public",
+        },
+      });
+    }
 
-    // Get summary of user's ballots
+    // Get summary of user's ballots - only if admin user
     const summary = await sequelize.query(
       `
       SELECT 
@@ -42,9 +79,16 @@ router.get("/summary", protect, async (req, res) => {
       }
     );
 
+    // Add authentication info to the response
+    const result = {
+      ...summary[0],
+      isAuthenticated: true,
+      role: "admin",
+    };
+
     res.status(200).json({
       status: "success",
-      data: summary[0],
+      data: result,
     });
   } catch (error) {
     console.error("Error getting election summary:", error);
@@ -58,14 +102,35 @@ router.get("/summary", protect, async (req, res) => {
 /**
  * Get recent elections
  * @route GET /api/elections/recent
- * @access Private
+ * @access Public (with optional voter auth)
  */
-router.get("/recent", protect, async (req, res) => {
+router.get("/recent", optionalVoterAuth, async (req, res) => {
   try {
-    // Get user's recent ballots
-    const userId = req.user.id;
+    // Get user's recent ballots - check for user or voter contexts
+    let userId;
+    if (req.user) {
+      userId = req.user.id;
+    } else if (req.voter) {
+      // If voter is authenticated, still show regular elections list
+      // This path is for voter context, which may have different access patterns
+      console.log(`Voter ${req.voter.id} accessing elections list`);
+    } else {
+      console.log("Unauthenticated user accessing elections list");
+    }
+
+    // Use userId filter only if we have an admin user
+    let whereClause = {};
+    if (userId) {
+      whereClause.createdBy = userId;
+    }
+
+    // For unauthenticated or voter users, show only public/active ballots
+    if (!userId) {
+      whereClause.status = "active";
+    }
+
     const recentBallots = await Ballot.findAll({
-      where: { createdBy: userId },
+      where: whereClause,
       order: [["updatedAt", "DESC"]],
       limit: 5,
       include: [
@@ -136,19 +201,33 @@ router.get("/recent", protect, async (req, res) => {
 /**
  * Get upcoming elections
  * @route GET /api/elections/upcoming
- * @access Private
+ * @access Public (with optional voter auth)
  */
-router.get("/upcoming", protect, async (req, res) => {
+router.get("/upcoming", optionalVoterAuth, async (req, res) => {
   try {
-    // Get user's upcoming ballots
-    const userId = req.user.id;
+    // Get user's upcoming ballots - check for user or voter contexts
+    let userId;
+    if (req.user) {
+      userId = req.user.id;
+    } else if (req.voter) {
+      // If voter is authenticated, still show regular elections list
+      // This path is for voter context, which may have different access patterns
+      console.log(`Voter ${req.voter.id} accessing upcoming elections list`);
+    } else {
+      console.log("Unauthenticated user accessing upcoming elections list");
+    }
+
     const now = new Date();
 
     // Add proper error handling for sequelize operators
     let whereClause = {
-      createdBy: userId,
       status: "scheduled",
     };
+
+    // Use userId filter only if we have an admin user
+    if (userId) {
+      whereClause.createdBy = userId;
+    }
 
     // Only add startDate condition if sequelize.Op is defined
     if (sequelize.Op && sequelize.Op.gt) {
@@ -233,9 +312,9 @@ router.get("/upcoming", protect, async (req, res) => {
 /**
  * Get election status
  * @route GET /api/elections/status
- * @access Private
+ * @access Public (with optional voter auth)
  */
-router.get("/status", protect, async (req, res) => {
+router.get("/status", optionalVoterAuth, async (req, res) => {
   try {
     const { id } = req.query;
 
@@ -256,6 +335,7 @@ router.get("/status", protect, async (req, res) => {
         "endDate",
         "totalVoters",
         "ballotsReceived",
+        "createdBy",
       ],
     });
 
@@ -266,8 +346,12 @@ router.get("/status", protect, async (req, res) => {
       });
     }
 
-    // Check if user has access to this ballot
-    if (ballot.createdBy !== req.user.id) {
+    // Check if user has access to this ballot (only for sensitive data)
+    const userHasAccess = req.user && ballot.createdBy === req.user.id;
+    const isVoter = !!req.voter;
+
+    // If neither admin user nor voter, only return public info
+    if (!userHasAccess && !isVoter && ballot.status !== "active") {
       return res.status(403).json({
         status: "error",
         message: "You do not have permission to access this election",
@@ -279,10 +363,16 @@ router.get("/status", protect, async (req, res) => {
 
     if (ballot.status === "scheduled" && ballot.startDate <= now) {
       ballot.status = "active";
-      await ballot.save();
+      // Only save if user has access
+      if (userHasAccess) {
+        await ballot.save();
+      }
     } else if (ballot.status === "active" && ballot.endDate <= now) {
       ballot.status = "completed";
-      await ballot.save();
+      // Only save if user has access
+      if (userHasAccess) {
+        await ballot.save();
+      }
     }
 
     res.status(200).json({
@@ -298,6 +388,9 @@ router.get("/status", protect, async (req, res) => {
           ballot.totalVoters > 0
             ? (ballot.ballotsReceived / ballot.totalVoters) * 100
             : 0,
+        // Only include creator info if user has access
+        createdBy: userHasAccess ? ballot.createdBy : undefined,
+        accessLevel: userHasAccess ? "admin" : isVoter ? "voter" : "public",
       },
     });
   } catch (error) {

@@ -31,8 +31,16 @@ import ScanID from "./pages/Verify/ScanID";
 import MyElections from "./pages/Elections/MyElections";
 import ElectionDashboard from "./pages/Elections/ElectionDashboard";
 import ElectionDetails from "./pages/Elections/ElectionDetails";
+import ElectionResults from "./pages/Elections/ElectionResults";
 import ManageVoters from "./pages/Elections/ManageVoters";
 import BallotBuilder from "./pages/Elections/BallotBuilder";
+import BallotDebug from "./pages/Elections/BallotDebug";
+
+// Add the PaymentSuccess import with the other component imports
+import PaymentSuccess from "./pages/PaymentSuccess";
+
+// Import the new AccessKeyRegistration component
+import AccessKeyRegistration from "./pages/voter/AccessKeyRegistration";
 
 // Wrapper component for ScanID route
 const ScanIDWrapper = () => {
@@ -167,6 +175,16 @@ function App() {
           />
           <Route path="/scan-id/:id/:slug" element={<ScanIDWrapper />} />
 
+          {/* Payment Success Route */}
+          <Route path="/payment-success" element={<PaymentSuccess />} />
+
+          {/* Access key routes */}
+          <Route
+            path="/ballot/access/:accessKey"
+            element={<AccessKeyRegistration />}
+          />
+          <Route path="/ballot/key" element={<AccessKeyRegistration />} />
+
           {/* Admin (Election Host) Routes - Protected by Authentication */}
           <Route
             path="/"
@@ -179,8 +197,10 @@ function App() {
             <Route path="elections/:id" element={<ElectionDashboard />} />
             <Route path="elections/:id/details" element={<ElectionDetails />} />
             <Route path="elections/:id/voters" element={<ManageVoters />} />
+            <Route path="elections/:id/results" element={<ElectionResults />} />
             <Route path="create-election" element={<BallotBuilder />} />
             <Route path="ballot-builder" element={<BallotBuilder />} />
+            <Route path="elections/:id/debug" element={<BallotDebug />} />
           </Route>
         </Routes>
       </Router>

@@ -13,6 +13,7 @@ import ElectionDashboard from "./Elections/ElectionDashboard";
 import ElectionDetails from "./Elections/ElectionDetails";
 import ManageVoters from "./Elections/ManageVoters";
 import BallotBuilder from "./Elections/BallotBuilder";
+import ElectionResults from "./Elections/ElectionResults";
 import VotingPage from "./Ballot/VotingPage";
 import PreRegistration from "./Verify/PreRegistration";
 import VoterRegistration from "./Verify/VoterRegistration";
@@ -81,6 +82,7 @@ const getRoutes = (isAuthenticated) => {
         <Route path="elections/:id" element={<ElectionDashboard />} />
         <Route path="elections/:id/details" element={<ElectionDetails />} />
         <Route path="elections/:id/voters" element={<ManageVoters />} />
+        <Route path="elections/:id/results" element={<ElectionResults />} />
         <Route path="create-election" element={<BallotBuilder />} />
       </Route>
     </>

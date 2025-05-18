@@ -36,7 +36,11 @@ const Ballot = sequelize.define(
     },
     requiresVerification: {
       type: DataTypes.BOOLEAN,
-      defaultValue: true,
+      defaultValue: false,
+    },
+    requiresAuthentication: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: process.env.NODE_ENV === "staging",
     },
     verificationMethod: {
       type: DataTypes.ENUM("email", "sms", "id_document", "digital_key"),
@@ -64,6 +68,27 @@ const Ballot = sequelize.define(
       type: DataTypes.INTEGER,
       defaultValue: 0,
       comment: "Number of completed votes received",
+    },
+    // Secure access key for public ballot links
+    accessKey: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: true,
+    },
+    // Track how many times the access key has been used
+    keyUsageCount: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
+    // Maximum number of times the key can be used (null for unlimited)
+    maxKeyUsage: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    // Whether the access key is enabled
+    accessKeyEnabled: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
     },
   },
   {
@@ -166,10 +191,31 @@ const Voter = sequelize.define(
     email: {
       type: DataTypes.STRING,
       allowNull: false,
+      validate: {
+        isEmail: true,
+        notEmpty: true,
+      },
     },
     name: {
       type: DataTypes.STRING,
-      allowNull: true,
+      allowNull: false,
+      validate: {
+        notEmpty: {
+          msg: "Name cannot be empty",
+        },
+        notAnonymousWithRealEmail(value) {
+          if (
+            value === "Anonymous Voter" &&
+            this.email &&
+            !this.email.includes("anonymous-")
+          ) {
+            throw new Error(
+              "Cannot set name to 'Anonymous Voter' with a real email address"
+            );
+          }
+        },
+      },
+      defaultValue: "Registered Voter",
     },
     voterId: {
       type: DataTypes.STRING,
@@ -194,10 +240,45 @@ const Voter = sequelize.define(
         key: "id",
       },
     },
+    ipAddress: {
+      type: DataTypes.STRING,
+    },
+    lastActivity: {
+      type: DataTypes.DATE,
+    },
+    metadata: {
+      type: DataTypes.JSON,
+    },
   },
   {
     tableName: "voters",
     timestamps: true,
+    indexes: [
+      {
+        unique: true,
+        fields: ["ballotId", "email"],
+        name: "unique_ballot_voter",
+      },
+    ],
+    hooks: {
+      beforeSave: (voter, options) => {
+        if (
+          (voter.name === "Anonymous Voter" || !voter.name) &&
+          voter.email &&
+          !voter.email.includes("anonymous-")
+        ) {
+          const username = voter.email.split("@")[0];
+          voter.name = username
+            .split(/[._-]/)
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(" ");
+
+          console.log(
+            `Auto-improved voter name from email ${voter.email} to ${voter.name}`
+          );
+        }
+      },
+    },
   }
 );
 
@@ -246,6 +327,10 @@ const Vote = sequelize.define(
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
     },
+    castAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
   },
   {
     tableName: "votes",
@@ -271,5 +356,42 @@ Vote.belongsTo(Voter, { foreignKey: "voterId" });
 Vote.belongsTo(Ballot, { foreignKey: "ballotId" });
 Vote.belongsTo(Question, { foreignKey: "questionId" });
 Vote.belongsTo(Choice, { foreignKey: "choiceId" });
+
+// Add a function to generate and set a secure access key
+Ballot.prototype.generateAccessKey = async function () {
+  // Generate a secure random key
+  const crypto = require("crypto");
+  const accessKey = crypto.randomBytes(24).toString("hex");
+
+  // Update the ballot with the new key
+  this.accessKey = accessKey;
+  await this.save();
+
+  return accessKey;
+};
+
+// Add a function to validate and increment the access key usage
+Ballot.prototype.validateAccessKey = async function (key) {
+  // Check if keys match
+  if (this.accessKey !== key) {
+    return { valid: false, reason: "invalid_key" };
+  }
+
+  // Check if key is enabled
+  if (!this.accessKeyEnabled) {
+    return { valid: false, reason: "key_disabled" };
+  }
+
+  // Check usage limits if set
+  if (this.maxKeyUsage !== null && this.keyUsageCount >= this.maxKeyUsage) {
+    return { valid: false, reason: "usage_limit_reached" };
+  }
+
+  // Increment usage count
+  this.keyUsageCount += 1;
+  await this.save();
+
+  return { valid: true, ballot: this };
+};
 
 module.exports = { Ballot, Question, Choice, Voter, Vote };

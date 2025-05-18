@@ -109,6 +109,26 @@ const DirectVoterRegistration = () => {
         }
       }
 
+      // IMPORTANT: Store voter information in localStorage for voting process
+      // Store both in ballot-specific storage and general storage
+      const voterInfo = {
+        name: name.trim(),
+        email: email.trim(),
+      };
+
+      // Store for this specific ballot
+      localStorage.setItem(`voter_info_${id}`, JSON.stringify(voterInfo));
+
+      // Also store in session storage and general localStorage for fallback
+      sessionStorage.setItem("voterInfo", JSON.stringify(voterInfo));
+      localStorage.setItem("voterInfo", JSON.stringify(voterInfo));
+
+      // Store verified email and name separately for another fallback option
+      localStorage.setItem(`verified_email_${id}`, email.trim());
+      localStorage.setItem(`verified_name_${id}`, name.trim());
+
+      console.log(`Voter information stored for ballot ${id}:`, voterInfo);
+
       // ---------- STEP 2: Add voter to ballot ----------
       try {
         console.log("Adding voter to ballot:", id);
@@ -121,7 +141,12 @@ const DirectVoterRegistration = () => {
             Authorization: `Bearer ${responseData.data.token}`,
           },
           body: JSON.stringify({
-            emails: [email.trim()],
+            voters: [
+              {
+                email: email.trim(),
+                name: name.trim(),
+              },
+            ],
           }),
         });
 
@@ -132,6 +157,19 @@ const DirectVoterRegistration = () => {
         try {
           ballotData = JSON.parse(ballotResponseText);
           console.log("Parsed ballot data:", ballotData);
+
+          // If we get a voter ID back, store it
+          if (
+            ballotData.data &&
+            ballotData.data.addedVoters &&
+            ballotData.data.addedVoters.length > 0
+          ) {
+            const voterId = ballotData.data.addedVoters[0].id;
+            if (voterId) {
+              localStorage.setItem(`voter_id_${id}`, voterId);
+              console.log(`Stored voter ID for ballot ${id}: ${voterId}`);
+            }
+          }
         } catch (e) {
           console.error("Failed to parse ballot response:", e);
         }

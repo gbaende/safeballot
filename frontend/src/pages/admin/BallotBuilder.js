@@ -40,6 +40,10 @@ import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import StripeWrapper from "../../components/StripeWrapper";
+import PaymentForm from "../../components/PaymentForm";
+import { loadStripe } from "@stripe/stripe-js";
 
 // Add import for date-time pickers
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -49,7 +53,11 @@ import {
   TimePicker,
 } from "@mui/x-date-pickers";
 import { format } from "date-fns";
-import { ballotService, electionService } from "../../services/api";
+import {
+  ballotService,
+  electionService,
+  paymentService,
+} from "../../services/api";
 import axios from "axios";
 
 const steps = [
@@ -58,6 +66,9 @@ const steps = [
   "Select # of Participants",
   "Confirm + Pay",
 ];
+
+// Add this const outside the component function - initialize Stripe just once
+const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
 
 const BallotBuilder = () => {
   const navigate = useNavigate();
@@ -103,11 +114,112 @@ const BallotBuilder = () => {
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
+  // Add state for tracking payment intent
+  const [paymentIntentCreated, setPaymentIntentCreated] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
+
+  // Add new state variable for client secret at the top of the component
+  const [clientSecret, setClientSecret] = useState("");
+
+  // Inside the BallotBuilder component, add a ref for the payment element container
+  const paymentElementRef = useRef(null);
+  const stripeElementsRef = useRef(null);
+
   // Calculate the total price whenever voter count changes
   useEffect(() => {
     const calculatedPrice = (voterCount * pricePerVoter).toFixed(2);
     setTotalPrice(parseFloat(calculatedPrice));
   }, [voterCount, pricePerVoter]);
+
+  // Add this useEffect to handle the Stripe Payment Element
+  useEffect(() => {
+    let paymentElement = null;
+
+    const mountPaymentElement = async () => {
+      if (!clientSecret || !paymentElementRef.current) return;
+
+      try {
+        // Clear any existing content
+        if (paymentElementRef.current.innerHTML !== "") {
+          paymentElementRef.current.innerHTML = "";
+        }
+
+        // Load Stripe.js
+        const stripe = await stripePromise;
+        if (!stripe) {
+          console.error("Failed to load Stripe.js");
+          return;
+        }
+
+        // Create Elements instance
+        const elements = stripe.elements({
+          clientSecret,
+          appearance: {
+            theme: "stripe",
+            variables: {
+              colorPrimary: "#3182CE",
+              colorBackground: "#FFFFFF",
+              colorText: "#4A5568",
+              fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+              borderRadius: "4px",
+            },
+            rules: {
+              ".Input": {
+                border: "1px solid #E2E8F0",
+                padding: "10px",
+              },
+              ".Tab": {
+                border: "1px solid #E2E8F0",
+                borderRadius: "8px",
+                padding: "10px 16px",
+              },
+              ".Tab:hover": {
+                border: "1px solid #3182CE",
+              },
+              ".Tab--selected": {
+                border: "2px solid #3182CE",
+                backgroundColor: "#F7FAFC",
+              },
+            },
+          },
+        });
+
+        // Store elements in ref for later use
+        stripeElementsRef.current = elements;
+
+        // Create and mount the Payment Element
+        paymentElement = elements.create("payment", {
+          layout: {
+            type: "tabs",
+            defaultCollapsed: false,
+          },
+          paymentMethodOrder: ["card", "us_bank_account"],
+        });
+
+        // Mount to the container
+        paymentElement.mount(paymentElementRef.current);
+      } catch (error) {
+        console.error("Error mounting Payment Element:", error);
+        setSubmitError(`Failed to load payment form: ${error.message}`);
+      }
+    };
+
+    if (
+      paymentMethod === "card" &&
+      clientSecret &&
+      !processingPayment &&
+      !paymentIntentCreated
+    ) {
+      mountPaymentElement();
+    }
+
+    // Cleanup function
+    return () => {
+      if (paymentElement) {
+        paymentElement.unmount();
+      }
+    };
+  }, [clientSecret, paymentMethod, processingPayment, paymentIntentCreated]);
 
   const handleNext = () => {
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
@@ -263,55 +375,84 @@ const BallotBuilder = () => {
     setEndTimePickerOpen(false);
   };
 
-  // Update the submitBallot function to generate a voter-registration shareable link for the new ballot
-  const submitBallot = async () => {
-    setIsSubmitting(true);
-    setSubmitError(null);
-
+  // Add new function to create a payment intent right after the handlePaymentError function
+  const createPaymentIntent = async () => {
     try {
-      // Get the admin token for authentication
-      const token = localStorage.getItem("adminToken");
-      console.log(
-        "Admin token for debugging:",
-        token ? `${token.substring(0, 30)}...` : "missing"
+      setProcessingPayment(true);
+
+      const response = await paymentService.createPaymentIntent({
+        amount: totalPrice * 100, // Convert to cents for Stripe
+        currency: "usd",
+        description: `Election: ${electionTitle || "Untitled Ballot"}`,
+        metadata: {
+          ballotTitle: electionTitle || "Untitled Ballot",
+          voterCount: voterCount.toString(),
+          paymentMethod: paymentMethod,
+        },
+      });
+
+      if (response.clientSecret) {
+        setClientSecret(response.clientSecret);
+      } else {
+        setSubmitError("Failed to initialize payment. Please try again.");
+        setProcessingPayment(false);
+      }
+    } catch (error) {
+      console.error("Error creating payment intent:", error);
+      setSubmitError(
+        error.message || "Failed to initialize payment. Please try again."
       );
+      setProcessingPayment(false);
+    }
+  };
 
-      // Parse dates and times
-      const startDateTime = new Date(`${startDate} ${startTime}`);
-      const endDateTime = new Date(`${endDate} ${endTime}`);
-
-      // Format questions for API - filter out empty options
-      const formattedQuestions = questions
-        .map((q) => ({
-          title: q.title || "Untitled Question",
-          description: q.description || "",
-          options: q.options.filter((option) => option.trim() !== ""),
-          allow_write_in: allowWriteIn,
-        }))
-        .filter((q) => q.options.length > 0); // Only include questions with at least one option
-
-      // Check if there are any valid questions
-      if (formattedQuestions.length === 0) {
-        setSubmitError("At least one question with options is required");
-        setIsSubmitting(false);
-        return;
+  // Update the submitBallot function to handle both payment methods
+  const submitBallot = async () => {
+    try {
+      // If this is a payment initiation (not a ballot creation after successful payment)
+      if (!paymentIntentCreated) {
+        if (paymentMethod === "card") {
+          // Create payment intent but don't submit the form yet - that will happen when handleStripeSubmit is called
+          await createPaymentIntent();
+          return;
+        } else if (paymentMethod === "bank") {
+          // For bank payments, we would implement bank-specific logic here
+          // For now, we'll show a message to the user
+          setSubmitError(
+            "Bank account payments are not fully implemented yet. Please use card payment."
+          );
+          setIsSubmitting(false);
+          return;
+        }
       }
 
-      // Prepare ballot data
+      // Only proceed with ballot creation if payment was successful
+      setIsSubmitting(true);
+
+      // Create ballot with the payment info
       const ballotData = {
         title: electionTitle || "Untitled Ballot",
         description: "Created from SafeBallot app",
-        start_date: startDateTime.toISOString(),
-        end_date: endDateTime.toISOString(),
-        questions: formattedQuestions,
+        start_date: convertDateTimeFormat(startDate, startTime),
+        end_date: convertDateTimeFormat(endDate, endTime),
+        questions: questions
+          .map((q) => ({
+            title: q.title || "Untitled Question",
+            description: q.description || "",
+            options: q.options.filter((option) => option.trim() !== ""),
+            allow_write_in: allowWriteIn,
+          }))
+          .filter((q) => q.options.length > 0),
         total_voters: voterCount,
         price_per_voter: pricePerVoter,
         total_price: totalPrice,
       };
 
+      // Get the admin token for authentication
+      const token = localStorage.getItem("adminToken");
       console.log(
-        "Ballot data being submitted:",
-        JSON.stringify(ballotData, null, 2)
+        "Admin token for debugging:",
+        token ? `${token.substring(0, 30)}...` : "missing"
       );
 
       // DIRECT FETCH approach - bypassing axios interceptors entirely
@@ -440,9 +581,23 @@ const BallotBuilder = () => {
       setSubmitError(
         error.message || "Failed to create ballot. Please try again."
       );
-    } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Update handlePaymentSuccess function to accept paymentIntent directly
+  const handlePaymentSuccess = (paymentIntent) => {
+    console.log("Payment successful:", paymentIntent);
+    setPaymentIntentCreated(true);
+    // After payment is successful, submit the ballot
+    submitBallot();
+  };
+
+  // In the handlePaymentError function, handle payment errors
+  const handlePaymentError = (error) => {
+    console.error("Payment error:", error);
+    setIsSubmitting(false);
+    setProcessingPayment(false);
   };
 
   // Add a test function to check authentication status
@@ -554,6 +709,69 @@ const BallotBuilder = () => {
         "Even basic health check failed! Status: " +
           (error.response?.status || "unknown")
       );
+    }
+  };
+
+  // Add a new function to handle form submission with Stripe
+  const handleStripeSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!stripeElementsRef.current) {
+      setSubmitError("Payment form not ready. Please try again.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const stripe = await stripePromise;
+      const { error, paymentIntent } = await stripe.confirmPayment({
+        elements: stripeElementsRef.current,
+        confirmParams: {
+          return_url: window.location.origin + "/payment-success",
+        },
+        redirect: "if_required",
+      });
+
+      if (error) {
+        console.error("Payment error:", error);
+        setSubmitError(error.message || "Payment failed. Please try again.");
+        setIsSubmitting(false);
+      } else if (paymentIntent && paymentIntent.status === "succeeded") {
+        handlePaymentSuccess(paymentIntent);
+      } else {
+        // Payment requires additional steps
+        setSubmitError(
+          "Payment requires additional verification. Please follow any prompts."
+        );
+        setIsSubmitting(false);
+      }
+    } catch (err) {
+      console.error("Stripe submission error:", err);
+      setSubmitError("An unexpected error occurred. Please try again.");
+      setIsSubmitting(false);
+    }
+  };
+
+  // Add this function to convert date and time format for API
+  const convertDateTimeFormat = (date, time) => {
+    // This function should parse the date and time strings and return an ISO string
+    // For example: "November 5, 2024, 12:30 AM" -> "2024-11-05T00:30:00.000Z"
+    try {
+      const datePart = new Date(date).toISOString().split("T")[0];
+      const [hours, minutes] = time.match(/(\d+):(\d+)/).slice(1, 3);
+      const isPM = time.toLowerCase().includes("pm");
+
+      let hour = parseInt(hours, 10);
+      if (isPM && hour !== 12) hour += 12;
+      if (!isPM && hour === 12) hour = 0;
+
+      return `${datePart}T${hour
+        .toString()
+        .padStart(2, "0")}:${minutes}:00.000Z`;
+    } catch (error) {
+      console.error("Error converting date/time format:", error);
+      return new Date().toISOString(); // Fallback to current date/time
     }
   };
 
@@ -1513,6 +1731,7 @@ const BallotBuilder = () => {
                   alignItems: "center",
                   cursor: "pointer",
                   width: "50%",
+                  position: "relative",
                 }}
                 onClick={() => setPaymentMethod("bank")}
               >
@@ -1520,87 +1739,172 @@ const BallotBuilder = () => {
                   sx={{ fontSize: 32, color: "#4A5568", mb: 1 }}
                 />
                 <Typography variant="body2">US bank account</Typography>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    position: "absolute",
+                    top: "5px",
+                    right: "5px",
+                    fontSize: "10px",
+                    bgcolor: "#E2E8F0",
+                    px: 1,
+                    borderRadius: "4px",
+                  }}
+                >
+                  Test Mode
+                </Typography>
               </Box>
             </Box>
 
-            {/* Card Holder Name */}
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="body1" fontWeight={500} sx={{ mb: 1 }}>
-                Card holder name
-              </Typography>
-              <TextField
-                fullWidth
-                placeholder="Ex. John Doe"
-                variant="outlined"
-                value={cardholderName}
-                onChange={(e) => setCardholderName(e.target.value)}
-              />
-            </Box>
+            {/* Payment Form Container */}
+            {paymentMethod === "card" &&
+              !processingPayment &&
+              !paymentIntentCreated && (
+                <Box sx={{ mt: 3 }}>
+                  <form id="payment-form" onSubmit={handleStripeSubmit}>
+                    {/* This div will be the container for the Stripe Payment Element */}
+                    <div
+                      id="payment-element"
+                      ref={paymentElementRef}
+                      style={{ marginBottom: "20px" }}
+                    >
+                      {/* Stripe Payment Element will be mounted here */}
+                      {!clientSecret && (
+                        <Box sx={{ p: 2, textAlign: "center" }}>
+                          <CircularProgress
+                            size={24}
+                            sx={{ color: "#3182CE", mb: 1 }}
+                          />
+                          <Typography variant="body2" color="text.secondary">
+                            Loading payment options...
+                          </Typography>
+                        </Box>
+                      )}
+                    </div>
 
-            {/* Billing Address */}
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="body1" fontWeight={500} sx={{ mb: 1 }}>
-                Billing address
-              </Typography>
-              <Select
-                fullWidth
-                value={billingAddress}
-                onChange={(e) => setBillingAddress(e.target.value)}
-                displayEmpty
-                IconComponent={KeyboardArrowDownIcon}
-                sx={{ mb: 2 }}
-              >
-                <MenuItem value="United States">United States</MenuItem>
-                <MenuItem value="Canada">Canada</MenuItem>
-                <MenuItem value="United Kingdom">United Kingdom</MenuItem>
-              </Select>
+                    {submitError && (
+                      <Alert severity="error" sx={{ mb: 2 }}>
+                        {submitError}
+                      </Alert>
+                    )}
 
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Typography variant="body2" fontWeight={500} sx={{ mb: 1 }}>
-                    Zip code
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    placeholder="Ex. 73923"
-                    variant="outlined"
-                    value={zipCode}
-                    onChange={(e) => setZipCode(e.target.value)}
-                  />
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2" fontWeight={500} sx={{ mb: 1 }}>
-                    City
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    placeholder="Ex. New York"
-                    variant="outlined"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                  />
-                </Grid>
-              </Grid>
-            </Box>
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      disabled={isSubmitting || !clientSecret}
+                      fullWidth
+                      sx={{
+                        mt: 2,
+                        background:
+                          "linear-gradient(90deg, #4478EB 0%, #6FA0FF 100%)",
+                        color: "white",
+                        textTransform: "none",
+                        borderRadius: "4px",
+                        py: 1.5,
+                      }}
+                    >
+                      {isSubmitting ? (
+                        <CircularProgress size={24} color="inherit" />
+                      ) : (
+                        `Pay $${totalPrice.toFixed(2)}`
+                      )}
+                    </Button>
+                  </form>
+                </Box>
+              )}
 
-            {/* Billing Address Checkbox */}
-            <Box sx={{ mb: 4 }}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={sameAsShipping}
-                    onChange={(e) => setSameAsShipping(e.target.checked)}
-                    sx={{
-                      color: "#CBD5E0",
-                      "&.Mui-checked": {
-                        color: "#3182CE",
-                      },
+            {/* Show processing state during payment or submission */}
+            {(processingPayment || (isSubmitting && paymentIntentCreated)) && (
+              <Box sx={{ textAlign: "center", py: 3 }}>
+                <CircularProgress size={40} />
+                <Typography variant="body1" sx={{ mt: 2 }}>
+                  {paymentIntentCreated
+                    ? "Creating your ballot..."
+                    : "Processing payment..."}
+                </Typography>
+              </Box>
+            )}
+
+            {/* Show success message after submission */}
+            {submitSuccess && (
+              <Box sx={{ textAlign: "center", py: 3 }}>
+                <CheckCircleIcon
+                  sx={{ fontSize: 48, color: "success.main", mb: 1 }}
+                />
+                <Typography variant="h6" color="success.main">
+                  Payment Successful!
+                </Typography>
+                <Typography variant="body1" sx={{ mt: 1 }}>
+                  Your ballot has been created successfully.
+                </Typography>
+                <Button
+                  variant="contained"
+                  sx={{
+                    mt: 3,
+                    background:
+                      "linear-gradient(90deg, #4478EB 0%, #6FA0FF 100%)",
+                    color: "white",
+                  }}
+                  onClick={() => navigate("/dashboard")}
+                >
+                  Go to Dashboard
+                </Button>
+              </Box>
+            )}
+
+            {/* Add bank payment form when paymentMethod is "bank" */}
+            {paymentMethod === "bank" &&
+              !processingPayment &&
+              !paymentIntentCreated && (
+                <Box sx={{ mt: 3 }}>
+                  <Alert severity="info" sx={{ mb: 3 }}>
+                    US bank account payments require a separate implementation
+                    and are currently in test mode. Please use the credit card
+                    option for real payments.
+                  </Alert>
+                  <form
+                    id="bank-payment-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setSubmitError(
+                        "Bank account payments are currently in test mode and not fully implemented. Please use card payment instead."
+                      );
                     }}
-                  />
-                }
-                label="Billing address is same as shipping"
-              />
-            </Box>
+                  >
+                    <TextField
+                      label="Account Number"
+                      variant="outlined"
+                      fullWidth
+                      placeholder="000123456789"
+                      sx={{ mb: 2 }}
+                    />
+                    <TextField
+                      label="Routing Number"
+                      variant="outlined"
+                      fullWidth
+                      placeholder="110000000"
+                      sx={{ mb: 3 }}
+                    />
+
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      fullWidth
+                      sx={{
+                        mt: 2,
+                        background:
+                          "linear-gradient(90deg, #4478EB 0%, #6FA0FF 100%)",
+                        color: "white",
+                        textTransform: "none",
+                        borderRadius: "4px",
+                        py: 1.5,
+                      }}
+                    >
+                      Continue with Bank Account
+                    </Button>
+                  </form>
+                </Box>
+              )}
 
             <Box
               sx={{ mt: 4, display: "flex", justifyContent: "space-between" }}

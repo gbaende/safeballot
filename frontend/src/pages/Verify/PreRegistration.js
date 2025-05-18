@@ -55,7 +55,31 @@ const PreRegistration = ({ startAtStep }) => {
             if (ballotIdToUse) {
               try {
                 console.log("Registering as voter for ballot:", ballotIdToUse);
-                await ballotService.registerVoter(ballotIdToUse);
+                // Create the voter info object
+                const voterInfoData = {
+                  name: auth.user.name || "Registered Voter",
+                  email: auth.user.email,
+                };
+
+                // Use public registration endpoint instead of protected endpoint
+                await ballotService.publicRegisterVoter(
+                  ballotIdToUse,
+                  voterInfoData
+                );
+
+                // Store voter info in localStorage for future reference
+                localStorage.setItem(
+                  `voter_info_${ballotIdToUse}`,
+                  JSON.stringify(voterInfoData)
+                );
+                localStorage.setItem(
+                  `verified_name_${ballotIdToUse}`,
+                  voterInfoData.name
+                );
+                localStorage.setItem(
+                  `verified_email_${ballotIdToUse}`,
+                  voterInfoData.email
+                );
               } catch (voterError) {
                 console.warn("Failed to register as voter:", voterError);
                 // Continue - this is non-critical

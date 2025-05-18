@@ -13,6 +13,7 @@ import {
   Alert,
 } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
+import { ballotService } from "../../services/api"; // Import ballotService
 
 const VoterRegistration = () => {
   const { id, slug } = useParams();
@@ -46,7 +47,13 @@ const VoterRegistration = () => {
 
     try {
       // ---------- STEP 1: Register user ----------
-      // Using the exact same approach that worked in the test page
+      console.log("[REGISTRATION] Starting registration process with data:", {
+        name: name.trim(),
+        email: email.trim(),
+        role: "voter",
+      });
+
+      // First register the user for authentication
       const registerUrl = "http://localhost:8080/api/auth/register";
       const registerData = {
         name: name.trim(),
@@ -54,8 +61,6 @@ const VoterRegistration = () => {
         password: password,
         role: "voter",
       };
-
-      console.log("Registering with data:", registerData);
 
       const registerResponse = await fetch(registerUrl, {
         method: "POST",
@@ -65,13 +70,13 @@ const VoterRegistration = () => {
         body: JSON.stringify(registerData),
       });
 
-      const responseText = await registerResponse.text();
       let responseData;
-
       try {
+        const responseText = await registerResponse.text();
         responseData = JSON.parse(responseText);
+        console.log("[REGISTRATION] Auth registration response:", responseData);
       } catch (e) {
-        console.error("Failed to parse response:", e);
+        console.error("[REGISTRATION] Failed to parse response:", e);
         setError("Server returned an invalid response");
         setLoading(false);
         return;
@@ -79,7 +84,7 @@ const VoterRegistration = () => {
 
       if (!registerResponse.ok) {
         console.error(
-          "Registration failed:",
+          "[REGISTRATION] Registration failed:",
           registerResponse.status,
           responseData
         );
@@ -97,49 +102,107 @@ const VoterRegistration = () => {
         return;
       }
 
-      console.log("Registration successful:", responseData);
-
       // Save auth data
+      let authToken = null;
       if (responseData.data && responseData.data.token) {
-        localStorage.setItem("token", responseData.data.token);
+        authToken = responseData.data.token;
+        localStorage.setItem("token", authToken);
         if (responseData.data.user) {
           localStorage.setItem("user", JSON.stringify(responseData.data.user));
+          // Also store specifically as voter user
+          localStorage.setItem(
+            "voterUser",
+            JSON.stringify(responseData.data.user)
+          );
         }
       }
 
-      // ---------- STEP 2: Add voter to ballot ----------
+      // CRITICAL: Create a voter object with complete info
+      const voterInfo = {
+        name: name.trim(),
+        email: email.trim(),
+      };
+
+      // Store voter info in multiple places for redundancy
+      localStorage.setItem(`voter_info_${id}`, JSON.stringify(voterInfo));
+      sessionStorage.setItem("voterInfo", JSON.stringify(voterInfo));
+      localStorage.setItem("voterInfo", JSON.stringify(voterInfo));
+
+      // Store individual fields
+      localStorage.setItem("voterName", voterInfo.name);
+      localStorage.setItem("voterEmail", voterInfo.email);
+      localStorage.setItem("email", voterInfo.email);
+
+      console.log(
+        "[REGISTRATION] Stored voter information in storage:",
+        voterInfo
+      );
+
+      // ---------- STEP 2: Register with ballot using the public endpoint ----------
       try {
-        console.log("Adding voter to ballot:", id);
+        console.log(
+          `[REGISTRATION] Registering voter with ballot ${id} using public endpoint`
+        );
+        const registrationResult = await ballotService.publicRegisterVoter(
+          id,
+          voterInfo
+        );
 
-        const addVoterUrl = `http://localhost:8080/api/ballots/${id}/voters`;
-        const addVoterResponse = await fetch(addVoterUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${responseData.data.token}`,
-          },
-          body: JSON.stringify({
-            emails: [email.trim()],
-          }),
-        });
+        if (registrationResult.voter) {
+          console.log(
+            `[REGISTRATION] Successfully registered with ballot, voter ID: ${registrationResult.voter.id}`
+          );
+          localStorage.setItem(`voter_id_${id}`, registrationResult.voter.id);
 
-        const ballotData = await addVoterResponse.json();
-
-        if (!addVoterResponse.ok) {
-          console.error("Failed to add voter to ballot:", ballotData);
-        } else {
-          console.log("Successfully added voter to ballot:", ballotData);
+          // Store ballot-specific information
+          localStorage.setItem(`verified_name_${id}`, voterInfo.name);
+          localStorage.setItem(`verified_email_${id}`, voterInfo.email);
+        } else if (registrationResult.error) {
+          console.warn(
+            `[REGISTRATION] Public registration warning: ${registrationResult.error}`
+          );
         }
-      } catch (ballotError) {
-        // Non-fatal error - continue even if this fails
-        console.error("Error adding voter to ballot:", ballotError);
+      } catch (regError) {
+        console.error(
+          "[REGISTRATION] Error during public voter registration:",
+          regError
+        );
+        // Non-fatal error - attempt direct creation as backup
       }
 
-      // ---------- STEP 3: Navigate to pre-registration flow ----------
+      // ---------- STEP 3: Fallback to direct voter creation if needed ----------
+      try {
+        console.log(
+          `[REGISTRATION] Creating direct voter record as additional verification`
+        );
+        const directVoterResult = await ballotService.createDirectVoter(
+          id,
+          voterInfo
+        );
+        console.log(
+          "[REGISTRATION] Direct voter creation result:",
+          directVoterResult
+        );
+
+        if (directVoterResult?.data?.voter?.id) {
+          localStorage.setItem(
+            `voter_id_${id}`,
+            directVoterResult.data.voter.id
+          );
+        }
+      } catch (directError) {
+        console.warn(
+          "[REGISTRATION] Direct voter creation warning:",
+          directError.message
+        );
+        // Non-fatal error - continue with process
+      }
+
+      // ---------- STEP 4: Navigate to pre-registration flow ----------
       navigate(`/preregister/${id}/${slug}`);
     } catch (error) {
-      console.error("Registration failed:", error);
-      setError("Network error: " + error.message);
+      console.error("[REGISTRATION] Registration process failed:", error);
+      setError("Registration failed: " + (error.message || "Unknown error"));
     } finally {
       setLoading(false);
     }

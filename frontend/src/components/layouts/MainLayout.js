@@ -185,23 +185,45 @@ const MainLayout = () => {
       >
         <Box sx={{ p: 2, mb: 2 }}>
           <Box
-            component="img"
-            src="/images/logo.svg"
-            alt="SafeBallot Logo"
-            sx={{ height: 40, mt: 1 }}
-          />
-          <Typography
-            variant="subtitle2"
             sx={{
-              fontSize: "10px",
-              color: "#4A5568",
-              textTransform: "uppercase",
-              letterSpacing: "0.1em",
-              mt: 0.5,
+              display: "flex",
+              alignItems: "center",
             }}
           >
-            VOTE OUTSIDE THE BOX
-          </Typography>
+            <Box
+              component="img"
+              src="/images/logo.svg"
+              alt="SafeBallot Logo"
+              sx={{ height: 40, mr: 2 }}
+            />
+            <Box>
+              <Box sx={{ textAlign: "center" }}>
+                <Typography
+                  variant="subtitle1"
+                  sx={{
+                    fontWeight: 600,
+                    color: "#25557B",
+                    lineHeight: 1.2,
+                    fontSize: "14px",
+                  }}
+                >
+                  SAFEBALLOT
+                </Typography>
+                <Typography
+                  variant="subtitle2"
+                  sx={{
+                    fontSize: "8px",
+                    color: "#25557B",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.1em",
+                    lineHeight: 1,
+                  }}
+                >
+                  -VOTE OUTSIDE THE BOX-
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
         </Box>
 
         <List sx={{ px: 1 }}>

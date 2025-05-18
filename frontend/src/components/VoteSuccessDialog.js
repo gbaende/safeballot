@@ -1,3 +1,5 @@
+// src/components/VoteSuccessDialog.js
+
 import React from "react";
 import { Dialog, DialogContent, Box, Typography } from "@mui/material";
 
@@ -15,21 +17,17 @@ const VoteSuccessDialog = ({ open }) => {
       }}
     >
       <DialogContent sx={{ textAlign: "center", py: 4 }}>
-        {/* I Voted sticker */}
+        {/* now pulling directly from public/images */}
         <Box
           component="img"
-          src="/i-voted-sticker.png"
-          alt="I Voted"
+          src="/images/i-voted-sticker.png"
+          alt="I Voted Sticker"
           sx={{
-            width: 120,
-            height: 120,
+            width: 150,
+            height: 150,
             mb: 3,
             borderRadius: "50%",
-          }}
-          onError={(e) => {
-            e.target.src =
-              'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><circle cx="60" cy="60" r="60" fill="%23D22B2B"/><circle cx="60" cy="60" r="50" fill="%23FFFFFF"/><text x="60" y="62" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle" fill="%23D22B2B">I VOTED</text></svg>';
-            e.target.onerror = null;
+            boxShadow: "0px 3px 8px rgba(0, 0, 0, 0.15)",
           }}
         />
 

@@ -24,8 +24,9 @@ import {
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import { ballotService } from "../../services/api";
-import VotingConfirmationDialog from "../../components/VotingConfirmationDialog";
+import { ballotService, getVoterInfo } from "../../services/ballotService";
+import VotingConfirmationDialog from "../../components/Voter/VotingConfirmationDialog";
+import { toast } from "react-toastify";
 
 // Styled components
 const QuestionTab = styled(Box)(({ theme, active }) => ({
@@ -59,6 +60,9 @@ const VotingPage = () => {
   const [digitalKey, setDigitalKey] = useState("");
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [hasVerified, setHasVerified] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
 
   // Check if user has been verified
   useEffect(() => {
@@ -354,95 +358,243 @@ const VotingPage = () => {
     setShowConfirmDialog(false);
   };
 
-  const handleSubmitBallot = async (enteredKey) => {
+  const handleSubmitBallot = async () => {
     try {
-      setLoading(true);
-      setDigitalKey(enteredKey); // Update the key from dialog
+      setIsSubmitting(true);
+      setSubmitError(null);
+      setSubmitSuccess(false);
 
-      // Prepare the ballot response data from our response objects
-      const ballotResponses = Object.entries(responses).map(
-        ([questionIndex, response]) => {
-          // Get the question ID from the ballot
-          const questionId =
-            ballot.questions[parseInt(questionIndex)].id || questionIndex;
-
-          // Get the answer value - either the option index or write-in text
-          let optionId = "";
-          let writeIn = "";
-
-          if (typeof response === "object") {
-            // If it's a write-in, use the text as the write-in value
-            if (response.index === "write-in") {
-              writeIn = response.text;
-            } else {
-              // Otherwise use the index to look up the option
-              const optionIndex = parseInt(response.index);
-              if (
-                !isNaN(optionIndex) &&
-                ballot.questions[parseInt(questionIndex)].options &&
-                optionIndex <
-                  ballot.questions[parseInt(questionIndex)].options.length
-              ) {
-                // Get the option object or value
-                const option =
-                  ballot.questions[parseInt(questionIndex)].options[
-                    optionIndex
-                  ];
-
-                // Use the option ID if available, otherwise use the index
-                optionId =
-                  typeof option === "object" && option.id
-                    ? option.id.toString()
-                    : optionIndex.toString();
-              } else {
-                // Fallback to the index itself
-                optionId = response.index;
-              }
-            }
-          } else {
-            // Backward compatibility with old format
-            optionId = response;
-          }
-
-          return {
-            question_id: questionId,
-            option_id: optionId || undefined,
-            write_in: writeIn || undefined,
-          };
-        }
+      // Comprehensive voter info gathering approach
+      console.log(
+        "[VOTING] Starting comprehensive vote submission for ballot:",
+        id
       );
 
-      // Make sure the payload exactly matches what the backend expects
-      const voteData = {
-        votes: ballotResponses,
-        ballot_id: id,
+      // 1. Get ALL possible sources of voter information
+      const voterSources = {
+        localStorage: {
+          voterInfo: localStorage.getItem(`voter_info_${id}`),
+          verifiedName: localStorage.getItem(`verified_name_${id}`),
+          verifiedEmail: localStorage.getItem(`verified_email_${id}`),
+          voterName: localStorage.getItem("voterName"),
+          voterEmail: localStorage.getItem("voterEmail"),
+          email: localStorage.getItem("email"),
+          voterId: localStorage.getItem(`voter_id_${id}`),
+          user: localStorage.getItem("user"),
+          voterUser: localStorage.getItem("voterUser"),
+        },
+        sessionStorage: {
+          voterInfo: sessionStorage.getItem("voterInfo"),
+          voterName: sessionStorage.getItem("voterName"),
+          email: sessionStorage.getItem("email"),
+        },
       };
 
-      console.log("Submitting vote:", voteData);
+      // Log all potential sources
+      console.log("[VOTING] ALL VOTER INFO SOURCES:", voterSources);
 
+      // 2. Extract voter information from all sources in priority order
+      let voterName, voterEmail, voterId;
+
+      // Priority 1: ballot-specific voter info (most reliable)
       try {
-        // Try with the votes array and ballot_id
-        const response = await ballotService.castVote(id, voteData);
-        console.log("Vote submitted successfully:", response);
-      } catch (apiError) {
-        console.error("API Error:", apiError);
-        // Continue to show success dialog even if the API call fails
+        if (voterSources.localStorage.voterInfo) {
+          const parsedInfo = JSON.parse(voterSources.localStorage.voterInfo);
+          if (parsedInfo && parsedInfo.name) {
+            voterName = parsedInfo.name;
+            console.log(
+              `[VOTING] Found name from ballot voter info: ${voterName}`
+            );
+          }
+          if (parsedInfo && parsedInfo.email) {
+            voterEmail = parsedInfo.email;
+            console.log(
+              `[VOTING] Found email from ballot voter info: ${voterEmail}`
+            );
+          }
+        }
+      } catch (e) {
+        console.warn("[VOTING] Error parsing ballot voter info:", e);
+      }
+
+      // Priority 2: verified name and email (second most reliable)
+      if (!voterName && voterSources.localStorage.verifiedName) {
+        voterName = voterSources.localStorage.verifiedName;
+        console.log(`[VOTING] Found name from verified name: ${voterName}`);
+      }
+
+      if (!voterEmail && voterSources.localStorage.verifiedEmail) {
+        voterEmail = voterSources.localStorage.verifiedEmail;
+        console.log(`[VOTING] Found email from verified email: ${voterEmail}`);
+      }
+
+      // Priority 3: general voter name and email
+      if (!voterName && voterSources.localStorage.voterName) {
+        voterName = voterSources.localStorage.voterName;
         console.log(
-          "Continuing to success dialog despite API error (for demo purposes)"
+          `[VOTING] Found name from general voter name: ${voterName}`
         );
       }
 
-      // Close confirmation dialog and show success dialog
-      setShowConfirmDialog(false);
-      setShowSuccessDialog(true);
-    } catch (error) {
-      console.error("Error submitting ballot:", error);
+      if (!voterEmail && voterSources.localStorage.voterEmail) {
+        voterEmail = voterSources.localStorage.voterEmail;
+        console.log(
+          `[VOTING] Found email from general voter email: ${voterEmail}`
+        );
+      }
 
-      // For demo purposes, still show success dialog even on error
-      setShowConfirmDialog(false);
-      setShowSuccessDialog(true);
-    } finally {
-      setLoading(false);
+      // Priority 4: general email field
+      if (!voterEmail && voterSources.localStorage.email) {
+        voterEmail = voterSources.localStorage.email;
+        console.log(
+          `[VOTING] Found email from general email field: ${voterEmail}`
+        );
+      }
+
+      // Priority 5: user or voterUser objects
+      if (
+        (!voterName || !voterEmail) &&
+        (voterSources.localStorage.user || voterSources.localStorage.voterUser)
+      ) {
+        try {
+          const userStr =
+            voterSources.localStorage.voterUser ||
+            voterSources.localStorage.user;
+          const userData = JSON.parse(userStr);
+
+          if (!voterName && userData.name) {
+            voterName = userData.name;
+            console.log(`[VOTING] Found name from user object: ${voterName}`);
+          }
+
+          if (!voterEmail && userData.email) {
+            voterEmail = userData.email;
+            console.log(`[VOTING] Found email from user object: ${voterEmail}`);
+          }
+        } catch (e) {
+          console.warn("[VOTING] Error parsing user object:", e);
+        }
+      }
+
+      // Voter ID has only one source
+      voterId = voterSources.localStorage.voterId;
+      if (voterId) {
+        console.log(`[VOTING] Found voter ID: ${voterId}`);
+      } else {
+        console.warn("[VOTING] No voter ID found, vote might be anonymous");
+      }
+
+      // Fallback to default name if none found
+      if (!voterName) {
+        voterName = "Registered Voter";
+        console.warn("[VOTING] Using default voter name as none was found");
+      }
+
+      // Prepare the final voter info for submission
+      const voterInfo = {
+        name: voterName,
+        email: voterEmail,
+      };
+
+      // Log the final voter info being used
+      console.log("[VOTING] ✅ FINAL VOTER INFO FOR SUBMISSION:", {
+        name: voterInfo.name,
+        email: voterInfo.email
+          ? `${voterInfo.email.substring(0, 3)}...`
+          : "null",
+        voterId: voterId || "null",
+      });
+
+      // CRITICAL: If we have email but no voter ID, create a direct voter record first
+      if (voterInfo.email && !voterId) {
+        try {
+          console.log(
+            "[VOTING] No voter ID found, creating direct voter record before voting"
+          );
+          const directVoterResult = await ballotService.createDirectVoter(
+            id,
+            voterInfo
+          );
+          console.log(
+            "[VOTING] Direct voter creation result:",
+            directVoterResult
+          );
+
+          if (directVoterResult?.data?.voter?.id) {
+            voterId = directVoterResult.data.voter.id;
+            localStorage.setItem(`voter_id_${id}`, voterId);
+            console.log(`[VOTING] Created and stored new voter ID: ${voterId}`);
+          }
+        } catch (err) {
+          console.warn(
+            "[VOTING] Could not create direct voter record:",
+            err.message
+          );
+        }
+      }
+
+      // Also try public registration as another backup approach
+      if (voterInfo.email) {
+        try {
+          console.log(
+            "[VOTING] Performing public registration as additional verification"
+          );
+          const registrationResult = await ballotService.publicRegisterVoter(
+            id,
+            voterInfo
+          );
+
+          if (registrationResult.voter && registrationResult.voter.id) {
+            console.log(
+              `[VOTING] Public registration successful, voter ID: ${registrationResult.voter.id}`
+            );
+
+            // Only update the voter ID if we didn't have one before
+            if (!voterId) {
+              voterId = registrationResult.voter.id;
+              localStorage.setItem(`voter_id_${id}`, voterId);
+            }
+          }
+        } catch (err) {
+          console.warn(
+            "[VOTING] Public registration attempt warning:",
+            err.message
+          );
+        }
+      }
+
+      // Prepare the complete vote payload with voter ID and info
+      const votePayload = {
+        rankings: responses,
+        voterId: voterId, // Include voter ID if available
+        voter: voterInfo, // Always include voter info
+      };
+
+      // Log the complete payload for debugging
+      console.log("[VOTING] Submitting vote with complete payload:", {
+        voterId: votePayload.voterId || "not available",
+        rankingsCount: Object.keys(votePayload.rankings || {}).length,
+        voterName: votePayload.voter.name,
+        voterEmailPrefix: votePayload.voter.email
+          ? votePayload.voter.email.substring(0, 3) + "..."
+          : "none",
+      });
+
+      // Submit the vote
+      const result = await ballotService.castVote(id, votePayload);
+      console.log("[VOTING] Vote submission successful:", result);
+
+      localStorage.setItem("hasVoted_" + id, "true");
+      setSubmitSuccess(true);
+      setIsSubmitting(false);
+
+      // Navigate to results page
+      navigate(`/vote/${id}/results`);
+    } catch (error) {
+      console.error("[VOTING] Error submitting ballot:", error);
+      setSubmitError("Error submitting ballot");
+      setIsSubmitting(false);
+      toast.error("Failed to submit your vote. Please try again.");
     }
   };
 
@@ -957,63 +1109,17 @@ const VotingPage = () => {
       >
         <DialogContent sx={{ textAlign: "center", py: 4 }}>
           <Box
+            component="img"
+            src="/images/i-voted-sticker.png"
+            alt="I Voted Sticker"
             sx={{
-              width: 120,
-              height: 120,
+              width: 150,
+              height: 150,
               mb: 3,
               borderRadius: "50%",
-              mx: "auto",
-              background: "#e13b43",
-              position: "relative",
-              overflow: "hidden",
-              boxShadow: "0 2px 10px rgba(0,0,0,0.2)",
+              boxShadow: "0px 3px 8px rgba(0, 0, 0, 0.15)",
             }}
-          >
-            {/* Horizontal stripes */}
-            <Box
-              sx={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                top: "40%",
-                height: "20%",
-                background: "#fff",
-              }}
-            />
-
-            {/* Blue circle */}
-            <Box
-              sx={{
-                position: "absolute",
-                top: "22%",
-                left: "40%",
-                width: 45,
-                height: 45,
-                borderRadius: "50%",
-                background: "#2a4199",
-              }}
-            />
-
-            {/* Text */}
-            <Box
-              sx={{
-                position: "absolute",
-                bottom: "28%",
-                left: 0,
-                right: 0,
-                textAlign: "center",
-              }}
-            >
-              <Typography
-                variant="h6"
-                fontWeight="bold"
-                color="#2a4199"
-                sx={{ fontSize: "1rem", textTransform: "uppercase" }}
-              >
-                I Voted
-              </Typography>
-            </Box>
-          </Box>
+          />
           <Typography
             variant="h5"
             id="vote-success-dialog-title"

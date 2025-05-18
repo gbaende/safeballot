@@ -1,6 +1,6 @@
 const express = require("express");
 const { body, validationResult } = require("express-validator");
-const { protectAdmin } = require("../middleware/auth.middleware");
+const { protect } = require("../middleware/auth.middleware");
 const {
   Ballot,
   Question,
@@ -13,7 +13,7 @@ const { User } = require("../models/user.model");
 const router = express.Router();
 
 // Admin-only routes
-router.use(protectAdmin);
+router.use(protect);
 
 /**
  * Get admin dashboard data

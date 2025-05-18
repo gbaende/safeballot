@@ -27,10 +27,9 @@ const ConfirmInfo = ({ idData, onConfirm, onBack }) => {
             sx={{
               width: "100%",
               height: "100%",
-              backgroundImage: `url('/driver-license.jpg')`,
+              backgroundImage: "url('/images/safeBallot_ID_Card.png')",
               backgroundSize: "cover",
               backgroundPosition: "center",
-              backgroundColor: "#1e293b",
               display: "flex",
               justifyContent: "center",
               alignItems: "center",

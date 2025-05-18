@@ -30,6 +30,8 @@ import {
   CircularProgress,
   Checkbox,
   InputAdornment,
+  Tooltip,
+  Menu,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -51,6 +53,7 @@ import {
   CreditCard as CreditCardIcon,
   AccountBalance as AccountBalanceIcon,
   KeyboardArrowDown as KeyboardArrowDownIcon,
+  FormatColorText as FormatColorTextIcon,
 } from "@mui/icons-material";
 import { format, isValid, addHours, parse, set } from "date-fns";
 import {
@@ -122,6 +125,51 @@ const BallotBuilder = () => {
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
+  // Add a state variable to track greyified lines for each question
+  const [greyifiedLines, setGreyifiedLines] = useState({});
+
+  // Function to toggle whether a line is greyified
+  const toggleGreyifyLine = (questionId, optionIndex, lineIndex) => {
+    setGreyifiedLines((prev) => {
+      // Create a unique key for tracking this specific line
+      const key = `${questionId}_${optionIndex}_${lineIndex}`;
+
+      // Toggle the current state
+      return {
+        ...prev,
+        [key]: !prev[key],
+      };
+    });
+  };
+
+  // Helper function to get if a line is greyified
+  const isLineGreyified = (questionId, optionIndex, lineIndex) => {
+    const key = `${questionId}_${optionIndex}_${lineIndex}`;
+    return greyifiedLines[key] || false;
+  };
+
+  // Function to apply styling to text based on grey lines
+  const formatOptionWithGreyLines = (text, questionId, optionIndex) => {
+    if (!text) return "";
+
+    // Split the text into lines
+    const lines = text.split("\n");
+
+    // Process lines to add styling
+    const styledLines = lines.map((line, lineIndex) => {
+      const isGrey = isLineGreyified(questionId, optionIndex, lineIndex);
+      return isGrey ? `<span style="color: #9ca3af;">${line}</span>` : line;
+    });
+
+    return styledLines.join("\n");
+  };
+
+  // Function to determine which line the cursor is on
+  const getCurrentLineIndex = (text, cursorPosition) => {
+    const textBeforeCursor = text.substring(0, cursorPosition);
+    return (textBeforeCursor.match(/\n/g) || []).length;
+  };
+
   // Calculate the total price whenever voter count changes
   useEffect(() => {
     const calculatedPrice = (voterCount * pricePerVoter).toFixed(2);
@@ -159,19 +207,22 @@ const BallotBuilder = () => {
   };
 
   const handleOptionChange = (index, value) => {
-    const currentQuestion = getCurrentQuestion();
-    const updatedOptions = [...currentQuestion.options];
-    updatedOptions[index] = value;
+    if (currentQuestionId) {
+      const currentQuestion = getCurrentQuestion();
+      const updatedOptions = [...currentQuestion.options];
+      updatedOptions[index] = value;
 
-    // If this is the last option and it's not empty, add a new empty option
-    if (index === updatedOptions.length - 1 && value.trim() !== "") {
-      updatedOptions.push("");
+      // If this is the last option and it's not empty, add a new empty option
+      if (index === updatedOptions.length - 1 && value.trim() !== "") {
+        updatedOptions.push("");
+      }
+
+      setQuestions(
+        questions.map((q) =>
+          q.id === currentQuestionId ? { ...q, options: updatedOptions } : q
+        )
+      );
     }
-
-    const updatedQuestions = questions.map((q) =>
-      q.id === currentQuestionId ? { ...q, options: updatedOptions } : q
-    );
-    setQuestions(updatedQuestions);
   };
 
   const addEmptyOption = () => {
@@ -944,6 +995,11 @@ const BallotBuilder = () => {
                       },
                     }}
                     InputProps={{
+                      inputComponent: StyledOptionInput,
+                      inputProps: {
+                        questionId: currentQuestionId,
+                        optionIndex: index,
+                      },
                       startAdornment: (
                         <InputAdornment
                           position="start"
@@ -992,6 +1048,11 @@ const BallotBuilder = () => {
                             alignSelf: "center",
                           }}
                         >
+                          <GreyifyButton
+                            option={option}
+                            questionId={currentQuestionId}
+                            optionIndex={index}
+                          />
                           <IconButton
                             size="small"
                             onClick={() => removeOption(index)}
@@ -1929,6 +1990,186 @@ const BallotBuilder = () => {
         </DialogActions>
       </Dialog>
     </LocalizationProvider>
+  );
+
+  // Add the GreyifyButton component
+  const GreyifyButton = ({ option, questionId, optionIndex }) => {
+    const [anchorEl, setAnchorEl] = React.useState(null);
+    const [selectedLine, setSelectedLine] = React.useState(0);
+    const [lines, setLines] = React.useState([]);
+
+    // Handle opening the line selection menu
+    const handleClick = (event) => {
+      event.stopPropagation();
+      // Split the text into lines
+      const textLines = option.split("\n");
+      setLines(textLines);
+      setAnchorEl(event.currentTarget);
+    };
+
+    // Handle closing the line selection menu
+    const handleClose = () => {
+      setAnchorEl(null);
+    };
+
+    // Handle toggling the grey state of a specific line
+    const handleLineToggle = (lineIndex) => {
+      toggleGreyifyLine(questionId, optionIndex, lineIndex);
+      handleClose();
+    };
+
+    // Generate menu items for each line
+    const menuItems = lines.map((line, index) => (
+      <MenuItem
+        key={index}
+        onClick={() => handleLineToggle(index)}
+        sx={{
+          color: isLineGreyified(questionId, optionIndex, index)
+            ? "#9ca3af"
+            : "inherit",
+          fontSize: "0.875rem",
+        }}
+      >
+        {line.length > 20
+          ? line.substring(0, 20) + "..."
+          : line || "(Empty line)"}
+      </MenuItem>
+    ));
+
+    return (
+      <>
+        <Tooltip title="Toggle line color">
+          <IconButton
+            size="small"
+            onClick={handleClick}
+            edge="end"
+            sx={{ mr: 1 }}
+          >
+            <FormatColorTextIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+
+        <Menu
+          anchorEl={anchorEl}
+          open={Boolean(anchorEl)}
+          onClose={handleClose}
+        >
+          <MenuItem disabled sx={{ fontSize: "0.75rem", opacity: 0.7 }}>
+            Select line to toggle grey
+          </MenuItem>
+          <Divider />
+          {menuItems.length > 0 ? (
+            menuItems
+          ) : (
+            <MenuItem disabled>No lines available</MenuItem>
+          )}
+        </Menu>
+      </>
+    );
+  };
+
+  // Function to render styled option text
+  const renderStyledOptionText = (option, questionId, optionIndex) => {
+    if (!option) return [];
+
+    // Split text into lines
+    const lines = option.split("\n");
+
+    // Return an array of styled line components
+    return lines.map((line, lineIndex) => {
+      const isGrey = isLineGreyified(questionId, optionIndex, lineIndex);
+
+      return (
+        <div
+          key={lineIndex}
+          style={{
+            color: isGrey ? "#9ca3af" : "inherit",
+            marginBottom: lineIndex < lines.length - 1 ? "0.25rem" : 0,
+          }}
+        >
+          {line || " "} {/* Use a space if line is empty to maintain height */}
+        </div>
+      );
+    });
+  };
+
+  // Create a custom input component to display styled text
+  const StyledOptionInput = React.forwardRef(
+    ({ value, onChange, questionId, optionIndex, ...props }, ref) => {
+      // Track cursor position to maintain it after styling
+      const [cursorPosition, setCursorPosition] = useState(0);
+      const textareaRef = useRef(null);
+
+      // Use forwarded ref or internal ref
+      const inputRef = ref || textareaRef;
+
+      const handleChange = (e) => {
+        // Store cursor position
+        setCursorPosition(e.target.selectionStart);
+
+        // Call original onChange
+        if (onChange) {
+          onChange(e);
+        }
+      };
+
+      // Apply styling if value exists
+      const styledContent = value ? (
+        renderStyledOptionText(value, questionId, optionIndex)
+      ) : (
+        <div>Type here</div>
+      );
+
+      // Effect to restore cursor position after render
+      useEffect(() => {
+        if (inputRef.current) {
+          inputRef.current.selectionStart = cursorPosition;
+          inputRef.current.selectionEnd = cursorPosition;
+        }
+      }, [cursorPosition, value, inputRef]);
+
+      return (
+        <div style={{ position: "relative" }}>
+          {/* Actual editable textarea (transparent) */}
+          <textarea
+            ref={inputRef}
+            value={value}
+            onChange={handleChange}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              color: "transparent",
+              caretColor: "black",
+              background: "transparent",
+              border: "none",
+              resize: "none",
+              padding: 0,
+              fontFamily: "inherit",
+              fontSize: "inherit",
+              lineHeight: "inherit",
+              overflow: "hidden",
+              zIndex: 2,
+            }}
+            {...props}
+          />
+
+          {/* Styled display layer */}
+          <div
+            style={{
+              position: "relative",
+              pointerEvents: "none",
+              zIndex: 1,
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {styledContent}
+          </div>
+        </div>
+      );
+    }
   );
 
   return (
