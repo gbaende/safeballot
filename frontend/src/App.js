@@ -38,6 +38,7 @@ import BallotDebug from "./pages/Elections/BallotDebug";
 
 // Add the PaymentSuccess import with the other component imports
 import PaymentSuccess from "./pages/PaymentSuccess";
+import CheckoutCancel from "./pages/CheckoutCancel";
 
 // Import the new AccessKeyRegistration component
 import AccessKeyRegistration from "./pages/voter/AccessKeyRegistration";
@@ -177,6 +178,7 @@ function App() {
 
           {/* Payment Success Route */}
           <Route path="/payment-success" element={<PaymentSuccess />} />
+          <Route path="/checkout/cancel" element={<CheckoutCancel />} />
 
           {/* Access key routes */}
           <Route

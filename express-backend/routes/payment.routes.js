@@ -11,12 +11,11 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
 /**
  * Create a payment intent
  * @route POST /api/payment/create-intent
- * @access Private
+ * @access Public
  */
 router.post(
   "/create-intent",
   [
-    protect,
     body("amount").isNumeric().withMessage("Amount must be a number"),
     body("currency")
       .isString()
@@ -44,7 +43,7 @@ router.post(
         currency,
         description,
         metadata: {
-          userId: req.user.id,
+          ...(req.user?.id ? { userId: req.user.id } : {}),
           ...metadata,
         },
         automatic_payment_methods: {
@@ -246,5 +245,59 @@ router.post("/setup-intent", protect, async (req, res) => {
     });
   }
 });
+
+/**
+ * Create a payment intent (public endpoint for frontend processing)
+ * @route POST /api/payment/create-payment-intent
+ * @access Public
+ */
+router.post(
+  "/create-payment-intent",
+  [
+    body("amount").isNumeric().withMessage("Amount must be a number"),
+    body("currency")
+      .isString()
+      .isLength({ min: 3, max: 3 })
+      .withMessage("Currency must be a 3-letter code"),
+  ],
+  async (req, res) => {
+    try {
+      // Check for validation errors
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          status: "error",
+          errors: errors.array(),
+        });
+      }
+
+      const { amount, currency } = req.body;
+
+      console.log(`Creating payment intent for amount: ${amount} ${currency}`);
+
+      // Create a PaymentIntent with the order amount and currency
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount, // Amount in cents
+        currency,
+        automatic_payment_methods: {
+          enabled: true,
+        },
+      });
+
+      console.log(`Created payment intent: ${paymentIntent.id}`);
+
+      res.status(200).json({
+        clientSecret: paymentIntent.client_secret,
+      });
+    } catch (error) {
+      console.error("Error creating payment intent:", error);
+      res.status(500).json({
+        status: "error",
+        message: "Failed to create payment intent",
+        error: error.message,
+      });
+    }
+  }
+);
 
 module.exports = router;

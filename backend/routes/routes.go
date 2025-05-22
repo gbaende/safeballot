@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/safeballot/backend/api/payments"
 	"github.com/safeballot/backend/config"
 	"github.com/safeballot/backend/handlers"
 	"github.com/safeballot/backend/middleware"
@@ -16,6 +17,9 @@ func Setup(r chi.Router, db *sql.DB, cfg *config.Config) {
 	ballotHandler := handlers.NewBallotHandler(db, cfg)
 	userHandler := handlers.NewUserHandler(db, cfg)
 	electionController := handlers.NewElectionController(db, cfg)
+
+	// Initialize Stripe
+	payments.InitStripe()
 
 	// Health check
 	r.Get("/api/health", handlers.HealthCheckHandler)
@@ -33,6 +37,10 @@ func Setup(r chi.Router, db *sql.DB, cfg *config.Config) {
 		// Public election data
 		r.Get("/api/elections/recent", electionController.RecentElections)
 		r.Get("/api/ballots", ballotHandler.List)
+
+		// Payment routes (public for client-side integration)
+		r.Post("/api/payments/create-payment-intent", payments.CreatePaymentIntentHandler)
+		r.Get("/api/payments/status", payments.GetPaymentStatusHandler)
 	})
 
 	// Protected routes - require authentication
@@ -78,6 +86,9 @@ func Setup(r chi.Router, db *sql.DB, cfg *config.Config) {
 		r.Post("/api/users/change-password", userHandler.ChangePassword)
 		r.Post("/api/users", userHandler.CreateUser)
 		r.Get("/api/users/{id}", userHandler.GetUser)
+
+		// Protected payment routes
+		r.Post("/api/payments/confirm-payment", payments.ConfirmPaymentHandler)
 
 		// Logout
 		r.Post("/api/logout", authHandler.Logout)

@@ -1,7 +1,7 @@
 import axios from "axios";
 
-// Hardcode the API URL to ensure it works
-const API_URL = "http://localhost:8080/api";
+// Updated to include /api in the URL
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8080/api";
 
 // Cache to prevent duplicate API calls
 const requestCache = new Map();
@@ -590,23 +590,6 @@ export const authService = {
   verifyOTP: (email, code) => api.post("/auth/verify/otp", { email, code }),
   generateDigitalKey: (email, ballotId) =>
     api.post("/auth/verify/digital-key", { email, ballot_id: ballotId }),
-};
-
-// Helper function to get auth headers for API requests
-const authHeader = () => {
-  // Try multiple possible token sources
-  const token =
-    localStorage.getItem("adminToken") ||
-    localStorage.getItem("token") ||
-    localStorage.getItem("voterToken");
-
-  // Return headers with Authorization if token exists
-  if (token) {
-    return {
-      Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}`,
-    };
-  }
-  return {}; // Return empty object if no token
 };
 
 // Ballot services
@@ -1700,6 +1683,41 @@ export const voterService = {
   },
 };
 
+// Stripe payment service
+export const stripeService = {
+  // Create a payment intent
+  createPaymentIntent: async (amount, currency = "usd") => {
+    try {
+      const response = await api.post("/payment/create-payment-intent", {
+        amount: Math.round(amount * 100), // Convert to cents
+        currency,
+      });
+
+      if (response.data && response.data.clientSecret) {
+        return response.data.clientSecret;
+      }
+      throw new Error("No client secret returned from payment intent creation");
+    } catch (error) {
+      console.error("Error creating payment intent:", error);
+      throw error;
+    }
+  },
+
+  // Confirm a payment
+  confirmPayment: async (paymentIntentId, paymentMethodId) => {
+    try {
+      const response = await api.post("/payment/confirm", {
+        paymentIntentId,
+        paymentMethodId,
+      });
+      return response;
+    } catch (error) {
+      console.error("Error confirming payment:", error);
+      throw error;
+    }
+  },
+};
+
 export default api;
 
 /**
@@ -1720,10 +1738,10 @@ const resetSafeBallotState = () => {
     "✅ All state has been cleared. Please refresh the page and log in again."
   );
 
-  // Optional: refresh the page automatically
-  // window.location.href = "/login";
+  // Refresh the page automatically
+  window.location.href = "/login";
 
-  return "Reset complete. Please refresh the page.";
+  return "Reset complete. Page refreshing...";
 };
 
 // Make the function available in the global scope for debugging

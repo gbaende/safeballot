@@ -11,3 +11,5 @@ require (
 	github.com/lib/pq v1.10.9
 	golang.org/x/crypto v0.13.0
 )
+
+require github.com/stripe/stripe-go/v72 v72.122.0 // indirect

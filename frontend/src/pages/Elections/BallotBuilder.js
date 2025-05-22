@@ -7,46 +7,30 @@ import {
   Paper,
   Button,
   TextField,
-  FormControl,
-  InputLabel,
-  Select,
   MenuItem,
   FormControlLabel,
-  Switch,
   IconButton,
   Divider,
-  Card,
-  CardContent,
-  CardActions,
-  Chip,
   Alert,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Stepper,
-  Step,
-  StepLabel,
   CircularProgress,
   Checkbox,
   InputAdornment,
   Tooltip,
   Menu,
+  Select,
 } from "@mui/material";
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  ArrowBack as ArrowBackIcon,
-  ArrowForward as ArrowForwardIcon,
   ArrowUpward as ArrowUpwardIcon,
   ArrowDownward as ArrowDownwardIcon,
   ContentCopy as ContentCopyIcon,
   AccessTime as AccessTimeIcon,
-  Event as EventIcon,
-  Person as PersonIcon,
-  Link as LinkIcon,
-  Check as CheckIcon,
   CalendarToday as CalendarTodayIcon,
   RemoveCircleOutline as RemoveCircleOutlineIcon,
   AddCircleOutline as AddCircleOutlineIcon,
@@ -54,8 +38,9 @@ import {
   AccountBalance as AccountBalanceIcon,
   KeyboardArrowDown as KeyboardArrowDownIcon,
   FormatColorText as FormatColorTextIcon,
+  Error as ErrorIcon,
 } from "@mui/icons-material";
-import { format, isValid, addHours, parse, set } from "date-fns";
+import { format, isValid, parse } from "date-fns";
 import {
   LocalizationProvider,
   DatePicker,
@@ -64,7 +49,25 @@ import {
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { v4 as uuidv4 } from "uuid";
 import axios from "axios";
-import { ballotService, electionService } from "../../services/api";
+import {
+  ballotService,
+  electionService,
+  stripeService,
+} from "../../services/api";
+
+// Import Stripe components
+import {
+  Elements,
+  PaymentElement,
+  useStripe,
+  useElements,
+} from "@stripe/react-stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
+import TextareaAutosize from "@mui/material/TextareaAutosize";
+
+// Initialize Stripe with your publishable key
+// Replace this with your actual publishable key from Stripe dashboard
+const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
 
 const steps = [
   "Build Ballot",
@@ -88,11 +91,20 @@ const BallotBuilder = () => {
   const [currentQuestionId, setCurrentQuestionId] = useState(1);
   const [allowWriteIn, setAllowWriteIn] = useState(false);
   const [startDate, setStartDate] = useState(new Date());
-  const [startTime, setStartTime] = useState("12:30 AM");
+  const [startDateStr, setStartDateStr] = useState(
+    format(new Date(), "MMMM d, yyyy")
+  );
+  const [startTimeStr, setStartTimeStr] = useState(
+    format(new Date(), "h:mm a")
+  );
   const [endDate, setEndDate] = useState(
     new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   ); // Default: 1 week from now
-  const [endTime, setEndTime] = useState("12:30 AM");
+  const [endDateStr, setEndDateStr] = useState(
+    format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "MMMM d, yyyy")
+  );
+  const [endTimeStr, setEndTimeStr] = useState(format(new Date(), "h:mm a"));
+
   const [voterCount, setVoterCount] = useState(10);
   const pricePerVoter = 0.1;
   const [totalPrice, setTotalPrice] = useState(1.0);
@@ -101,7 +113,6 @@ const BallotBuilder = () => {
   const [billingAddress, setBillingAddress] = useState("United States");
   const [zipCode, setZipCode] = useState("");
   const [city, setCity] = useState("");
-  const [sameAsShipping, setSameAsShipping] = useState(false);
 
   // Add state for controlling date/time picker dialogs
   const [startDatePickerOpen, setStartDatePickerOpen] = useState(false);
@@ -109,21 +120,11 @@ const BallotBuilder = () => {
   const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
   const [endTimePickerOpen, setEndTimePickerOpen] = useState(false);
 
-  // Add state for temporary date/time values - initialize with current values
-  const [startDateStr, setStartDateStr] = useState(
-    format(new Date(), "MMMM d, yyyy")
-  );
-  const [startTimeStr, setStartTimeStr] = useState(
-    format(new Date(), "h:mm a")
-  );
-  const [endDateStr, setEndDateStr] = useState(
-    format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "MMMM d, yyyy")
-  );
-  const [endTimeStr, setEndTimeStr] = useState(format(new Date(), "h:mm a"));
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [paymentError, setPaymentError] = useState(null);
+  const [paymentClientSecret, setPaymentClientSecret] = useState(null);
 
   // Add a state variable to track greyified lines for each question
   const [greyifiedLines, setGreyifiedLines] = useState({});
@@ -148,40 +149,18 @@ const BallotBuilder = () => {
     return greyifiedLines[key] || false;
   };
 
-  // Function to apply styling to text based on grey lines
-  const formatOptionWithGreyLines = (text, questionId, optionIndex) => {
-    if (!text) return "";
-
-    // Split the text into lines
-    const lines = text.split("\n");
-
-    // Process lines to add styling
-    const styledLines = lines.map((line, lineIndex) => {
-      const isGrey = isLineGreyified(questionId, optionIndex, lineIndex);
-      return isGrey ? `<span style="color: #9ca3af;">${line}</span>` : line;
-    });
-
-    return styledLines.join("\n");
-  };
-
-  // Function to determine which line the cursor is on
-  const getCurrentLineIndex = (text, cursorPosition) => {
-    const textBeforeCursor = text.substring(0, cursorPosition);
-    return (textBeforeCursor.match(/\n/g) || []).length;
-  };
-
   // Calculate the total price whenever voter count changes
   useEffect(() => {
     const calculatedPrice = (voterCount * pricePerVoter).toFixed(2);
     setTotalPrice(parseFloat(calculatedPrice));
   }, [voterCount, pricePerVoter]);
 
-  const handleNext = () => {
-    setActiveStep((prevActiveStep) => prevActiveStep + 1);
-  };
-
   const handleBack = () => {
     setActiveStep((prevActiveStep) => prevActiveStep - 1);
+  };
+
+  const handleNext = () => {
+    setActiveStep((prevActiveStep) => prevActiveStep + 1);
   };
 
   const handleAddQuestion = () => {
@@ -394,8 +373,44 @@ const BallotBuilder = () => {
     }
   };
 
-  // Update the submitBallot function to use the new date handling
-  const submitBallot = async () => {
+  // Create a function to get Stripe payment intent
+  const createPaymentIntent = async () => {
+    if (totalPrice <= 0) return null;
+
+    try {
+      setIsSubmitting(true);
+      // Create a payment intent with the current total price
+      const clientSecret = await stripeService.createPaymentIntent(totalPrice);
+
+      if (clientSecret) {
+        setPaymentClientSecret(clientSecret);
+        return clientSecret;
+      } else {
+        console.error("No client secret returned from payment intent creation");
+        setPaymentError("Failed to initialize payment. Please try again.");
+        return null;
+      }
+    } catch (err) {
+      console.error("Error creating payment intent:", err);
+      setPaymentError(
+        "Failed to initialize payment system. Please try again later."
+      );
+      return null;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Initialize payment intent when reaching the payment step
+  useEffect(() => {
+    if (activeStep === 3 && totalPrice > 0 && !paymentClientSecret) {
+      createPaymentIntent();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeStep, totalPrice, paymentClientSecret]);
+
+  // Update the submitBallot function to handle Stripe payment with Payment Intents
+  const submitBallot = async (paymentIntent, paymentMethod) => {
     setIsSubmitting(true);
     setSubmitError(null);
 
@@ -480,6 +495,14 @@ const BallotBuilder = () => {
         ballotsReceived: 0, // Number of votes cast
         ballots_received: 0, // Same as above (snake_case)
       };
+
+      // If we have a payment method ID from Stripe, add it to the data
+      if (paymentIntent && paymentMethod) {
+        ballotData.paymentIntentId = paymentIntent.id;
+        ballotData.paymentMethodId = paymentMethod.id;
+        ballotData.paymentAmount = totalPrice;
+        ballotData.paymentStatus = "completed";
+      }
 
       console.log(
         "Ballot data being submitted with voter count:",
@@ -651,6 +674,7 @@ const BallotBuilder = () => {
       setSubmitError(
         error.message || "Failed to create ballot. Please try again."
       );
+      setPaymentError(error.message || "Payment processing failed");
     } finally {
       setIsSubmitting(false);
     }
@@ -971,99 +995,86 @@ const BallotBuilder = () => {
               {getCurrentQuestion().options.map((option, index) => (
                 <Box
                   key={index}
-                  sx={{ mb: 2, display: "flex", alignItems: "center" }}
+                  sx={{ mb: 2, display: "flex", flexDirection: "column" }}
                 >
-                  <TextField
-                    fullWidth
-                    placeholder="Type here"
-                    variant="outlined"
-                    value={option}
-                    onChange={(e) => handleOptionChange(index, e.target.value)}
-                    multiline
-                    minRows={1}
-                    maxRows={3}
-                    onKeyDown={(e) => {
-                      // Prevent form submission on Enter key
-                      if (e.key === "Enter") {
-                        e.stopPropagation();
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <TextField
+                      fullWidth
+                      placeholder="Type here"
+                      variant="outlined"
+                      value={option}
+                      onChange={(e) =>
+                        handleOptionChange(index, e.target.value)
                       }
-                    }}
-                    sx={{
-                      "& .MuiOutlinedInput-root": {
-                        alignItems: "flex-start",
-                        padding: "8px 14px",
-                      },
-                    }}
-                    InputProps={{
-                      inputComponent: StyledOptionInput,
-                      inputProps: {
-                        questionId: currentQuestionId,
-                        optionIndex: index,
-                      },
-                      startAdornment: (
-                        <InputAdornment
-                          position="start"
-                          sx={{
-                            alignSelf: "center",
-                          }}
-                        >
-                          {option.trim() === "" ? (
+                      multiline
+                      minRows={1}
+                      maxRows={3}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          alignItems: "flex-start",
+                          padding: "8px 14px",
+                        },
+                      }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment
+                            position="start"
+                            sx={{ alignSelf: "center" }}
+                          >
+                            {option.trim() === "" ? (
+                              <IconButton
+                                size="small"
+                                onClick={addEmptyOption}
+                                sx={{
+                                  p: 0,
+                                  color: "#3182CE",
+                                  "&:hover": { backgroundColor: "transparent" },
+                                }}
+                              >
+                                <AddIcon fontSize="small" />
+                              </IconButton>
+                            ) : (
+                              <Typography
+                                sx={{
+                                  width: 24,
+                                  height: 24,
+                                  borderRadius: "50%",
+                                  bgcolor: "#EDF2F7",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: "14px",
+                                  fontWeight: 500,
+                                  color: "#4A5568",
+                                }}
+                              >
+                                {String.fromCharCode(65 + index)}
+                              </Typography>
+                            )}
+                          </InputAdornment>
+                        ),
+                        endAdornment: option.trim() !== "" && (
+                          <InputAdornment
+                            position="end"
+                            sx={{ alignSelf: "center" }}
+                          >
+                            <GreyifyButton
+                              option={option}
+                              questionId={currentQuestionId}
+                              optionIndex={index}
+                            />
                             <IconButton
                               size="small"
-                              onClick={addEmptyOption}
-                              sx={{
-                                p: 0,
-                                color: "#3182CE",
-                                "&:hover": {
-                                  backgroundColor: "transparent",
-                                },
-                              }}
+                              onClick={() => removeOption(index)}
+                              edge="end"
                             >
-                              <AddIcon fontSize="small" />
+                              <DeleteIcon fontSize="small" />
                             </IconButton>
-                          ) : (
-                            <Typography
-                              sx={{
-                                width: 24,
-                                height: 24,
-                                borderRadius: "50%",
-                                bgcolor: "#EDF2F7",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: "14px",
-                                fontWeight: 500,
-                                color: "#4A5568",
-                              }}
-                            >
-                              {String.fromCharCode(65 + index)}
-                            </Typography>
-                          )}
-                        </InputAdornment>
-                      ),
-                      endAdornment: option.trim() !== "" && (
-                        <InputAdornment
-                          position="end"
-                          sx={{
-                            alignSelf: "center",
-                          }}
-                        >
-                          <GreyifyButton
-                            option={option}
-                            questionId={currentQuestionId}
-                            optionIndex={index}
-                          />
-                          <IconButton
-                            size="small"
-                            onClick={() => removeOption(index)}
-                            edge="end"
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Box>
                 </Box>
               ))}
             </Box>
@@ -1442,7 +1453,207 @@ const BallotBuilder = () => {
     </>
   );
 
-  // Step 4: Confirm + Pay Content
+  // Conditionally render the Elements component
+  const ElementsWithClientSecret = ({ children }) => {
+    // Only render the Elements component if we have a valid client secret
+    if (!paymentClientSecret) {
+      return (
+        <Box sx={{ p: 3, textAlign: "center" }}>
+          <CircularProgress size={24} />
+          <Typography variant="body2" sx={{ mt: 1 }}>
+            Initializing payment form...
+          </Typography>
+        </Box>
+      );
+    }
+
+    // Configure Stripe Elements with the client secret
+    const options = {
+      clientSecret: paymentClientSecret,
+      appearance: {
+        theme: "stripe",
+        variables: {
+          colorPrimary: "#3182CE",
+          colorBackground: "#ffffff",
+          colorText: "#1A202C",
+          colorDanger: "#E53E3E",
+          fontFamily:
+            '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          spacingUnit: "4px",
+          borderRadius: "4px",
+        },
+      },
+    };
+
+    return (
+      <Elements stripe={stripePromise} options={options}>
+        {children}
+      </Elements>
+    );
+  };
+
+  // Create a separate component for Stripe payment elements
+  const CheckoutForm = ({ onSubmit }) => {
+    const stripe = useStripe();
+    const elements = useElements();
+    const [error, setError] = useState(null);
+    const [processing, setProcessing] = useState(false);
+    const [billingDetailsState, setBillingDetailsState] = useState({
+      name: cardholderName || "",
+      address: {
+        city: city || "",
+        postal_code: zipCode || "",
+        country: billingAddress || "United States",
+      },
+    });
+
+    // Update billing details when parent component state changes
+    useEffect(() => {
+      setBillingDetailsState({
+        name: cardholderName || "",
+        address: {
+          city: city || "",
+          postal_code: zipCode || "",
+          country: billingAddress || "United States",
+        },
+      });
+    }, [cardholderName, city, zipCode, billingAddress]);
+
+    const handleSubmit = async (event) => {
+      event.preventDefault();
+
+      if (!stripe || !elements) {
+        // Stripe.js has not loaded yet
+        return;
+      }
+
+      setProcessing(true);
+
+      try {
+        // Use confirmPayment to handle the payment with the PaymentElement
+        const { error: submitError, paymentIntent } =
+          await stripe.confirmPayment({
+            elements,
+            confirmParams: {
+              return_url: window.location.origin + "/payment-success",
+              cancel_url: window.location.origin + "/checkout/cancel",
+              payment_method_data: {
+                billing_details: billingDetailsState,
+              },
+            },
+            redirect: "if_required",
+          });
+
+        setProcessing(false);
+
+        if (submitError) {
+          console.error("Payment error:", submitError);
+          setError(submitError.message || "Payment failed. Please try again.");
+        } else if (paymentIntent && paymentIntent.status === "succeeded") {
+          // Payment succeeded, pass the payment method to the parent component
+          onSubmit(paymentIntent, { id: paymentIntent.payment_method });
+        } else {
+          setError("Payment processing failed. Please try again.");
+        }
+      } catch (err) {
+        console.error("Payment error:", err);
+        setError(err.message || "An error occurred during payment processing.");
+        setProcessing(false);
+      }
+    };
+
+    return (
+      <form onSubmit={handleSubmit}>
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="body1" fontWeight={500} sx={{ mb: 1 }}>
+            Payment Information
+          </Typography>
+          <Box
+            sx={{
+              p: 2,
+              border: "1px solid #E2E8F0",
+              borderRadius: "4px",
+              backgroundColor: "#FFFFFF",
+              mb: 2,
+            }}
+          >
+            <PaymentElement
+              options={{
+                layout: "tabs",
+                paymentMethodOrder: ["card", "us_bank_account"],
+                defaultValues: {
+                  billingDetails: {
+                    name: cardholderName || "",
+                    address: {
+                      city: city || "",
+                      postal_code: zipCode || "",
+                      country: billingAddress || "United States",
+                    },
+                  },
+                },
+              }}
+            />
+          </Box>
+          {error && (
+            <Typography
+              color="error"
+              variant="body2"
+              sx={{ mt: 1, display: "flex", alignItems: "center" }}
+            >
+              <ErrorIcon fontSize="small" sx={{ mr: 0.5 }} />
+              {error}
+            </Typography>
+          )}
+          {paymentError && !error && (
+            <Typography
+              color="error"
+              variant="body2"
+              sx={{ mt: 1, display: "flex", alignItems: "center" }}
+            >
+              <ErrorIcon fontSize="small" sx={{ mr: 0.5 }} />
+              {paymentError}
+            </Typography>
+          )}
+        </Box>
+
+        <Box sx={{ mt: 4, display: "flex", justifyContent: "space-between" }}>
+          <Button
+            onClick={handleBack}
+            sx={{
+              color: "#4A5568",
+              borderColor: "#E2E8F0",
+              textTransform: "none",
+              borderRadius: "4px",
+            }}
+            variant="outlined"
+          >
+            Back
+          </Button>
+
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={processing || !stripe || isSubmitting || submitSuccess}
+            sx={{
+              background: "linear-gradient(90deg, #4478EB 0%, #6FA0FF 100%)",
+              color: "white",
+              textTransform: "none",
+              borderRadius: "4px",
+              minWidth: "150px",
+            }}
+          >
+            {processing || isSubmitting ? (
+              <CircularProgress size={24} color="inherit" />
+            ) : (
+              `Submit and Pay $${totalPrice.toFixed(2)}`
+            )}
+          </Button>
+        </Box>
+      </form>
+    );
+  };
+
+  // Update the renderConfirmAndPay function to include Stripe elements
   const renderConfirmAndPay = () => (
     <>
       <Typography variant="h4" sx={{ fontWeight: 500, mb: 4 }}>
@@ -1818,61 +2029,23 @@ const BallotBuilder = () => {
               </Grid>
             </Box>
 
-            {/* Billing Address Checkbox */}
-            <Box sx={{ mb: 4 }}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={sameAsShipping}
-                    onChange={(e) => setSameAsShipping(e.target.checked)}
-                    sx={{
-                      color: "#CBD5E0",
-                      "&.Mui-checked": {
-                        color: "#3182CE",
-                      },
-                    }}
-                  />
-                }
-                label="Billing address is same as shipping"
-              />
-            </Box>
-
-            <Box
-              sx={{ mt: 4, display: "flex", justifyContent: "space-between" }}
-            >
-              <Button
-                onClick={handleBack}
-                sx={{
-                  color: "#4A5568",
-                  borderColor: "#E2E8F0",
-                  textTransform: "none",
-                  borderRadius: "4px",
-                }}
-                variant="outlined"
-              >
-                Back
-              </Button>
-
-              <Button
-                variant="contained"
-                onClick={submitBallot}
-                disabled={isSubmitting || submitSuccess}
-                sx={{
-                  background:
-                    "linear-gradient(90deg, #4478EB 0%, #6FA0FF 100%)",
-                  color: "white",
-                  textTransform: "none",
-                  borderRadius: "4px",
-                  minWidth: "150px",
-                }}
-              >
-                {isSubmitting ? (
-                  <CircularProgress size={24} color="inherit" />
-                ) : (
-                  `Submit and Pay $${totalPrice.toFixed(2)}`
-                )}
-              </Button>
-            </Box>
+            {/* Stripe Payment Element */}
+            {paymentClientSecret ? (
+              <ElementsWithClientSecret>
+                <CheckoutForm
+                  onSubmit={(paymentIntent, paymentMethod) => {
+                    submitBallot(paymentIntent, paymentMethod);
+                  }}
+                />
+              </ElementsWithClientSecret>
+            ) : (
+              <Box sx={{ p: 3, textAlign: "center" }}>
+                <CircularProgress size={24} />
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  Initializing payment form...
+                </Typography>
+              </Box>
+            )}
           </Paper>
         </Grid>
       </Grid>
@@ -1995,7 +2168,6 @@ const BallotBuilder = () => {
   // Add the GreyifyButton component
   const GreyifyButton = ({ option, questionId, optionIndex }) => {
     const [anchorEl, setAnchorEl] = React.useState(null);
-    const [selectedLine, setSelectedLine] = React.useState(0);
     const [lines, setLines] = React.useState([]);
 
     // Handle opening the line selection menu
@@ -2096,78 +2268,43 @@ const BallotBuilder = () => {
   // Create a custom input component to display styled text
   const StyledOptionInput = React.forwardRef(
     ({ value, onChange, questionId, optionIndex, ...props }, ref) => {
-      // Track cursor position to maintain it after styling
-      const [cursorPosition, setCursorPosition] = useState(0);
-      const textareaRef = useRef(null);
-
-      // Use forwarded ref or internal ref
-      const inputRef = ref || textareaRef;
-
-      const handleChange = (e) => {
-        // Store cursor position
-        setCursorPosition(e.target.selectionStart);
-
-        // Call original onChange
-        if (onChange) {
-          onChange(e);
-        }
-      };
-
-      // Apply styling if value exists
-      const styledContent = value ? (
-        renderStyledOptionText(value, questionId, optionIndex)
-      ) : (
-        <div>Type here</div>
-      );
-
-      // Effect to restore cursor position after render
-      useEffect(() => {
-        if (inputRef.current) {
-          inputRef.current.selectionStart = cursorPosition;
-          inputRef.current.selectionEnd = cursorPosition;
-        }
-      }, [cursorPosition, value, inputRef]);
-
+      // Simply use a normal TextField with multiline property
       return (
-        <div style={{ position: "relative" }}>
-          {/* Actual editable textarea (transparent) */}
-          <textarea
-            ref={inputRef}
+        <Box sx={{ width: "100%" }}>
+          <TextField
+            ref={ref}
             value={value}
-            onChange={handleChange}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              color: "transparent",
-              caretColor: "black",
-              background: "transparent",
-              border: "none",
-              resize: "none",
-              padding: 0,
-              fontFamily: "inherit",
-              fontSize: "inherit",
-              lineHeight: "inherit",
-              overflow: "hidden",
-              zIndex: 2,
-            }}
+            onChange={onChange}
+            multiline
+            minRows={1}
+            maxRows={5}
+            fullWidth
+            variant="outlined"
             {...props}
           />
 
-          {/* Styled display layer */}
-          <div
-            style={{
-              position: "relative",
-              pointerEvents: "none",
-              zIndex: 1,
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {styledContent}
-          </div>
-        </div>
+          {/* Render preview of styled text below */}
+          <Box sx={{ mt: 1 }}>
+            {value.split("\n").map((line, lineIndex) => (
+              <div
+                key={lineIndex}
+                style={{
+                  color: isLineGreyified(questionId, optionIndex, lineIndex)
+                    ? "#9ca3af"
+                    : "inherit",
+                  fontStyle: isLineGreyified(questionId, optionIndex, lineIndex)
+                    ? "italic"
+                    : "normal",
+                  fontSize: "0.875rem",
+                  minHeight: "1.2em",
+                  marginBottom: "0.25rem",
+                }}
+              >
+                {line || "\u00A0"}
+              </div>
+            ))}
+          </Box>
+        </Box>
       );
     }
   );

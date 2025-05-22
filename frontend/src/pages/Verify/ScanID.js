@@ -1,12 +1,5 @@
 import React, { useState } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  IconButton,
-  Paper,
-  Grid,
-} from "@mui/material";
+import { Box, Typography, Button, IconButton, Grid } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CameraAltOutlinedIcon from "@mui/icons-material/CameraAltOutlined";
 
