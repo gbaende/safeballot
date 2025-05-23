@@ -144,6 +144,33 @@ const DigitalKeyScreen = ({ digitalKey, ballotInfo, onComplete, onBack }) => {
           ballot.
         </Typography>
 
+        {/* Display the digital key */}
+        <Paper
+          elevation={1}
+          sx={{
+            p: 3,
+            mb: 3,
+            bgcolor: "#f8fafc",
+            borderRadius: 1,
+            border: "1px dashed #cbd5e1",
+            opacity: 0,
+            animation: `${fadeIn} 0.5s ease-out 1.0s forwards`,
+          }}
+        >
+          <Typography
+            variant="h6"
+            sx={{
+              fontFamily: "monospace",
+              letterSpacing: "0.1em",
+              fontWeight: 600,
+              color: "#334155",
+              wordBreak: "break-all",
+            }}
+          >
+            {digitalKey || "KEY-NOT-AVAILABLE"}
+          </Typography>
+        </Paper>
+
         {/* Copy button */}
         <Button
           variant="contained"

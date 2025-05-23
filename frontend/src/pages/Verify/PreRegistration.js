@@ -193,14 +193,32 @@ const PreRegistration = ({ startAtStep }) => {
       setLoading(true);
       // API call to generate digital key
       try {
+        // Ensure we have an email before attempting to generate a key
+        if (!voterInfo.email) {
+          throw new Error("Email is required to generate a digital key");
+        }
+
+        console.log("Generating digital key with:", {
+          email: voterInfo.email,
+          ballot_id: id,
+        });
         const response = await authService.generateDigitalKey(
           voterInfo.email,
           id
         );
-        if (response.data && response.data.digitalKey) {
-          setDigitalKey(response.data.digitalKey);
+
+        // Check for the correct response structure
+        if (
+          response &&
+          response.status === "success" &&
+          response.data &&
+          response.data.digital_key
+        ) {
+          setDigitalKey(response.data.digital_key);
         } else {
-          throw new Error("Failed to generate digital key");
+          throw new Error(
+            "Failed to generate digital key: Unexpected response format"
+          );
         }
       } catch (err) {
         console.error("Error generating digital key, using fallback:", err);

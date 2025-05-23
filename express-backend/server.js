@@ -20,6 +20,7 @@ const ballotRoutes = require("./routes/ballot.routes");
 const electionRoutes = require("./routes/election.routes");
 const adminRoutes = require("./routes/admin.routes");
 const paymentRoutes = require("./routes/payment.routes");
+const onfidoRoutes = require("./routes/onfido.routes");
 
 // Initialize express app
 const app = express();
@@ -46,6 +47,7 @@ app.use("/api/ballots", ballotRoutes);
 app.use("/api/elections", electionRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/payment", paymentRoutes);
+app.use("/api/onfido", onfidoRoutes);
 
 // Special handling for Stripe webhook route which needs the raw body
 app.use("/api/payment/webhook", (req, res, next) => {

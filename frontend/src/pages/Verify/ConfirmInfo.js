@@ -37,11 +37,11 @@ const ConfirmInfo = ({ idData, onConfirm, onBack }) => {
           >
             <Box
               component="img"
-              src="/driver-license-placeholder.jpg"
+              src="/static/images/id-placeholder.svg"
               alt="Driver's License"
               onError={(e) => {
                 e.target.src =
-                  "https://via.placeholder.com/550x300?text=Your+ID";
+                  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='550' height='300' viewBox='0 0 550 300'%3E%3Crect width='550' height='300' fill='%23f0f0f0'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' fill='%23666666'%3EYour ID%3C/text%3E%3C/svg%3E";
               }}
               sx={{
                 width: "80%",

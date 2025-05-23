@@ -588,8 +588,18 @@ export const authService = {
     api.post("/auth/verify/document", documentData),
   sendOTP: (email) => api.post("/auth/verify/send-otp", { email }),
   verifyOTP: (email, code) => api.post("/auth/verify/otp", { email, code }),
-  generateDigitalKey: (email, ballotId) =>
-    api.post("/auth/verify/digital-key", { email, ballot_id: ballotId }),
+  generateDigitalKey: async (email, ballotId) => {
+    try {
+      const response = await api.post("/auth/verify/digital-key", {
+        email,
+        ballot_id: ballotId,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error generating digital key:", error);
+      throw error;
+    }
+  },
 };
 
 // Ballot services

@@ -8,13 +8,10 @@ const VerifyIdentity = ({ onComplete, onBack }) => {
   const handleStartScan = () => {
     setScanning(true);
 
-    // Simulate completion after 2 seconds
-    setTimeout(() => {
-      setScanning(false);
-      if (onComplete) {
-        onComplete();
-      }
-    }, 2000);
+    // Immediately proceed to ID scanning
+    if (onComplete) {
+      onComplete();
+    }
   };
 
   return (
