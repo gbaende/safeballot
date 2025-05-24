@@ -506,6 +506,7 @@ const ScanID = ({ onComplete, onBack }) => {
   const [extractedData, setExtractedData] = useState(null);
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [onfidoInitialized, setOnfidoInitialized] = useState(false);
+  const [initError, setInitError] = useState(null);
 
   const onfidoMountRef = useRef(null);
   const onfidoInstanceRef = useRef(null);
@@ -522,10 +523,11 @@ const ScanID = ({ onComplete, onBack }) => {
   const handleOnfidoComplete = async (data) => {
     try {
       console.log("Onfido scan complete:", data);
-      console.log(
-        "Complete Onfido response structure:",
-        JSON.stringify(data, null, 2)
-      );
+      console.log("Raw Onfido SDK payload:", JSON.stringify(data, null, 2));
+
+      // Set the timestamp for tracing this specific scan through logs
+      const scanTimestamp = new Date().toISOString();
+      console.log(`[SCAN-${scanTimestamp}] Starting ID extraction process`);
 
       // Extract document IDs from the response
       const documentIds = {
@@ -533,356 +535,318 @@ const ScanID = ({ onComplete, onBack }) => {
         backId: data.document_back?.id,
       };
 
-      console.log("Document IDs:", documentIds);
+      console.log(`[SCAN-${scanTimestamp}] Document IDs:`, documentIds);
       setScanComplete(true);
 
       // Check if we have a document ID
       if (documentIds.frontId) {
         console.log(
-          `Document image was captured with ID: ${documentIds.frontId}`
+          `[SCAN-${scanTimestamp}] Document image captured with ID: ${documentIds.frontId}`
         );
 
-        // Extract document data using our helper function
-        const documentDetails = await getDocumentDetails(
-          documentIds.frontId,
-          data,
-          sdkToken
-        );
-
-        // Build a comprehensive data object with all available information
+        // Build a data object with document information
         const extractedDocumentData = {
           // Document IDs for reference
           documentFrontId: documentIds.frontId,
           documentBackId: documentIds.backId,
-
           // Basic info
           documentType: data.document_front?.type || "driving_licence",
           hasDocumentImage: true,
-
-          // Extracted fields (may be empty at this point)
-          ...(documentDetails.data || {}),
-
-          // Flags for data quality
-          isPlaceholder: documentDetails.data?.isPlaceholder === true,
+          // Placeholder until we get real data
+          isPlaceholder: true,
         };
 
-        // Update state with extracted data
+        // Update state with initial data
         setExtractedData(extractedDocumentData);
 
         // Make sure we have an applicant ID
         const currentApplicantId = applicantIdRef.current;
 
         if (currentApplicantId) {
-          // Try to get additional document data from backend by creating a check
           try {
-            console.log("Attempting direct Onfido document access");
-
-            // First try direct document fetch
-            const documentResponse = await onfidoService.fetchDocument(
+            // STEP 1: Try direct document fetch first (fastest method)
+            console.log(
+              `[SCAN-${scanTimestamp}] Attempting direct document access via API`
+            );
+            const documentResponse = await onfidoService.getDocumentById(
               documentIds.frontId,
               sdkToken
             );
 
+            // Log the raw document response
+            console.log(
+              `[SCAN-${scanTimestamp}] fetchDocument raw response:`,
+              JSON.stringify(documentResponse, null, 2)
+            );
+
+            let hasRealData = false;
+
+            // Check if we got meaningful data from document fetch
             if (documentResponse.success && documentResponse.data) {
-              console.log("Document details response:", documentResponse);
+              console.log(
+                `[SCAN-${scanTimestamp}] Document details response:`,
+                documentResponse.data
+              );
 
-              // Extract data from the document response
-              const documentData = documentResponse.data.data || {};
+              // Access document data without nesting
+              const documentData = documentResponse.data;
 
-              // Update extracted fields if we have better data
-              const hasRealExtractedData =
-                documentData.first_name &&
-                documentData.first_name !== "ID" &&
+              // Update fields with document data
+              if (documentData.first_name && documentData.first_name !== "ID") {
+                extractedDocumentData.firstName = documentData.first_name;
+                hasRealData = true;
+              }
+
+              if (
                 documentData.last_name &&
-                documentData.last_name !== "HOLDER";
-
-              console.log("Using real extracted data:", hasRealExtractedData);
-
-              // Update our document data with fields from the API
-              console.log("Data extracted from document API:", documentData);
-
-              // Only override with API data if it's better than what we have
-              if (
-                !extractedDocumentData.firstName ||
-                extractedDocumentData.firstName === "ID"
+                documentData.last_name !== "HOLDER"
               ) {
-                extractedDocumentData.firstName =
-                  documentData.first_name ||
-                  documentData.given_names ||
-                  extractedDocumentData.firstName;
+                extractedDocumentData.lastName = documentData.last_name;
+                hasRealData = true;
               }
 
               if (
-                !extractedDocumentData.lastName ||
-                extractedDocumentData.lastName === "HOLDER"
-              ) {
-                extractedDocumentData.lastName =
-                  documentData.last_name ||
-                  documentData.surname ||
-                  extractedDocumentData.lastName;
-              }
-
-              if (
-                !extractedDocumentData.documentNumber ||
-                extractedDocumentData.documentNumber.startsWith("ID-")
+                documentData.document_number &&
+                !documentData.document_number.startsWith("ID-")
               ) {
                 extractedDocumentData.documentNumber =
-                  documentData.document_number ||
-                  documentData.document_numbers ||
-                  extractedDocumentData.documentNumber;
+                  documentData.document_number;
+                hasRealData = true;
               }
 
-              if (!extractedDocumentData.dateOfBirth) {
-                extractedDocumentData.dateOfBirth =
-                  documentData.date_of_birth ||
-                  documentData.birth_date ||
-                  extractedDocumentData.dateOfBirth;
-              }
+              // Update more fields as needed...
 
-              if (!extractedDocumentData.nationality) {
-                extractedDocumentData.nationality =
-                  documentData.nationality ||
-                  documentData.nationality_code ||
-                  extractedDocumentData.nationality;
-              }
-
-              if (!extractedDocumentData.issuingCountry) {
-                extractedDocumentData.issuingCountry =
-                  documentData.issuing_country ||
-                  documentData.country_code ||
-                  extractedDocumentData.issuingCountry;
-              }
-
-              // Update state with the improved data
-              setExtractedData({ ...extractedDocumentData });
-
-              // If we have real data, don't need to try OCR
-              if (hasRealExtractedData) {
-                return;
+              if (hasRealData) {
+                console.log(
+                  `[SCAN-${scanTimestamp}] Got real data from document API`
+                );
+                extractedDocumentData.isPlaceholder = false;
+                setExtractedData({ ...extractedDocumentData });
+                return; // Skip further extraction if we already have data
               }
             }
 
-            // Try OCR extraction if direct document fetch didn't give us good data
-            console.log("Attempting OCR extraction from document image");
-            const currentSdkToken = sdkToken; // Store reference to the state variable
+            // STEP 2: Try OCR extraction if direct fetch didn't work
+            console.log(
+              `[SCAN-${scanTimestamp}] Attempting OCR extraction from document image`
+            );
             const ocrResponse = await onfidoService.getDocumentOcr(
               documentIds.frontId
             );
 
-            if (ocrResponse.success && ocrResponse.data) {
-              console.log("OCR extraction response:", ocrResponse);
-
-              // Extract data from the OCR response
-              const ocrData = ocrResponse.data.extracted || {};
-
-              // Update our document data with fields from OCR
-              if (
-                ocrData.first_name &&
-                (!extractedDocumentData.firstName ||
-                  extractedDocumentData.firstName === "ID")
-              ) {
-                extractedDocumentData.firstName = ocrData.first_name;
-              }
-
-              if (
-                ocrData.last_name &&
-                (!extractedDocumentData.lastName ||
-                  extractedDocumentData.lastName === "HOLDER")
-              ) {
-                extractedDocumentData.lastName = ocrData.last_name;
-              }
-
-              if (
-                ocrData.document_number &&
-                (!extractedDocumentData.documentNumber ||
-                  extractedDocumentData.documentNumber.startsWith("ID-"))
-              ) {
-                extractedDocumentData.documentNumber = ocrData.document_number;
-              }
-
-              // Update state with the improved data
-              setExtractedData({ ...extractedDocumentData });
-            }
-
-            // Attempt backend check for additional data extraction
+            // Log the raw OCR response
             console.log(
-              "Attempting backend check for additional data extraction"
-            );
-            console.log("Creating check for applicant:", currentApplicantId);
-
-            const checkResponse = await onfidoService.createCheck(
-              currentApplicantId
+              `[SCAN-${scanTimestamp}] OCR raw response:`,
+              JSON.stringify(ocrResponse, null, 2)
             );
 
-            if (checkResponse.success && checkResponse.data) {
-              console.log("Check created successfully:", checkResponse.data);
-
-              // Store the check ID
-              const newCheckId = checkResponse.data.data.id;
-              setCheckId(newCheckId);
-
-              // Poll the check until it's complete (up to 30 seconds)
-              console.log(`Polling check ${newCheckId} for completion...`);
-              const pollResponse = await onfidoService.pollCheck(
-                newCheckId,
-                3,
-                10
+            // Important: Correct path for extracted data (without nesting)
+            if (ocrResponse.success && ocrResponse.extracted) {
+              console.log(
+                `[SCAN-${scanTimestamp}] OCR extraction successful:`,
+                ocrResponse.extracted
               );
 
-              if (pollResponse.success && pollResponse.data.isComplete) {
-                console.log("Check is complete, extracting document data");
+              // Access extracted data directly
+              const extracted = ocrResponse.extracted;
 
-                // If we have document report data directly from polling, use it
-                if (pollResponse.data.documentReportData) {
-                  console.log(
-                    "Using document report data from polling response"
-                  );
-                  const properties =
-                    pollResponse.data.documentReportData.properties || {};
+              // Update fields with OCR data
+              if (extracted.first_name && extracted.first_name !== "ID") {
+                extractedDocumentData.firstName = extracted.first_name;
+                hasRealData = true;
+              }
 
-                  // Update our fields with the extracted data
-                  if (
-                    !extractedDocumentData.firstName ||
-                    extractedDocumentData.firstName === "ID"
-                  ) {
-                    extractedDocumentData.firstName =
-                      properties.first_name?.value ||
-                      properties.given_names?.value ||
-                      extractedDocumentData.firstName;
-                  }
+              if (extracted.last_name && extracted.last_name !== "HOLDER") {
+                extractedDocumentData.lastName = extracted.last_name;
+                hasRealData = true;
+              }
 
-                  if (
-                    !extractedDocumentData.lastName ||
-                    extractedDocumentData.lastName === "HOLDER"
-                  ) {
-                    extractedDocumentData.lastName =
-                      properties.last_name?.value ||
-                      properties.surname?.value ||
-                      extractedDocumentData.lastName;
-                  }
+              if (
+                extracted.document_number &&
+                !extracted.document_number.startsWith("ID-")
+              ) {
+                extractedDocumentData.documentNumber =
+                  extracted.document_number;
+                hasRealData = true;
+              }
 
-                  if (
-                    !extractedDocumentData.documentNumber ||
-                    extractedDocumentData.documentNumber.startsWith("ID-")
-                  ) {
-                    extractedDocumentData.documentNumber =
-                      properties.document_numbers?.value ||
-                      properties.document_number?.value ||
-                      extractedDocumentData.documentNumber;
-                  }
+              // Update more fields as needed...
 
-                  if (!extractedDocumentData.dateOfBirth) {
-                    extractedDocumentData.dateOfBirth =
-                      properties.date_of_birth?.value ||
-                      properties.birth_date?.value ||
-                      extractedDocumentData.dateOfBirth;
-                  }
-
-                  if (!extractedDocumentData.nationality) {
-                    extractedDocumentData.nationality =
-                      properties.nationality?.value ||
-                      extractedDocumentData.nationality;
-                  }
-
-                  if (!extractedDocumentData.issuingCountry) {
-                    extractedDocumentData.issuingCountry =
-                      properties.issuing_country?.value ||
-                      extractedDocumentData.issuingCountry;
-                  }
-
-                  // Update state with the improved data
-                  extractedDocumentData.isPlaceholder = false;
-                  setExtractedData({ ...extractedDocumentData });
-                } else {
-                  // Use the regular extract endpoint
-                  const extractResponse =
-                    await onfidoService.extractDocumentData(newCheckId);
-
-                  if (extractResponse.success && extractResponse.data) {
-                    console.log(
-                      "Data extracted from check:",
-                      extractResponse.data
-                    );
-
-                    // Get the extracted data
-                    const backendData =
-                      extractResponse.data.data.extractedData || {};
-
-                    // Update our fields with the backend data if it's better
-                    if (
-                      !extractedDocumentData.firstName ||
-                      extractedDocumentData.firstName === "ID"
-                    ) {
-                      extractedDocumentData.firstName =
-                        backendData.firstName ||
-                        backendData.first_name ||
-                        extractedDocumentData.firstName;
-                    }
-
-                    if (
-                      !extractedDocumentData.lastName ||
-                      extractedDocumentData.lastName === "HOLDER"
-                    ) {
-                      extractedDocumentData.lastName =
-                        backendData.lastName ||
-                        backendData.last_name ||
-                        extractedDocumentData.lastName;
-                    }
-
-                    if (
-                      !extractedDocumentData.documentNumber ||
-                      extractedDocumentData.documentNumber.startsWith("ID-")
-                    ) {
-                      extractedDocumentData.documentNumber =
-                        backendData.documentNumber ||
-                        backendData.document_number ||
-                        extractedDocumentData.documentNumber;
-                    }
-
-                    if (!extractedDocumentData.dateOfBirth) {
-                      extractedDocumentData.dateOfBirth =
-                        backendData.dateOfBirth ||
-                        backendData.date_of_birth ||
-                        extractedDocumentData.dateOfBirth;
-                    }
-
-                    if (!extractedDocumentData.nationality) {
-                      extractedDocumentData.nationality =
-                        backendData.nationality ||
-                        extractedDocumentData.nationality;
-                    }
-
-                    if (!extractedDocumentData.issuingCountry) {
-                      extractedDocumentData.issuingCountry =
-                        backendData.issuingCountry ||
-                        backendData.issuing_country ||
-                        extractedDocumentData.issuingCountry;
-                    }
-
-                    // Mark as not placeholder if we got real data
-                    if (
-                      (backendData.firstName &&
-                        backendData.firstName !== "ID") ||
-                      (backendData.lastName &&
-                        backendData.lastName !== "HOLDER") ||
-                      (backendData.documentNumber &&
-                        !backendData.documentNumber.startsWith("ID-"))
-                    ) {
-                      extractedDocumentData.isPlaceholder = false;
-                    }
-
-                    // Update state with the improved data
-                    setExtractedData({ ...extractedDocumentData });
-                  }
-                }
-              } else {
-                console.log("Check polling timed out or failed:", pollResponse);
+              if (hasRealData) {
+                console.log(`[SCAN-${scanTimestamp}] Got real data from OCR`);
+                extractedDocumentData.isPlaceholder = false;
+                setExtractedData({ ...extractedDocumentData });
+                return; // Skip further extraction if we already have data
               }
             }
-          } catch (checkError) {
-            console.error("Error with backend check/extract:", checkError);
+
+            // STEP 3: Create check and poll for document data (most reliable but slower)
             console.log(
-              "Continuing with previously extracted document data despite backend error"
+              `[SCAN-${scanTimestamp}] Creating check for applicant: ${currentApplicantId}`
+            );
+
+            // Add document IDs to the check creation
+            const docIds = [documentIds.frontId];
+            if (documentIds.backId) {
+              docIds.push(documentIds.backId);
+            }
+
+            // Log document IDs before creating check
+            console.log("Sending document IDs:", {
+              frontId: documentIds.frontId,
+              backId: documentIds.backId,
+              docIds,
+            });
+
+            // Create the check request with document IDs and report_names
+            console.log(
+              `[SCAN-${scanTimestamp}] Creating check with document IDs: ${docIds.join(
+                ", "
+              )}`
+            );
+
+            const checkResponse = await onfidoService.createCheck(
+              currentApplicantId,
+              docIds // Pass document IDs directly to createCheck
+            );
+
+            // Log the raw check response
+            console.log(
+              `[SCAN-${scanTimestamp}] createCheck raw response:`,
+              JSON.stringify(checkResponse, null, 2)
+            );
+
+            if (
+              checkResponse.success &&
+              checkResponse.data &&
+              checkResponse.data.id
+            ) {
+              const checkId = checkResponse.data.id;
+              console.log(
+                `[SCAN-${scanTimestamp}] Check created with ID: ${checkId}`
+              );
+              setCheckId(checkId);
+
+              // Poll until the check is complete, then extract data
+              console.log(
+                `[SCAN-${scanTimestamp}] Polling for check completion and document data...`
+              );
+
+              // Pass debug flag for extra server-side logging
+              const extractResponse = await onfidoService.extractDocumentData(
+                checkId,
+                15, // Increase max attempts to 15
+                2, // 2 second polling interval
+                true // Enable debug logging
+              );
+
+              // Log the raw extraction response
+              console.log(
+                `[SCAN-${scanTimestamp}] extractDocumentData raw response:`,
+                JSON.stringify(extractResponse, null, 2)
+              );
+
+              if (extractResponse.success) {
+                console.log(
+                  `[SCAN-${scanTimestamp}] Document data extracted:`,
+                  extractResponse
+                );
+
+                // Check if we have report data with extracted fields
+                if (extractResponse.report?.result?.extracted_data) {
+                  console.log(
+                    `[SCAN-${scanTimestamp}] Raw report extracted data:`,
+                    JSON.stringify(
+                      extractResponse.report.result.extracted_data,
+                      null,
+                      2
+                    )
+                  );
+
+                  // Use the extracted_data from the report
+                  const extractedFields =
+                    extractResponse.report.result.extracted_data;
+
+                  // Copy all fields from extracted_data
+                  Object.entries(extractedFields).forEach(([key, value]) => {
+                    if (value) {
+                      // Convert from snake_case to camelCase if needed
+                      const camelKey = key.replace(/_([a-z])/g, (g) =>
+                        g[1].toUpperCase()
+                      );
+                      extractedDocumentData[camelKey] = value;
+                    }
+                  });
+
+                  // Check if we got real data
+                  hasRealData =
+                    extractedFields.first_name &&
+                    extractedFields.first_name !== "ID" &&
+                    extractedFields.last_name &&
+                    extractedFields.last_name !== "HOLDER";
+
+                  if (hasRealData) {
+                    console.log(
+                      `[SCAN-${scanTimestamp}] Got real data from document report`
+                    );
+                    extractedDocumentData.isPlaceholder = false;
+                  }
+                } else {
+                  // Fallback to old method
+                  // The data is directly in the response, not nested in data.extractedData
+                  const extractedFields = extractResponse;
+
+                  // Copy all fields that aren't metadata
+                  Object.entries(extractedFields).forEach(([key, value]) => {
+                    if (key !== "success" && key !== "_meta" && value) {
+                      // Convert from snake_case to camelCase if needed
+                      const camelKey = key.replace(/_([a-z])/g, (g) =>
+                        g[1].toUpperCase()
+                      );
+                      extractedDocumentData[camelKey] = value;
+                    }
+                  });
+
+                  // Check if we got real data
+                  hasRealData =
+                    extractedFields.first_name &&
+                    extractedFields.first_name !== "ID" &&
+                    extractedFields.last_name &&
+                    extractedFields.last_name !== "HOLDER";
+
+                  if (hasRealData) {
+                    console.log(
+                      `[SCAN-${scanTimestamp}] Got real data from document report (old method)`
+                    );
+                    extractedDocumentData.isPlaceholder = false;
+                  } else {
+                    console.log(
+                      `[SCAN-${scanTimestamp}] No real data found in document report, using placeholders`
+                    );
+                  }
+                }
+
+                // Update state with the extracted data
+                setExtractedData({ ...extractedDocumentData });
+              } else {
+                console.log(
+                  `[SCAN-${scanTimestamp}] Failed to extract document data:`,
+                  extractResponse.error
+                );
+              }
+            } else {
+              console.log(
+                `[SCAN-${scanTimestamp}] Failed to create check:`,
+                checkResponse.error
+              );
+            }
+          } catch (error) {
+            console.error(
+              `[SCAN-${scanTimestamp}] Error during data extraction:`,
+              error
+            );
+            console.log(
+              `[SCAN-${scanTimestamp}] Continuing with placeholder data`
             );
           }
         }
@@ -987,83 +951,120 @@ const ScanID = ({ onComplete, onBack }) => {
 
         const realToken = tokenResponse.data.token;
         logWithEnv(`SDK token generated, environment: ${ONFIDO_ENV}`);
+        console.log("SDK token details:", {
+          token: realToken.substring(0, 20) + "...",
+          expiry: tokenResponse.data.expiry,
+          sandbox: tokenResponse.data.sandbox,
+        });
         setSdkToken(realToken);
 
         // Initialize Onfido SDK directly after getting the token
         logWithEnv("Initializing Onfido SDK with token...");
 
-        // Ensure the mount element exists
-        let mountElement = document.getElementById("onfido-mount");
-        if (!mountElement) {
+        // Clean up previous mount if it exists
+        if (onfidoInstanceRef.current) {
+          try {
+            onfidoInstanceRef.current.tearDown();
+            onfidoInstanceRef.current = null;
+            console.log("Previous Onfido instance cleaned up");
+          } catch (teardownErr) {
+            console.warn("Error cleaning up previous instance:", teardownErr);
+          }
+        }
+
+        // Create a fresh mount element
+        const mountElementId = "onfido-mount";
+        let mountElement = document.getElementById(mountElementId);
+
+        if (mountElement) {
+          // If it exists, clear its contents
+          mountElement.innerHTML = "";
+          console.log("Cleared existing mount element");
+        } else {
+          // Create a new mount element
           mountElement = document.createElement("div");
-          mountElement.id = "onfido-mount";
-          mountElement.style.width = "100%";
-          mountElement.style.height = "100vh";
-          mountElement.style.minHeight = "480px";
-          mountElement.style.display = "block";
-          mountElement.style.visibility = "visible";
-          mountElement.style.backgroundColor = "#f8fafc";
-          mountElement.style.position = "relative";
-          mountElement.style.zIndex = "10";
-          document.body.appendChild(mountElement);
+          mountElement.id = mountElementId;
+
+          // Apply necessary styles
+          Object.assign(mountElement.style, {
+            width: "100%",
+            height: "100%",
+            minHeight: "480px",
+            display: "block",
+            visibility: "visible",
+            backgroundColor: "#f8fafc",
+            position: "relative",
+            zIndex: "10",
+          });
+
+          // If we have a reference to the UI container, place the mount element there
+          if (onfidoMountRef.current) {
+            onfidoMountRef.current.appendChild(mountElement);
+            console.log("Created and placed new mount element");
+          } else {
+            document.body.appendChild(mountElement);
+            console.log("Warning: Mounted Onfido to body - no ref available");
+          }
         }
 
-        // Ensure mount element is visible and properly positioned
-        mountElement.style.position = "relative";
-        mountElement.style.left = "auto";
-        mountElement.style.top = "auto";
-
-        // If we have a reference to the UI container, move the mount element there
-        if (onfidoMountRef.current) {
-          // First clear any previous content
-          onfidoMountRef.current.innerHTML = "";
-          // Then append the mount element
-          onfidoMountRef.current.appendChild(mountElement);
-          logWithEnv("Mount element placed in UI container");
-        }
-
-        // Initialize Onfido
-        onfidoInstanceRef.current = window.Onfido.init({
-          token: realToken,
-          containerId: "onfido-mount",
-          onComplete: handleOnfidoComplete,
-          useMemoryHistory: true,
-          customUI: {
-            fontFamilyTitle: "'Inter', sans-serif",
-            fontFamilyBody: "'Inter', sans-serif",
-            colorBackgroundSurfaceModal: "#ffffff",
-            colorBorderDocumentCapture: "#4f46e5",
-            colorBackgroundDocumentCapturePressed: "#4338ca",
-            colorBorderDocumentCaptureError: "#ef4444",
-          },
-          steps: [
-            {
-              type: "document",
-              options: {
-                documentTypes: {
-                  driving_licence: {
-                    country: "USA",
-                  },
-                  passport: true,
-                  national_identity_card: true,
-                  residence_permit: true,
-                },
-                hideCountrySelection: true,
-                forceCrossDevice: false,
-                useLiveDocumentCapture: true,
-                showCameraSelection: true,
-              },
-            },
-          ],
-          showFallback: true,
-          showAccessibilitySwitcher: true,
+        // Initialize Onfido with debug mode enabled
+        console.log("Initializing Onfido with options:", {
+          containerId: mountElementId,
+          useModal: false,
           singleDocumentCapture: true,
+          enableDebug: true,
+          token: realToken.substring(0, 15) + "...",
         });
 
-        console.log("Onfido SDK initialized successfully");
-        console.log("Debug - SDK token:", realToken.substring(0, 20) + "...");
-        setOnfidoInitialized(true);
-        setLoading(false);
+        try {
+          onfidoInstanceRef.current = window.Onfido.init({
+            token: realToken,
+            containerId: mountElementId,
+            onComplete: handleOnfidoComplete,
+            useMemoryHistory: true,
+            enableDebug: true, // Enable detailed SDK logs
+            customUI: {
+              fontFamilyTitle: "'Inter', sans-serif",
+              fontFamilyBody: "'Inter', sans-serif",
+              colorBackgroundSurfaceModal: "#ffffff",
+              colorBorderDocumentCapture: "#4f46e5",
+              colorBackgroundDocumentCapturePressed: "#4338ca",
+              colorBorderDocumentCaptureError: "#ef4444",
+            },
+            steps: [
+              {
+                type: "document",
+                options: {
+                  documentTypes: {
+                    driving_licence: {
+                      country: "USA",
+                    },
+                    passport: true,
+                    national_identity_card: true,
+                    residence_permit: true,
+                  },
+                  hideCountrySelection: true,
+                  forceCrossDevice: false,
+                  useLiveDocumentCapture: true,
+                  showCameraSelection: true,
+                },
+              },
+            ],
+            showFallback: true,
+            showAccessibilitySwitcher: true,
+            singleDocumentCapture: true,
+          });
+
+          console.log("Onfido SDK initialized successfully");
+          setOnfidoInitialized(true);
+          setInitError(null);
+          setLoading(false);
+        } catch (initError) {
+          console.error("Onfido initialization error:", initError);
+          setInitError(`SDK initialization failed: ${initError.message}`);
+          setLoading(false);
+          throw initError;
+        }
       } catch (error) {
         console.error("Error initializing Onfido:", error);
         setError(`Failed to initialize ID verification: ${error.message}`);
@@ -1291,7 +1292,18 @@ const ScanID = ({ onComplete, onBack }) => {
 
       <Grid container sx={{ flexGrow: 1 }}>
         {/* Left side - ID preview or Onfido mount */}
-        <Grid item xs={12} md={7} sx={{ position: "relative" }}>
+        <Grid
+          item
+          xs={12}
+          md={7}
+          sx={{
+            position: "relative",
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            p: 2,
+          }}
+        >
           {loading ? (
             <Box
               sx={{
@@ -1310,7 +1322,7 @@ const ScanID = ({ onComplete, onBack }) => {
                   : "Starting camera..."}
               </Typography>
             </Box>
-          ) : error ? (
+          ) : error || initError ? (
             <Box
               sx={{
                 display: "flex",
@@ -1323,9 +1335,22 @@ const ScanID = ({ onComplete, onBack }) => {
                 p: 3,
               }}
             >
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {error}
+              <Alert severity="error" sx={{ mb: 2, width: "100%" }}>
+                {error || initError}
               </Alert>
+              <Typography
+                variant="body2"
+                color="white"
+                sx={{ mb: 2, textAlign: "center" }}
+              >
+                There was a problem initializing the ID verification. This could
+                be due to:
+                <ul>
+                  <li>Camera permissions not granted</li>
+                  <li>Network connectivity issues</li>
+                  <li>Incompatible browser or device</li>
+                </ul>
+              </Typography>
               <Button
                 variant="contained"
                 onClick={handleRetry}
@@ -1376,13 +1401,15 @@ const ScanID = ({ onComplete, onBack }) => {
               id="onfido-container"
               sx={{
                 width: "100%",
-                height: "100vh",
                 minHeight: "480px",
                 display: "block !important",
                 visibility: "visible !important",
                 position: "relative",
                 backgroundColor: "#f8fafc",
                 zIndex: 50,
+                borderRadius: "8px",
+                boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+                overflow: "hidden",
                 "& #onfido-mount": {
                   width: "100%",
                   height: "100%",

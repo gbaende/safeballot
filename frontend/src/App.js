@@ -19,6 +19,7 @@ import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import VoterLogin from "./pages/Verify/VoterLogin";
+import OtpEntry from "./components/Auth/OtpEntry";
 
 // Regular pages (maintain backward compatibility)
 import Dashboard from "./pages/Dashboard/Dashboard";
@@ -42,6 +43,9 @@ import CheckoutCancel from "./pages/CheckoutCancel";
 
 // Import the new AccessKeyRegistration component
 import AccessKeyRegistration from "./pages/voter/AccessKeyRegistration";
+
+// Import the Onfido testing component
+import OnfidoPollingTest from "./components/OnfidoPollingTest";
 
 // Wrapper component for ScanID route
 const ScanIDWrapper = () => {
@@ -161,6 +165,7 @@ function App() {
             element={!isAuthenticated ? <Register /> : <Navigate to="/" />}
           />
           <Route path="/voter/login" element={<VoterLogin />} />
+          <Route path="/verify-otp" element={<OtpEntry />} />
 
           {/* Voter Flow Routes */}
           <Route path="/vote/:id/:slug" element={<VotingPage />} />
@@ -204,6 +209,9 @@ function App() {
             <Route path="ballot-builder" element={<BallotBuilder />} />
             <Route path="elections/:id/debug" element={<BallotDebug />} />
           </Route>
+
+          {/* Onfido testing route */}
+          <Route path="/onfido-test" element={<OnfidoPollingTest />} />
         </Routes>
       </Router>
     </LocalizationProvider>

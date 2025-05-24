@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
@@ -13,7 +13,7 @@ import {
   Alert,
 } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
-import { authService } from "../../services/api";
+import { voterLogin } from "../../services/authService";
 
 const VoterLogin = () => {
   const navigate = useNavigate();
@@ -23,7 +23,10 @@ const VoterLogin = () => {
   const queryParams = new URLSearchParams(location.search);
   const redirectUrl = queryParams.get("redirect") || "/voter/dashboard";
 
-  console.log("Voter login - redirect URL:", redirectUrl);
+  // Log the redirect URL only once on component mount
+  useEffect(() => {
+    console.log("Voter login - redirect URL:", redirectUrl);
+  }, [redirectUrl]);
 
   // Form states
   const [email, setEmail] = useState("");
@@ -59,30 +62,54 @@ const VoterLogin = () => {
       console.log("Attempting voter login with email:", email);
 
       // Login using the voter-specific login function with correct parameters
-      const response = await authService.voterLogin(email, password);
+      const response = await voterLogin(email, password);
 
-      console.log("Voter login successful:", response);
+      console.log("Voter login response:", response);
 
-      // Check if the redirect URL is to a preregister page
-      if (redirectUrl && redirectUrl.includes("/preregister/")) {
-        console.log("Redirecting to preregistration page:", redirectUrl);
-        navigate(redirectUrl);
-      } else {
-        // Default fallback
-        console.log("Redirecting to default page:", redirectUrl);
-        navigate(redirectUrl);
+      // Check if response was successful
+      if (!response || !response.success) {
+        setError(response?.error || "Login failed. Please try again.");
+        setLoading(false);
+        return;
       }
+
+      // Check if OTP verification is required
+      if (response.otpRequired) {
+        console.log("OTP verification required, redirecting to OTP entry");
+        // Navigate to OTP verification page with required data
+        navigate("/verify-otp", {
+          state: {
+            userId: response.userId,
+            email: response.email,
+            ttlMinutes: response.ttlMinutes,
+            redirectUrl: redirectUrl,
+          },
+        });
+        return;
+      }
+
+      // If OTP is not required, continue with normal flow
+      console.log("Voter login successful, redirecting to:", redirectUrl);
+      navigate(redirectUrl);
     } catch (err) {
       console.error("Login error:", err);
 
-      // Show detailed error information
-      if (err.response && err.response.data) {
+      // Handle network errors
+      if (!err.response) {
+        setError("Network error. Please check your connection and try again.");
+      }
+      // Handle server errors with response data
+      else if (err.response && err.response.data) {
         console.error("Error details:", err.response.data);
-        setError(err.response.data.message || "Login failed");
-      } else {
+        setError(
+          err.response.data.message || err.response.data.error || "Login failed"
+        );
+      }
+      // Handle other errors
+      else {
         setError("Login failed. Please try again.");
       }
-    } finally {
+
       setLoading(false);
     }
   };

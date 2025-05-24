@@ -6,6 +6,7 @@ const { User } = require("../models/user.model");
 const { protect } = require("../middleware/auth.middleware");
 const axios = require("axios");
 const crypto = require("crypto");
+const authController = require("../controllers/authController");
 
 // Try-catch for Onfido import to prevent startup failures
 let Onfido;
@@ -1192,5 +1193,13 @@ async function validateVoterToken() {
     return false;
   }
 }
+
+// Add OTP authentication routes
+router.post("/sign-in", authController.signIn);
+router.post("/verify-otp", authController.verifyOtp);
+router.post("/resend-otp", authController.resendOtp);
+
+// Add dedicated voter authentication route
+router.post("/voter/sign-in", authController.voterSignIn);
 
 module.exports = router;

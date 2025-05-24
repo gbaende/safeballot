@@ -436,12 +436,27 @@ export const authService = {
   // Voter authentication services
   voterLogin: (email, password) => {
     return api
-      .post("/auth/login", { email, password, role: "user" })
+      .post("/auth/voter/sign-in", { email, password })
       .then((response) => {
-        if (response.data && response.data.data) {
+        // Check if OTP is required
+        if (response.data.success && response.data.otpRequired) {
+          console.log("OTP verification required for voter login");
+          // Return response with OTP information
+          return response.data;
+        }
+
+        // If OTP is not required, handle normal login flow
+        if (response.data && response.data.token && response.data.user) {
+          const { token, user } = response.data;
+          setAuthToken(token, user);
+          return response.data;
+        } else if (response.data && response.data.data) {
+          // Handle legacy response format
           const { token, user } = response.data.data;
           setAuthToken(token, user);
+          return response.data;
         }
+
         return response;
       });
   },

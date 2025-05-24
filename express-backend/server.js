@@ -12,6 +12,8 @@ dotenv.config();
 // Import database connection
 const { connectDB } = require("./database/connection");
 const setupDatabase = require("./setup-db");
+// Import MongoDB connection
+const { connectDb } = require("./db/db");
 
 // Import routes
 const authRoutes = require("./routes/auth.routes");
@@ -93,6 +95,26 @@ const startServer = async () => {
     // Focus on connecting to the database first
     await connectDB();
 
+    // Also connect to MongoDB for OTP storage
+    try {
+      console.log("Attempting to connect to MongoDB for OTP functionality...");
+      await connectDb();
+      console.log("✅ MongoDB connected successfully for OTP functionality");
+    } catch (mongoErr) {
+      console.error(
+        "❌ MongoDB connection failed, OTP features may not work:",
+        mongoErr.message
+      );
+      // Show more detailed error info
+      if (mongoErr.name === "MongoServerSelectionError") {
+        console.error("MongoDB connection details:", {
+          error: mongoErr.name,
+          reason: mongoErr.reason?.toString(),
+          message: mongoErr.message,
+        });
+      }
+    }
+
     // Don't run setup every time
     //await setupDatabase();
 
@@ -101,13 +123,34 @@ const startServer = async () => {
       console.log(`SafeBallot API server running at http://localhost:${PORT}`);
     });
   } catch (err) {
-    console.error("Failed to connect to database:", err);
+    console.error("Failed to connect to primary database:", err);
+
+    // Try MongoDB connection anyway
+    try {
+      console.log(
+        "Attempting fallback MongoDB connection for OTP functionality..."
+      );
+      await connectDb();
+      console.log(
+        "✅ MongoDB connected successfully, but primary database connection failed"
+      );
+    } catch (mongoErr) {
+      console.error("❌ MongoDB connection also failed:", mongoErr.message);
+      // Show more detailed error info
+      if (mongoErr.name === "MongoServerSelectionError") {
+        console.error("MongoDB connection details:", {
+          error: mongoErr.name,
+          reason: mongoErr.reason?.toString(),
+          message: mongoErr.message,
+        });
+      }
+    }
 
     // Start server anyway, even if database connection fails
-    console.log("Starting server without database connection...");
+    console.log("Starting server without full database connections...");
     app.listen(PORT, () => {
       console.log(
-        `SafeBallot API server running at http://localhost:${PORT} (without database connection)`
+        `SafeBallot API server running at http://localhost:${PORT} (without full database connections)`
       );
     });
   }

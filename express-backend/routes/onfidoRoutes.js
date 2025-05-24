@@ -47,23 +47,22 @@ router.get("/document/:documentId/ocr", async (req, res) => {
     // Extract text from the document
     const documentData = documentResponse.data;
 
-    // Return document data with extracted text
+    // Return document data with extracted text - FLATTEN the structure for easier access
     return res.json({
       success: true,
-      data: {
-        documentId,
-        documentType: documentData.type,
-        extracted: {
-          // Use appropriate fields from the document data
-          first_name: documentData.first_name || "ID",
-          last_name: documentData.last_name || "HOLDER",
-          document_number:
-            documentData.document_number || `ID-${documentId.substring(0, 8)}`,
-          date_of_birth: documentData.date_of_birth || "",
-          nationality: documentData.nationality || "USA",
-          issuing_country: documentData.issuing_country || "USA",
-        },
+      // Place extracted data directly in the response instead of nesting it
+      extracted: {
+        // Use appropriate fields from the document data
+        first_name: documentData.first_name || "ID",
+        last_name: documentData.last_name || "HOLDER",
+        document_number:
+          documentData.document_number || `ID-${documentId.substring(0, 8)}`,
+        date_of_birth: documentData.date_of_birth || "",
+        nationality: documentData.nationality || "USA",
+        issuing_country: documentData.issuing_country || "USA",
       },
+      documentId,
+      documentType: documentData.type,
     });
   } catch (error) {
     console.error("Error in OCR extraction:", error);
