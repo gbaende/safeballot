@@ -1,1 +1,0 @@
-const { Onfido, Region } = require('@onfido/api'); try { const onfido = new Onfido({ apiToken: 'test-token', region: Region.EU }); console.log('Successfully created Onfido client'); } catch (error) { console.error('Error creating Onfido client:', error); }

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 
@@ -26,11 +26,14 @@ const StripeWrapper = ({
     },
   },
 }) => {
-  // Merge the appearance settings with the options
-  const elementsOptions = {
-    ...options,
-    appearance,
-  };
+  // Memoize the merged options so Elements is not re-mounted on every render
+  const elementsOptions = useMemo(
+    () => ({
+      ...options,
+      appearance,
+    }),
+    [JSON.stringify(options), JSON.stringify(appearance)]
+  );
 
   return (
     <Elements stripe={stripePromise} options={elementsOptions}>

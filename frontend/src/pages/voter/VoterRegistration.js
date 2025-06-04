@@ -18,7 +18,6 @@ import {
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import { ballotService } from "../../services/api"; // Import ballotService
 import ScanID from "./ScanID"; // Import the ScanID component
-import OnfidoTest from "./OnfidoTest"; // Import the OnfidoTest component
 
 const VoterRegistration = () => {
   const { id, slug } = useParams();

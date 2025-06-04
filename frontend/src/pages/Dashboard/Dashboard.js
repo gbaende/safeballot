@@ -165,7 +165,7 @@ const Dashboard = () => {
         }}
       >
         <Box>
-          <Typography variant="h3" sx={{ fontWeight: 500, mb: 0.5 }}>
+          <Typography variant="h4" sx={{ fontWeight: 500, mb: 0.5 }}>
             Hey, {userDisplayName}.
           </Typography>
           <Typography variant="body1" color="text.secondary">
@@ -214,10 +214,10 @@ const Dashboard = () => {
           </Box>
 
           <Box sx={{ display: "flex", alignItems: "baseline" }}>
-            <Typography variant="h4" sx={{ fontWeight: 700 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
               {formatTimeRemaining(activeElection)}
             </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 400, ml: 1 }}>
+            <Typography variant="h5" sx={{ fontWeight: 400, ml: 1 }}>
               Remaining
             </Typography>
           </Box>
@@ -254,7 +254,7 @@ const Dashboard = () => {
           alignItems: "center",
         }}
       >
-        <Typography variant="h3" sx={{ fontWeight: 500 }}>
+        <Typography variant="h4" sx={{ fontWeight: 500 }}>
           My Elections
         </Typography>
         <Button

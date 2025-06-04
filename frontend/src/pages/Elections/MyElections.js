@@ -418,7 +418,7 @@ const MyElections = () => {
         }}
       >
         <Box>
-          <Typography variant="h3" sx={{ fontWeight: 500, mb: 0.5 }}>
+          <Typography variant="h4" sx={{ fontWeight: 500, mb: 0.5 }}>
             My Elections
           </Typography>
           <Typography variant="body1" color="text.secondary">

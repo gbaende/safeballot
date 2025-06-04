@@ -3,6 +3,55 @@ import { Box, Typography, Button, Grid, IconButton } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 const ConfirmInfo = ({ idData, onConfirm, onBack }) => {
+  // Determine the image source - use the scanned document image if available
+  const getImageSrc = () => {
+    // If we have a scanned document image, use it
+    if (idData?.documentImage) {
+      return `data:image/jpeg;base64,${idData.documentImage}`;
+    }
+
+    // If we have a face image, use it as fallback
+    if (idData?.faceImage) {
+      return `data:image/jpeg;base64,${idData.faceImage}`;
+    }
+
+    // Use placeholder image
+    return "/static/images/id-placeholder.svg";
+  };
+
+  const fallbackImage =
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='550' height='300' viewBox='0 0 550 300'%3E%3Crect width='550' height='300' fill='%23f0f0f0'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' fill='%23666666'%3EDriver's License%3C/text%3E%3C/svg%3E";
+
+  // Helper function to format field values
+  const formatValue = (value) => {
+    if (!value || value === "") return "N/A";
+    return value;
+  };
+
+  // Helper function to format dates
+  const formatDate = (dateValue) => {
+    if (!dateValue || dateValue === "") return "N/A";
+
+    // If it's a BlinkID date object with a latin property, use that
+    if (dateValue && typeof dateValue === "object" && dateValue.latin) {
+      return dateValue.latin;
+    }
+
+    // If it's already a formatted string, return it
+    if (typeof dateValue === "string") {
+      return dateValue;
+    }
+
+    // If it's an object with originalDateString, use that
+    if (dateValue.originalDateString) {
+      return dateValue.originalDateString;
+    }
+
+    return "N/A";
+  };
+
+  console.log("ConfirmInfo received idData:", idData);
+
   return (
     <Box
       sx={{
@@ -27,30 +76,47 @@ const ConfirmInfo = ({ idData, onConfirm, onBack }) => {
             sx={{
               width: "100%",
               height: "100%",
-              backgroundImage: "url('/images/safeBallot_ID_Card.png')",
-              backgroundSize: "cover",
-              backgroundPosition: "center",
+              backgroundColor: "#f5f5f5",
               display: "flex",
               justifyContent: "center",
               alignItems: "center",
+              padding: 3,
             }}
           >
             <Box
-              component="img"
-              src="/static/images/id-placeholder.svg"
-              alt="Driver's License"
-              onError={(e) => {
-                e.target.src =
-                  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='550' height='300' viewBox='0 0 550 300'%3E%3Crect width='550' height='300' fill='%23f0f0f0'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='24' fill='%23666666'%3EYour ID%3C/text%3E%3C/svg%3E";
-              }}
               sx={{
-                width: "80%",
-                maxWidth: "500px",
-                height: "auto",
-                borderRadius: "8px",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 2,
               }}
-            />
+            >
+              <Typography variant="h6" sx={{ color: "#666", mb: 2 }}>
+                Scanned Document
+              </Typography>
+              <Box
+                component="img"
+                src={getImageSrc()}
+                alt="Scanned ID Document"
+                onError={(e) => {
+                  e.target.src = fallbackImage;
+                }}
+                sx={{
+                  maxWidth: "90%",
+                  maxHeight: "70vh",
+                  width: "auto",
+                  height: "auto",
+                  borderRadius: "12px",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                  border: "1px solid #e0e0e0",
+                }}
+              />
+              {!idData?.documentImage && !idData?.faceImage && (
+                <Typography variant="body2" sx={{ color: "#999", mt: 1 }}>
+                  No document image captured
+                </Typography>
+              )}
+            </Box>
           </Box>
         </Grid>
 
@@ -64,6 +130,15 @@ const ConfirmInfo = ({ idData, onConfirm, onBack }) => {
             }}
           >
             <Box>
+              <Typography
+                variant="h5"
+                component="h1"
+                sx={{ fontWeight: 700, mb: 1 }}
+              >
+                {formatValue(idData?.documentType) !== "N/A"
+                  ? idData.documentType
+                  : "Driver's License"}
+              </Typography>
               <Typography
                 variant="h5"
                 component="h1"
@@ -84,7 +159,7 @@ const ConfirmInfo = ({ idData, onConfirm, onBack }) => {
                     Document Number
                   </Typography>
                   <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                    {idData?.documentNumber || "12888817"}
+                    {formatValue(idData?.documentNumber)}
                   </Typography>
                 </Grid>
 
@@ -94,7 +169,7 @@ const ConfirmInfo = ({ idData, onConfirm, onBack }) => {
                     Issuing State Code
                   </Typography>
                   <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                    {idData?.issuingState || "Texas"}
+                    {formatValue(idData?.issuingState)}
                   </Typography>
                 </Grid>
 
@@ -104,7 +179,7 @@ const ConfirmInfo = ({ idData, onConfirm, onBack }) => {
                     Surname
                   </Typography>
                   <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                    {idData?.surname || "Nico"}
+                    {formatValue(idData?.surname || idData?.lastName)}
                   </Typography>
                 </Grid>
 
@@ -114,7 +189,7 @@ const ConfirmInfo = ({ idData, onConfirm, onBack }) => {
                     Given Name
                   </Typography>
                   <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                    {idData?.givenName || "Vanny"}
+                    {formatValue(idData?.givenName || idData?.firstName)}
                   </Typography>
                 </Grid>
 
@@ -124,7 +199,7 @@ const ConfirmInfo = ({ idData, onConfirm, onBack }) => {
                     Sex
                   </Typography>
                   <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                    {idData?.sex || "Male"}
+                    {formatValue(idData?.sex)}
                   </Typography>
                 </Grid>
 
@@ -134,7 +209,7 @@ const ConfirmInfo = ({ idData, onConfirm, onBack }) => {
                     Nationality Code
                   </Typography>
                   <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                    {idData?.nationality || "N/A"}
+                    {formatValue(idData?.nationality)}
                   </Typography>
                 </Grid>
 
@@ -144,7 +219,7 @@ const ConfirmInfo = ({ idData, onConfirm, onBack }) => {
                     Birth Date
                   </Typography>
                   <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                    {idData?.birthDate || "20 November 1999"}
+                    {formatDate(idData?.dateOfBirth)}
                   </Typography>
                 </Grid>
 
@@ -154,7 +229,7 @@ const ConfirmInfo = ({ idData, onConfirm, onBack }) => {
                     Expiry of Document
                   </Typography>
                   <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                    {idData?.expiryDate || "20 December 2022"}
+                    {formatDate(idData?.dateOfExpiry || idData?.expiryDate)}
                   </Typography>
                 </Grid>
               </Grid>

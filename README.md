@@ -63,7 +63,7 @@ The Express.js frontend will start on port 3000 by default.
 
 - Encrypted connections (HTTPS)
 - Data encryption at rest
-- ID verification with facial recognition and document scanning
+- ID verification with document scanning
 - Audit trails for all system actions
 
 ## Future Enhancements

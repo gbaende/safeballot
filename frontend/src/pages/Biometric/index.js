@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -15,14 +15,16 @@ import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { verify } from "../../store/slices/authSlice";
 import LogoComponent from "../../components/Common/LogoComponent";
+import { toast } from "react-hot-toast";
 
 function Biometric() {
-  const [faceImage, setFaceImage] = useState(null);
-  const [cameraActive, setCameraActive] = useState(false);
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [scanProgress, setScanProgress] = useState(0);
+  const [error, setError] = useState("");
   const [scanComplete, setScanComplete] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [imageCapture, setImageCapture] = useState(null);
+  const [stage, setStage] = useState(0);
+  const [cameraActive, setCameraActive] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -31,129 +33,132 @@ function Biometric() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  // Initialize camera on component mount
   useEffect(() => {
+    // Initialize camera
+    const startCamera = async () => {
+      try {
+        setCameraActive(true);
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user" },
+        });
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (err) {
+        setError("Camera access denied. Please enable camera permissions.");
+        console.error("Camera error:", err);
+      }
+    };
+
     startCamera();
+
     return () => {
-      stopCamera();
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      // Cleanup camera
+      if (videoRef.current && videoRef.current.srcObject) {
+        const tracks = videoRef.current.srcObject.getTracks();
+        tracks.forEach((track) => track.stop());
       }
     };
   }, []);
 
-  // Initialize camera
-  const startCamera = async () => {
+  // Capture image from camera
+  const captureImage = useCallback(() => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    // Match canvas dimensions to video
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    canvas.width = width;
+    canvas.height = height;
+
+    // Add willReadFrequently hint for optimized readback performance
+    let context;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
+      context = canvas.getContext("2d", { willReadFrequently: true });
+    } catch (e) {
+      // Fallback for browsers that don't support the willReadFrequently option
+      context = canvas.getContext("2d");
+    }
+
+    // Draw video frame to canvas
+    context.drawImage(video, 0, 0, width, height);
+
+    // Convert to blob for upload
+    canvas.toBlob(
+      (blob) => {
+        setImageCapture(blob);
+        setStage(1);
+        // Start mock verification progress
+        startVerificationProgress();
+      },
+      "image/jpeg",
+      0.8
+    );
+  }, []);
+
+  // Simulate verification progress
+  const startVerificationProgress = () => {
+    setStage(2);
+    const interval = setInterval(() => {
+      setScanProgress((prev) => {
+        const newProgress = prev + Math.random() * 10;
+        if (newProgress >= 100) {
+          clearInterval(interval);
+          setScanComplete(true);
+          setStage(3);
+          return 100;
+        }
+        return newProgress;
+      });
+    }, 200);
+  };
+
+  // Submit verification to backend
+  const submitVerification = async () => {
+    setLoading(true);
+
+    try {
+      // In a real implementation, you would send this to your backend
+      if (!imageCapture || !scanComplete) {
+        throw new Error("Image capture not complete");
+      }
+
+      const formData = new FormData();
+      formData.append("userId", "user123"); // Would come from auth context
+      formData.append("imageCapture", imageCapture);
+
+      // Mock API call
+      console.log("Would submit:", {
+        userId: formData.get("userId"),
+        imageCapture: formData.get("imageCapture"),
       });
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setCameraActive(true);
-      }
+      // Simulate API delay
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      // On success
+      toast.success("Identity verification successful!");
+      onComplete && onComplete();
     } catch (err) {
-      setError("Unable to access camera. Please check camera permissions.");
-      console.error("Camera access error:", err);
-    }
-  };
-
-  // Stop camera
-  const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = videoRef.current.srcObject.getTracks();
-      tracks.forEach((track) => track.stop());
-      videoRef.current.srcObject = null;
-      setCameraActive(false);
-    }
-  };
-
-  // Capture face image from camera
-  const captureImage = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const context = canvas.getContext("2d");
-
-      // Set canvas dimensions to match video
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      // Draw video frame to canvas
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      // Convert canvas to blob
-      canvas.toBlob(
-        (blob) => {
-          setFaceImage(blob);
-
-          // Start progress animation
-          setScanProgress(0);
-          setLoading(true);
-
-          intervalRef.current = setInterval(() => {
-            setScanProgress((prevProgress) => {
-              if (prevProgress >= 100) {
-                clearInterval(intervalRef.current);
-                setLoading(false);
-                setScanComplete(true);
-                return 100;
-              }
-              return prevProgress + 10;
-            });
-          }, 300);
-        },
-        "image/jpeg",
-        0.8
-      );
-    }
-  };
-
-  // Submit biometric verification
-  const handleSubmit = async () => {
-    if (!faceImage || !scanComplete) {
-      setError("Please complete the biometric scan");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-
-    try {
-      // Create form data with image
-      const formData = new FormData();
-      formData.append("faceImage", faceImage);
-
-      // Dispatch action to verify biometric
-      await dispatch(
-        verify({
-          type: "biometric",
-          faceImage: formData.get("faceImage"),
-        })
-      ).unwrap();
-
-      // Navigate to verification success
-      navigate("/verify/success");
-    } catch (err) {
-      setError(
-        err.message || "Biometric verification failed. Please try again."
-      );
-      // Reset scan progress
-      setScanComplete(false);
-      setScanProgress(0);
+      console.error("Verification error:", err);
+      setError(err.message || "Verification failed. Please try again.");
+      toast.error("Verification failed. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Retry verification
+  // Reset the verification process
   const handleRetry = () => {
-    setFaceImage(null);
-    setScanComplete(false);
+    setStage(0);
     setScanProgress(0);
+    setScanComplete(false);
+    setImageCapture(null);
     setError("");
-    startCamera();
   };
 
   return (
@@ -192,7 +197,7 @@ function Biometric() {
             Biometric Verification
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            Please look directly at the camera for facial recognition
+            Please look directly at the camera for identity verification
           </Typography>
         </Box>
 
@@ -217,7 +222,7 @@ function Biometric() {
             mb: 3,
           }}
         >
-          {cameraActive && !faceImage ? (
+          {cameraActive && !imageCapture ? (
             <>
               <Box
                 sx={{
@@ -247,7 +252,7 @@ function Biometric() {
                 <CameraAlt fontSize="large" />
               </IconButton>
             </>
-          ) : faceImage ? (
+          ) : imageCapture ? (
             <Box
               sx={{
                 width: "100%",
@@ -261,7 +266,7 @@ function Biometric() {
             >
               <Box
                 component="img"
-                src={URL.createObjectURL(faceImage)}
+                src={URL.createObjectURL(imageCapture)}
                 sx={{
                   maxWidth: "100%",
                   maxHeight: "100%",
@@ -309,7 +314,7 @@ function Biometric() {
 
         {/* Action buttons */}
         <Grid container spacing={2} sx={{ mb: 3 }}>
-          {faceImage ? (
+          {imageCapture ? (
             <Grid item xs={12}>
               <Button
                 variant="outlined"
@@ -328,7 +333,7 @@ function Biometric() {
           fullWidth
           size="large"
           disabled={!scanComplete || loading}
-          onClick={handleSubmit}
+          onClick={submitVerification}
           sx={{
             py: 1.5,
             borderRadius: 1.5,

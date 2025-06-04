@@ -1618,29 +1618,6 @@ export const userService = {
   getUser: (id) => api.get(`/users/${id}`),
 };
 
-// Onfido Identity Verification services
-export const onfidoService = {
-  getOnfidoToken: async (userId) => {
-    const response = await api.post("/auth/onfido/token", { userId });
-    return response.data;
-  },
-
-  submitVerification: async (verificationData) => {
-    const response = await api.post("/auth/onfido/submit", verificationData);
-    return response.data;
-  },
-
-  getVerificationStatus: async (userId) => {
-    const response = await api.get(`/auth/onfido/status/${userId}`);
-    return response.data;
-  },
-
-  extractDocumentData: async (documentId) => {
-    const response = await api.get(`/auth/onfido/extract/${documentId}`);
-    return response.data;
-  },
-};
-
 // Payment services using Stripe
 export const paymentService = {
   // Create a payment intent

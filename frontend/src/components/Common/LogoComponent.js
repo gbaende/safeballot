@@ -14,7 +14,7 @@ const LogoComponent = ({ width = 80, height = 80 }) => {
       }}
     >
       <img
-        src="/images/logo.svg"
+        src="frontend/src/assets/images/logo.png"
         alt="SafeBallot Logo"
         style={{
           width: "100%",

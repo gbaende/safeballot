@@ -29,19 +29,22 @@ import VotingConfirmationDialog from "../../components/Voter/VotingConfirmationD
 import { toast } from "react-toastify";
 
 // Styled components
-const QuestionTab = styled(Box)(({ theme, active }) => ({
+const QuestionTab = styled(Box)(({ theme }) => ({
   padding: "12px 16px",
   cursor: "pointer",
-  borderLeft: active
-    ? `4px solid ${theme.palette.primary.main}`
-    : "4px solid transparent",
-  backgroundColor: active ? "rgba(25, 118, 210, 0.08)" : "transparent",
-  "&:hover": {
-    backgroundColor: active
-      ? "rgba(25, 118, 210, 0.12)"
-      : "rgba(0, 0, 0, 0.04)",
-  },
+  borderLeft: "4px solid transparent",
+  backgroundColor: "transparent",
   transition: "background-color 0.2s",
+  "&:hover": {
+    backgroundColor: "rgba(0, 0, 0, 0.04)",
+  },
+  "&[data-active='true']": {
+    borderLeft: `4px solid ${theme.palette.primary.main}`,
+    backgroundColor: "rgba(25, 118, 210, 0.08)",
+    "&:hover": {
+      backgroundColor: "rgba(25, 118, 210, 0.12)",
+    },
+  },
 }));
 
 const VotingPage = () => {
@@ -901,7 +904,7 @@ const VotingPage = () => {
               {ballot.questions.map((question, index) => (
                 <QuestionTab
                   key={index}
-                  active={activeQuestion === index}
+                  data-active={activeQuestion === index}
                   onClick={() => handleQuestionChange(index)}
                 >
                   <Typography

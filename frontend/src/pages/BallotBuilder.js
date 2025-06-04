@@ -77,22 +77,28 @@ const StyledStepper = styled(Stepper)(({ theme }) => ({
   },
 }));
 
-const StepIconContainer = styled("div")(({ theme, active, completed }) => ({
-  height: 36,
-  width: 36,
+const StepIconContainer = styled("div")(({ theme }) => ({
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+  zIndex: 1,
+  width: 40,
+  height: 40,
   borderRadius: "50%",
-  backgroundColor:
-    completed || active
-      ? theme.palette.secondary.main
-      : theme.palette.grey[200],
-  color:
-    completed || active
-      ? theme.palette.common.white
-      : theme.palette.text.secondary,
-  transition: "all 0.3s ease-in-out",
+  backgroundColor: "#ffffff",
+  border: "2px solid #dddddd",
+  transition: "all 0.2s",
+  color: "#777777",
+  "&[data-active='true']": {
+    backgroundColor: theme.palette.primary.main,
+    borderColor: theme.palette.primary.main,
+    color: "#ffffff",
+  },
+  "&[data-completed='true']": {
+    backgroundColor: theme.palette.primary.main,
+    borderColor: theme.palette.primary.main,
+    color: "#ffffff",
+  },
 }));
 
 const ActionButton = styled(Button)(({ theme }) => ({
@@ -157,7 +163,7 @@ const CustomStepIcon = ({ active, completed, icon }) => {
   };
 
   return (
-    <StepIconContainer active={active} completed={completed}>
+    <StepIconContainer data-active={active} data-completed={completed}>
       {completed ? <CheckIcon /> : getStepIcon(icon)}
     </StepIconContainer>
   );

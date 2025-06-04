@@ -6,8 +6,8 @@
 
 require("dotenv").config();
 const { sequelize } = require("./connection");
-const User = require("../models/user.model");
-const Ballot = require("../models/ballot.model");
+const { User } = require("../models/user.model");
+const { Ballot } = require("../models/ballot.model");
 const Question = require("../models/question.model");
 const Choice = require("../models/choice.model");
 const Voter = require("../models/voter.model");

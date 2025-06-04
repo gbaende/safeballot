@@ -1,0 +1,113 @@
+.blinkid-license-error {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+  padding: 20px;
+  background-color: #f8f9fa;
+}
+
+.error-container {
+  max-width: 600px;
+  background: white;
+  border-radius: 12px;
+  padding: 40px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  border: 1px solid #e9ecef;
+}
+
+.error-icon {
+  font-size: 48px;
+  margin-bottom: 20px;
+}
+
+.blinkid-license-error h2 {
+  color: #dc3545;
+  margin-bottom: 15px;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.error-message {
+  color: #6c757d;
+  margin-bottom: 30px;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.license-help {
+  text-align: left;
+  background-color: #f8f9fa;
+  padding: 25px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+.license-help h3 {
+  color: #495057;
+  margin-bottom: 15px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.license-help h4 {
+  color: #495057;
+  margin-bottom: 10px;
+  margin-top: 20px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.license-help ol {
+  margin-bottom: 20px;
+  padding-left: 20px;
+}
+
+.license-help li {
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.license-help a {
+  color: #007bff;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.license-help a:hover {
+  text-decoration: underline;
+}
+
+.license-help code {
+  background-color: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: "Monaco", "Courier New", monospace;
+  font-size: 14px;
+}
+
+.current-issue {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 6px;
+  padding: 15px;
+  margin: 15px 0;
+}
+
+.current-issue p {
+  margin: 0;
+  color: #856404;
+}
+
+.contact-info {
+  border-top: 1px solid #dee2e6;
+  padding-top: 15px;
+  margin-top: 15px;
+}
+
+.contact-info p {
+  margin: 0;
+  color: #6c757d;
+  font-size: 14px;
+}

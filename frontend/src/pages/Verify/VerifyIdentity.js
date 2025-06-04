@@ -53,82 +53,14 @@ const VerifyIdentity = ({ onComplete, onBack }) => {
             identification before you can vote.
           </Typography>
 
-          {/* Face scan area */}
-          <Box
-            sx={{
-              width: "180px",
-              height: "180px",
-              mx: "auto",
-              mb: 5,
-              position: "relative",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            {/* Facial recognition markers */}
-            <Box
-              component="img"
-              src="/facial-mesh.png"
-              alt="Facial recognition"
-              sx={{
-                width: "150px",
-                height: "150px",
-              }}
-              onError={(e) => {
-                // Fallback to SVG wireframe if image not found
-                e.target.onerror = null;
-                e.target.src =
-                  "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTc1IDMwQzUwIDMwIDQwIDYwIDQwIDc1QzQwIDkwIDUwIDEyMCA3NSAxMjBDMTAwIDEyMCAxMTAgOTAgMTEwIDc1QzExMCA2MCAxMDAgMzAgNzUgMzBaIiBzdHJva2U9IiM2NTc4RkYiIHN0cm9rZS13aWR0aD0iMSIvPjxwYXRoIGQ9Ik01MCA3NUg0MEw0NSA2MEw1MCA3NVoiIHN0cm9rZT0iIzY1NzhGRiIgc3Ryb2tlLXdpZHRoPSIxIi8+PHBhdGggZD0iTTEwMCA3NUgxMTBMMTA1IDYwTDEwMCA3NVoiIHN0cm9rZT0iIzY1NzhGRiIgc3Ryb2tlLXdpZHRoPSIxIi8+PHBhdGggZD0iTTY1IDQwTDc1IDUwTDg1IDQwIiBzdHJva2U9IiM2NTc4RkYiIHN0cm9rZS13aWR0aD0iMSIvPjxwYXRoIGQ9Ik02NSAxMTBMNzUgMTAwTDg1IDExMCIgc3Ryb2tlPSIjNjU3OEZGIiBzdHJva2Utd2lkdGg9IjEiLz48cGF0aCBkPSJNNjAgNjBDNjUgNjAgNjggNjUgNjggNzBDNjggNzUgNjUgODAgNjAgODAiIHN0cm9rZT0iIzY1NzhGRiIgc3Ryb2tlLXdpZHRoPSIxIi8+PHBhdGggZD0iTTkwIDYwQzg1IDYwIDgyIDY1IDgyIDcwQzgyIDc1IDg1IDgwIDkwIDgwIiBzdHJva2U9IiM2NTc4RkYiIHN0cm9rZS13aWR0aD0iMSIvPjxwYXRoIGQ9Ik03NSA4MEM3MiA4MCA3MCA3OCA3MCA3NUM3MCA3MiA3MiA3MCA3NSA3MEM3OCA3MCA4MCA3MiA4MCA3NUM4MCA3OCA3OCA4MCA3NSA4MFoiIHN0cm9rZT0iIzY1NzhGRiIgc3Ryb2tlLXdpZHRoPSIxIi8+PHBhdGggZD0iTTY1IDkwTDc1IDk1TDg1IDkwIiBzdHJva2U9IiM2NTc4RkYiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg==";
-              }}
+          {/* Identity verification illustration */}
+          <div className="mb-8 flex justify-center">
+            <img
+              className="h-48 w-auto"
+              src="/images/id-document.png"
+              alt="ID Document Verification"
             />
-
-            {/* Corner markers */}
-            <Box
-              sx={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "30px",
-                height: "30px",
-                borderTop: "3px solid #4f46e5",
-                borderLeft: "3px solid #4f46e5",
-              }}
-            />
-            <Box
-              sx={{
-                position: "absolute",
-                top: 0,
-                right: 0,
-                width: "30px",
-                height: "30px",
-                borderTop: "3px solid #4f46e5",
-                borderRight: "3px solid #4f46e5",
-              }}
-            />
-            <Box
-              sx={{
-                position: "absolute",
-                bottom: 0,
-                left: 0,
-                width: "30px",
-                height: "30px",
-                borderBottom: "3px solid #4f46e5",
-                borderLeft: "3px solid #4f46e5",
-              }}
-            />
-            <Box
-              sx={{
-                position: "absolute",
-                bottom: 0,
-                right: 0,
-                width: "30px",
-                height: "30px",
-                borderBottom: "3px solid #4f46e5",
-                borderRight: "3px solid #4f46e5",
-              }}
-            />
-          </Box>
+          </div>
 
           <Button
             variant="contained"

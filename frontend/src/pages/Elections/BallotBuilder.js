@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -65,10 +65,6 @@ import {
 import { loadStripe } from "@stripe/stripe-js";
 import TextareaAutosize from "@mui/material/TextareaAutosize";
 
-// Initialize Stripe with your publishable key
-// Replace this with your actual publishable key from Stripe dashboard
-const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
-
 const steps = [
   "Build Ballot",
   "Set Duration",
@@ -106,7 +102,7 @@ const BallotBuilder = () => {
   const [endTimeStr, setEndTimeStr] = useState(format(new Date(), "h:mm a"));
 
   const [voterCount, setVoterCount] = useState(10);
-  const pricePerVoter = 0.1;
+  const pricePerVoter = 0.5;
   const [totalPrice, setTotalPrice] = useState(1.0);
   const [paymentMethod, setPaymentMethod] = useState("card");
   const [cardholderName, setCardholderName] = useState("");
@@ -692,118 +688,6 @@ const BallotBuilder = () => {
     const idPart = ballot.id.toString().substring(0, 8);
     // Format: baseUrl/voter-registration/electionId/slug-uniqueCode
     return `${baseUrl}/voter-registration/${ballot.id}/${slug}-${idPart}`;
-  };
-
-  // Add a test function to check authentication status
-  const testAuthentication = async () => {
-    console.log("--- Authentication Test ---");
-    const token = localStorage.getItem("adminToken");
-    console.log("Admin token in localStorage:", token ? "Present" : "Missing");
-    if (token) {
-      console.log(
-        "Admin token first 20 chars:",
-        token.substring(0, 20) + "..."
-      );
-    }
-
-    // Test with a simple API call
-    try {
-      console.log("Testing API call to /elections/summary");
-      const response = await electionService.getSummary();
-      console.log("API call succeeded:", response.status);
-      console.log("Response data:", response.data);
-      alert(
-        "Authentication successful! API responded with status: " +
-          response.status
-      );
-    } catch (error) {
-      console.error("API call failed:", error);
-      console.error("Status:", error.response?.status);
-      console.error("Data:", error.response?.data);
-      alert(
-        "Authentication failed! Status: " +
-          (error.response?.status || "unknown")
-      );
-    }
-  };
-
-  // Add a direct token debugging function
-  const debugTokenAuthentication = async () => {
-    console.log("--- DIRECT TOKEN DEBUGGING ---");
-
-    // Get token directly from localStorage
-    const token = localStorage.getItem("adminToken");
-    console.log("Raw admin token from localStorage:", token);
-
-    // Analyze token structure if it exists
-    if (token) {
-      console.log("Admin token length:", token.length);
-      console.log(
-        "Admin token first 20 chars:",
-        token.substring(0, 20) + "..."
-      );
-      console.log(
-        "Admin token last 20 chars:",
-        "..." + token.substring(token.length - 20)
-      );
-
-      try {
-        // Try to parse token as JWT (check if it has 3 parts separated by dots)
-        const parts = token.split(".");
-        console.log(
-          "Token has",
-          parts.length,
-          "parts",
-          parts.length === 3 ? "(valid JWT format)" : "(invalid JWT format)"
-        );
-      } catch (e) {
-        console.error("Error analyzing token:", e);
-      }
-    } else {
-      console.error("No admin token found in localStorage");
-    }
-
-    // Try a direct axios request bypassing interceptors
-    try {
-      console.log("Attempting direct axios request to /api/health");
-      const response = await axios.get("http://localhost:8080/api/health");
-      console.log("Health check successful:", response.status, response.data);
-
-      // If health check works, try a protected endpoint with explicit header
-      try {
-        console.log(
-          "Attempting protected endpoint with explicit Authorization header"
-        );
-        const protectedResponse = await axios.get(
-          "http://localhost:8080/api/elections/summary",
-          {
-            headers: {
-              Authorization: token ? `Bearer ${token}` : "",
-            },
-          }
-        );
-        console.log(
-          "Protected request successful:",
-          protectedResponse.status,
-          protectedResponse.data
-        );
-        alert("Authentication success! Token is working correctly.");
-      } catch (protectedError) {
-        console.error("Protected request failed:", protectedError);
-        console.error("Status:", protectedError.response?.status);
-        console.error("Data:", protectedError.response?.data);
-        alert(
-          "Auth failed on protected endpoint! Status: " +
-            (protectedError.response?.status || "unknown")
-        );
-      }
-    } catch (error) {
-      console.error("Direct request failed:", error);
-      alert(
-        "Even basic health check failed! Status: " +
-          (error.response?.status || "unknown")
-      );
-    }
   };
 
   // Step 1: Build Ballot Content
@@ -1454,8 +1338,30 @@ const BallotBuilder = () => {
   );
 
   // Conditionally render the Elements component
+  const stripePromise = useMemo(
+    () => loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY),
+    []
+  );
   const ElementsWithClientSecret = ({ children }) => {
-    // Only render the Elements component if we have a valid client secret
+    const options = useMemo(
+      () => ({
+        clientSecret: paymentClientSecret,
+        appearance: {
+          theme: "stripe",
+          variables: {
+            colorPrimary: "#3182CE",
+            colorBackground: "#ffffff",
+            colorText: "#1A202C",
+            colorDanger: "#E53E3E",
+            fontFamily:
+              '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            spacingUnit: "4px",
+            borderRadius: "4px",
+          },
+        },
+      }),
+      [paymentClientSecret]
+    );
     if (!paymentClientSecret) {
       return (
         <Box sx={{ p: 3, textAlign: "center" }}>
@@ -1466,25 +1372,6 @@ const BallotBuilder = () => {
         </Box>
       );
     }
-
-    // Configure Stripe Elements with the client secret
-    const options = {
-      clientSecret: paymentClientSecret,
-      appearance: {
-        theme: "stripe",
-        variables: {
-          colorPrimary: "#3182CE",
-          colorBackground: "#ffffff",
-          colorText: "#1A202C",
-          colorDanger: "#E53E3E",
-          fontFamily:
-            '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          spacingUnit: "4px",
-          borderRadius: "4px",
-        },
-      },
-    };
-
     return (
       <Elements stripe={stripePromise} options={options}>
         {children}
@@ -1493,31 +1380,17 @@ const BallotBuilder = () => {
   };
 
   // Create a separate component for Stripe payment elements
-  const CheckoutForm = ({ onSubmit }) => {
+  const PaymentForm = ({
+    clientSecret,
+    amount,
+    currency,
+    onSuccess,
+    onError,
+  }) => {
     const stripe = useStripe();
     const elements = useElements();
     const [error, setError] = useState(null);
     const [processing, setProcessing] = useState(false);
-    const [billingDetailsState, setBillingDetailsState] = useState({
-      name: cardholderName || "",
-      address: {
-        city: city || "",
-        postal_code: zipCode || "",
-        country: billingAddress || "United States",
-      },
-    });
-
-    // Update billing details when parent component state changes
-    useEffect(() => {
-      setBillingDetailsState({
-        name: cardholderName || "",
-        address: {
-          city: city || "",
-          postal_code: zipCode || "",
-          country: billingAddress || "United States",
-        },
-      });
-    }, [cardholderName, city, zipCode, billingAddress]);
 
     const handleSubmit = async (event) => {
       event.preventDefault();
@@ -1538,7 +1411,14 @@ const BallotBuilder = () => {
               return_url: window.location.origin + "/payment-success",
               cancel_url: window.location.origin + "/checkout/cancel",
               payment_method_data: {
-                billing_details: billingDetailsState,
+                billing_details: {
+                  name: cardholderName || "",
+                  address: {
+                    city: city || "",
+                    postal_code: zipCode || "",
+                    country: billingAddress || "United States",
+                  },
+                },
               },
             },
             redirect: "if_required",
@@ -1551,7 +1431,7 @@ const BallotBuilder = () => {
           setError(submitError.message || "Payment failed. Please try again.");
         } else if (paymentIntent && paymentIntent.status === "succeeded") {
           // Payment succeeded, pass the payment method to the parent component
-          onSubmit(paymentIntent, { id: paymentIntent.payment_method });
+          onSuccess(paymentIntent);
         } else {
           setError("Payment processing failed. Please try again.");
         }
@@ -1677,7 +1557,7 @@ const BallotBuilder = () => {
         spacing={3}
         sx={{
           justifyContent: "space-between",
-          mb: { xs: 8, md: 10 }, // Add responsive bottom margin
+          mb: { xs: 8, md: 10 },
         }}
       >
         {/* Left Column - Review Election Details */}
@@ -1876,9 +1756,8 @@ const BallotBuilder = () => {
           </Paper>
         </Grid>
 
-        {/* Right Column - Payment Details */}
+        {/* Right Column - Stripe Payment Only */}
         <Grid item xs={12} md={6} sx={{ width: "50%" }}>
-          {/* Styled grey payment header */}
           <Box
             className="section-header-payment"
             sx={{
@@ -1918,124 +1797,19 @@ const BallotBuilder = () => {
               height: "100%",
             }}
           >
-            {/* Payment Method */}
-            <Typography variant="body1" fontWeight={500} sx={{ mb: 2 }}>
-              Payment method
-            </Typography>
-
-            <Box sx={{ display: "flex", gap: 2, mb: 4 }}>
-              <Box
-                sx={{
-                  p: 2,
-                  border:
-                    paymentMethod === "card"
-                      ? "2px solid #3182CE"
-                      : "1px solid #E2E8F0",
-                  borderRadius: "8px",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  cursor: "pointer",
-                  width: "50%",
-                }}
-                onClick={() => setPaymentMethod("card")}
-              >
-                <CreditCardIcon
-                  sx={{ fontSize: 32, color: "#4A5568", mb: 1 }}
-                />
-                <Typography variant="body2">Card</Typography>
-              </Box>
-
-              <Box
-                sx={{
-                  p: 2,
-                  border:
-                    paymentMethod === "bank"
-                      ? "2px solid #3182CE"
-                      : "1px solid #E2E8F0",
-                  borderRadius: "8px",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  cursor: "pointer",
-                  width: "50%",
-                }}
-                onClick={() => setPaymentMethod("bank")}
-              >
-                <AccountBalanceIcon
-                  sx={{ fontSize: 32, color: "#4A5568", mb: 1 }}
-                />
-                <Typography variant="body2">US bank account</Typography>
-              </Box>
-            </Box>
-
-            {/* Card Holder Name */}
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="body1" fontWeight={500} sx={{ mb: 1 }}>
-                Card holder name
-              </Typography>
-              <TextField
-                fullWidth
-                placeholder="Ex. John Doe"
-                variant="outlined"
-                value={cardholderName}
-                onChange={(e) => setCardholderName(e.target.value)}
-              />
-            </Box>
-
-            {/* Billing Address */}
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="body1" fontWeight={500} sx={{ mb: 1 }}>
-                Billing address
-              </Typography>
-              <Select
-                fullWidth
-                value={billingAddress}
-                onChange={(e) => setBillingAddress(e.target.value)}
-                displayEmpty
-                IconComponent={KeyboardArrowDownIcon}
-                sx={{ mb: 2 }}
-              >
-                <MenuItem value="United States">United States</MenuItem>
-                <MenuItem value="Canada">Canada</MenuItem>
-                <MenuItem value="United Kingdom">United Kingdom</MenuItem>
-              </Select>
-
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Typography variant="body2" fontWeight={500} sx={{ mb: 1 }}>
-                    Zip code
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    placeholder="Ex. 73923"
-                    variant="outlined"
-                    value={zipCode}
-                    onChange={(e) => setZipCode(e.target.value)}
-                  />
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2" fontWeight={500} sx={{ mb: 1 }}>
-                    City
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    placeholder="Ex. New York"
-                    variant="outlined"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                  />
-                </Grid>
-              </Grid>
-            </Box>
-
-            {/* Stripe Payment Element */}
+            {/* Stripe Payment Element Only */}
             {paymentClientSecret ? (
               <ElementsWithClientSecret>
-                <CheckoutForm
-                  onSubmit={(paymentIntent, paymentMethod) => {
-                    submitBallot(paymentIntent, paymentMethod);
-                  }}
+                <PaymentForm
+                  clientSecret={paymentClientSecret}
+                  amount={totalPrice * 100}
+                  currency="usd"
+                  onSuccess={(paymentIntent) =>
+                    submitBallot(paymentIntent, {
+                      id: paymentIntent.payment_method,
+                    })
+                  }
+                  onError={(error) => setPaymentError(error.message)}
                 />
               </ElementsWithClientSecret>
             ) : (
@@ -2311,28 +2085,6 @@ const BallotBuilder = () => {
 
   return (
     <Box sx={{ p: 4 }}>
-      {/* Test Authentication Buttons */}
-      <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-end", gap: 2 }}>
-        <Button
-          variant="outlined"
-          color="secondary"
-          size="small"
-          onClick={testAuthentication}
-          sx={{ mb: 2 }}
-        >
-          Test Authentication
-        </Button>
-        <Button
-          variant="outlined"
-          color="error"
-          size="small"
-          onClick={debugTokenAuthentication}
-          sx={{ mb: 2 }}
-        >
-          Debug Token
-        </Button>
-      </Box>
-
       {/* Stepper */}
       <Box
         sx={{

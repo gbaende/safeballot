@@ -44,8 +44,14 @@ import CheckoutCancel from "./pages/CheckoutCancel";
 // Import the new AccessKeyRegistration component
 import AccessKeyRegistration from "./pages/voter/AccessKeyRegistration";
 
-// Import the Onfido testing component
-import OnfidoPollingTest from "./components/OnfidoPollingTest";
+// Import RegistrationSuccess component
+import RegistrationSuccess from "./components/RegistrationSuccess";
+
+// Import standalone VoterRegistration component
+import StandaloneVoterRegistration from "./components/VoterRegistration";
+
+// Import BlinkIDTest component
+import BlinkIDTest from "./components/BlinkIDTest";
 
 // Wrapper component for ScanID route
 const ScanIDWrapper = () => {
@@ -153,7 +159,7 @@ function App() {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Router>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           {/* Authentication Routes */}
           <Route
@@ -180,6 +186,21 @@ function App() {
             element={<PreRegistration startAtStep={1} />}
           />
           <Route path="/scan-id/:id/:slug" element={<ScanIDWrapper />} />
+
+          {/* BlinkID Test Route */}
+          <Route path="/blinkid-test" element={<BlinkIDTest />} />
+
+          {/* Registration Success Route */}
+          <Route
+            path="/registration-success"
+            element={<RegistrationSuccess />}
+          />
+
+          {/* Standalone Voter Registration Route */}
+          <Route
+            path="/register-to-vote"
+            element={<StandaloneVoterRegistration />}
+          />
 
           {/* Payment Success Route */}
           <Route path="/payment-success" element={<PaymentSuccess />} />
@@ -209,9 +230,6 @@ function App() {
             <Route path="ballot-builder" element={<BallotBuilder />} />
             <Route path="elections/:id/debug" element={<BallotDebug />} />
           </Route>
-
-          {/* Onfido testing route */}
-          <Route path="/onfido-test" element={<OnfidoPollingTest />} />
         </Routes>
       </Router>
     </LocalizationProvider>

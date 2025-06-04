@@ -14,6 +14,7 @@ import {
 import { paymentService } from "../services/api";
 
 const PaymentForm = ({
+  clientSecret,
   amount,
   currency,
   description,
@@ -28,72 +29,32 @@ const PaymentForm = ({
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
-  const [clientSecret, setClientSecret] = useState("");
-
-  useEffect(() => {
-    // Create a payment intent when the component mounts
-    const createIntent = async () => {
-      try {
-        setIsLoading(true);
-        const response = await paymentService.createPaymentIntent({
-          amount, // amount in cents
-          currency: currency || "usd",
-          description,
-          metadata,
-        });
-
-        setClientSecret(response.clientSecret);
-      } catch (error) {
-        console.error("Error creating payment intent:", error);
-        setIsError(true);
-        setMessage(
-          error.response?.data?.message || "Failed to initialize payment"
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (amount) {
-      createIntent();
-    }
-  }, [amount, currency, description, metadata]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-
     if (!stripe || !elements || !clientSecret) {
-      // Stripe.js has not yet loaded.
-      // Make sure to disable form submission until Stripe.js has loaded.
       return;
     }
-
     setIsLoading(true);
     setMessage("");
     setIsError(false);
-
     try {
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         clientSecret,
         confirmParams: {
-          // Return URL where the customer should be redirected after payment
           return_url: window.location.origin + "/payment-success",
         },
         redirect: "if_required",
       });
-
       if (error) {
-        // Show error to customer
         setIsError(true);
         setMessage(error.message || "Payment failed");
         if (onError) onError(error);
       } else if (paymentIntent && paymentIntent.status === "succeeded") {
-        // Payment succeeded
         setMessage("Payment successful!");
         if (onSuccess) onSuccess(paymentIntent);
       } else {
-        // Payment requires additional action
         setMessage(
           "Payment requires additional verification. Please follow any prompts."
         );
@@ -101,17 +62,18 @@ const PaymentForm = ({
     } catch (err) {
       setIsError(true);
       setMessage("An unexpected error occurred.");
-      console.error("Payment error:", err);
       if (onError) onError(err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (!clientSecret && isLoading) {
+  if (!clientSecret) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
-        <CircularProgress sx={{ color: themeColor }} />
+        <Typography color="text.secondary">
+          Initializing payment form...
+        </Typography>
       </Box>
     );
   }

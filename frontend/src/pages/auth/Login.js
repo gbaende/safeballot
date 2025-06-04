@@ -9,6 +9,10 @@ import {
   IconButton,
   Divider,
   Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 import { useDispatch } from "react-redux";
 import {
@@ -33,6 +37,11 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [redirectPath, setRedirectPath] = useState("/");
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetError, setResetError] = useState("");
+  const [resetSuccess, setResetSuccess] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
 
   // Parse query parameters to check for redirect
   useEffect(() => {
@@ -160,6 +169,35 @@ const Login = () => {
 
   const handleTogglePasswordVisibility = () => {
     setShowPassword(!showPassword);
+  };
+
+  const handleOpenResetDialog = () => {
+    setResetDialogOpen(true);
+    setResetEmail("");
+    setResetError("");
+    setResetSuccess("");
+  };
+
+  const handleCloseResetDialog = () => {
+    setResetDialogOpen(false);
+  };
+
+  const handleResetPassword = async () => {
+    setResetLoading(true);
+    setResetError("");
+    setResetSuccess("");
+    try {
+      await authService.requestPasswordReset(resetEmail);
+      setResetSuccess(
+        "If an account with that email exists, a reset link has been sent."
+      );
+    } catch (err) {
+      setResetError(
+        err.response?.data?.message || "Failed to send reset email."
+      );
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   return (
@@ -301,9 +339,58 @@ const Login = () => {
                 Register
               </RouterLink>
             </Typography>
+            <Button
+              variant="text"
+              sx={{ mt: 1, color: "#4478EB", textTransform: "none" }}
+              onClick={handleOpenResetDialog}
+            >
+              Forgot password?
+            </Button>
           </Box>
         </Box>
       </Paper>
+
+      {/* Password Reset Dialog */}
+      <Dialog open={resetDialogOpen} onClose={handleCloseResetDialog}>
+        <DialogTitle>Reset Password</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Enter your email address and we'll send you a link to reset your
+            password.
+          </Typography>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Email Address"
+            type="email"
+            fullWidth
+            value={resetEmail}
+            onChange={(e) => setResetEmail(e.target.value)}
+            disabled={resetLoading}
+          />
+          {resetError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {resetError}
+            </Alert>
+          )}
+          {resetSuccess && (
+            <Alert severity="success" sx={{ mt: 2 }}>
+              {resetSuccess}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseResetDialog} disabled={resetLoading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleResetPassword}
+            disabled={resetLoading || !resetEmail}
+          >
+            {resetLoading ? "Sending..." : "Send Reset Link"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

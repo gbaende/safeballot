@@ -22,7 +22,6 @@ const ballotRoutes = require("./routes/ballot.routes");
 const electionRoutes = require("./routes/election.routes");
 const adminRoutes = require("./routes/admin.routes");
 const paymentRoutes = require("./routes/payment.routes");
-const onfidoRoutes = require("./routes/onfido.routes");
 
 // Initialize express app
 const app = express();
@@ -42,6 +41,17 @@ app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 app.use(cookieParser()); // Parse cookies
 
+// Special handling for webhook routes which need the raw body
+// IMPORTANT: This must be before the route registration
+app.use("/api/payment/webhook", (req, res, next) => {
+  if (req.originalUrl === "/api/payment/webhook") {
+    // Use raw body for Stripe webhook
+    express.raw({ type: "application/json" })(req, res, next);
+  } else {
+    next();
+  }
+});
+
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
@@ -49,16 +59,6 @@ app.use("/api/ballots", ballotRoutes);
 app.use("/api/elections", electionRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/payment", paymentRoutes);
-app.use("/api/onfido", onfidoRoutes);
-
-// Special handling for Stripe webhook route which needs the raw body
-app.use("/api/payment/webhook", (req, res, next) => {
-  if (req.originalUrl === "/api/payment/webhook") {
-    next();
-  } else {
-    express.json()(req, res, next);
-  }
-});
 
 // Serve static files from the React app in production
 if (process.env.NODE_ENV === "production") {

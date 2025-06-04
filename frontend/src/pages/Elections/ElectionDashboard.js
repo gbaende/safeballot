@@ -554,52 +554,6 @@ const ElectionDashboard = () => {
     },
   });
 
-  // Admin actions section
-  const renderAdminActions = () => {
-    const status = getElectionStatus();
-
-    return (
-      <Box sx={{ mt: 4, mb: 2 }}>
-        <Typography variant="h6" gutterBottom>
-          Admin Actions
-        </Typography>
-        <Grid container spacing={2}>
-          <Grid item>
-            <Button
-              variant="outlined"
-              component={Link}
-              to={`/elections/${id}/voters`}
-              startIcon={<AddIcon />}
-            >
-              Manage Voters
-            </Button>
-          </Grid>
-          <Grid item>
-            <Button
-              variant="outlined"
-              component={Link}
-              to={`/elections/${id}/results`}
-              startIcon={<ArrowForwardIcon />}
-            >
-              View Results
-            </Button>
-          </Grid>
-          <Grid item>
-            <Button
-              variant="outlined"
-              color="secondary"
-              component={Link}
-              to={`/elections/${id}/debug`}
-              sx={{ borderColor: "#888888", color: "#888888" }}
-            >
-              Debug Data
-            </Button>
-          </Grid>
-        </Grid>
-      </Box>
-    );
-  };
-
   return (
     <Box sx={{ pt: 4 }}>
       {/* Header with Title and Create Button */}
@@ -628,7 +582,7 @@ const ElectionDashboard = () => {
             "&:hover": {
               background: "linear-gradient(to right, #050912, #1d2e59)",
             },
-            borderRadius: "4px",
+            borderRadius: "6px",
           }}
           onClick={() => navigate("/create-election")}
         >
@@ -647,6 +601,7 @@ const ElectionDashboard = () => {
               mb: 3,
               border: "1px solid #E2E8F0",
               boxShadow: "none",
+              borderRadius: 6,
             }}
           >
             <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
@@ -737,11 +692,12 @@ const ElectionDashboard = () => {
               mb: 3,
               border: "1px solid #E2E8F0",
               boxShadow: "none",
+              borderRadius: 6,
             }}
           >
             <Typography
               variant="body1"
-              sx={{ fontWeight: 600, mb: 2, color: "#2B6CB0" }}
+              sx={{ fontWeight: 600, mb: 2, color: "#718096" }}
             >
               Shareable Pre-Registration Link
             </Typography>
@@ -755,7 +711,7 @@ const ElectionDashboard = () => {
                 alignItems: "center",
                 p: 1.5,
                 border: "1px solid #E2E8F0",
-                borderRadius: "4px",
+                borderRadius: "6px",
                 bgcolor: "#F7FAFC",
               }}
             >
@@ -791,7 +747,7 @@ const ElectionDashboard = () => {
                   alignItems: "center",
                   mt: 1.5,
                   p: 1,
-                  borderRadius: "4px",
+                  borderRadius: "6px",
                   bgcolor: "#EBF8FF",
                 }}
               >
@@ -812,6 +768,7 @@ const ElectionDashboard = () => {
               p: 3,
               border: "1px solid #E2E8F0",
               boxShadow: "none",
+              borderRadius: 6,
             }}
           >
             <Box
@@ -827,7 +784,7 @@ const ElectionDashboard = () => {
                   textTransform: "none",
                   fontSize: "14px",
                   border: "1px solid #E2E8F0",
-                  borderRadius: "4px",
+                  borderRadius: "6px",
                   px: 2,
                   py: 0.5,
                 }}
@@ -982,7 +939,7 @@ const ElectionDashboard = () => {
                 textTransform: "none",
                 fontSize: "14px",
                 border: "1px solid #E2E8F0",
-                borderRadius: "4px",
+                borderRadius: "6px",
                 px: 2,
                 py: 0.5,
               }}
@@ -1003,7 +960,7 @@ const ElectionDashboard = () => {
                   mb: 3,
                   border: "1px solid #E2E8F0",
                   boxShadow: "none",
-                  borderRadius: "8px",
+                  borderRadius: 6,
                 }}
               >
                 <Typography
@@ -1030,7 +987,7 @@ const ElectionDashboard = () => {
                           flexGrow: 1,
                           mr: 2,
                           height: 8,
-                          borderRadius: 4,
+                          borderRadius: 6,
                           bgcolor: "#EDF2F7",
                           ".MuiLinearProgress-bar": {
                             backgroundImage:
@@ -1052,7 +1009,7 @@ const ElectionDashboard = () => {
                 p: 3,
                 border: "1px solid #E2E8F0",
                 boxShadow: "none",
-                borderRadius: "8px",
+                borderRadius: 6,
                 textAlign: "center",
               }}
             >
@@ -1064,8 +1021,6 @@ const ElectionDashboard = () => {
           )}
         </Grid>
       </Grid>
-
-      {renderAdminActions()}
     </Box>
   );
 };

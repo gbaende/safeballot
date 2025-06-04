@@ -1,513 +1,292 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import {
   Box,
   Typography,
   Button,
   IconButton,
-  Grid,
-  CircularProgress,
   Alert,
   Paper,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import CameraAltOutlinedIcon from "@mui/icons-material/CameraAltOutlined";
-import onfidoService from "../../services/onfidoService";
-
-// Base64 encoded placeholder image as embedded data URI
-const PLACEHOLDER_IMAGE =
-  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1NTAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgNTUwIDMwMCI+PHJlY3Qgd2lkdGg9IjU1MCIgaGVpZ2h0PSIzMDAiIGZpbGw9IiNmMGYwZjAiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IiM2NjY2NjYiPllvdXIgSUQgd2lsbCBhcHBlYXIgaGVyZTwvdGV4dD48L3N2Zz4=";
+import BlinkIDStep from "../../components/Verification/BlinkIDStep";
+import MockBlinkIDStep from "../../components/Verification/MockBlinkIDStep";
 
 const ScanID = ({ onComplete, onBack }) => {
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [applicantId, setApplicantId] = useState(null);
-  const [sdkToken, setSdkToken] = useState(null);
-  const [checkId, setCheckId] = useState(null);
-  const [scanComplete, setScanComplete] = useState(false);
-  const [extractedData, setExtractedData] = useState(null);
-  const [scriptLoaded, setScriptLoaded] = useState(false);
-  const [manualInitRequired, setManualInitRequired] = useState(false);
+  const [scanResults, setScanResults] = useState(null);
+  const [useMockScanner, setUseMockScanner] = useState(false);
 
-  const onfidoInstanceRef = useRef(null);
+  // BlinkID license key - you'll need to replace this with your actual license key
+  const BLINKID_LICENSE_KEY =
+    process.env.REACT_APP_BLINKID_LICENSE_KEY || "YOUR_LICENSE_KEY_HERE";
 
-  // Handle Onfido completion
-  const handleOnfidoComplete = async (data) => {
-    try {
-      console.log("Onfido scan complete:", data);
+  const handleScanComplete = (results) => {
+    console.log("BlinkID scan complete:", results);
+    setScanResults(results);
 
-      if (!applicantId) {
-        throw new Error("No applicant ID available");
-      }
+    // Transform BlinkID results to match the expected format
+    const transformedData = {
+      // Personal information
+      givenName:
+        results.documentData?.firstName ||
+        results.documentData?.givenName ||
+        results.combined?.firstName ||
+        "",
+      surname:
+        results.documentData?.lastName ||
+        results.documentData?.surname ||
+        results.combined?.lastName ||
+        "",
+      fullName:
+        results.documentData?.fullName ||
+        results.combined?.fullName ||
+        `${
+          results.documentData?.firstName ||
+          results.documentData?.givenName ||
+          results.combined?.firstName ||
+          ""
+        } ${
+          results.documentData?.lastName ||
+          results.documentData?.surname ||
+          results.combined?.lastName ||
+          ""
+        }`.trim(),
+      dateOfBirth:
+        results.documentData?.dateOfBirth ||
+        results.combined?.dateOfBirth ||
+        "",
+      sex: results.documentData?.sex || results.combined?.sex || "",
+      nationality:
+        results.documentData?.nationality ||
+        results.combined?.nationality ||
+        "",
 
-      // Create a check with the captured documents
-      const checkResponse = await onfidoService.createCheck(applicantId);
+      // Document information
+      documentNumber:
+        results.documentData?.documentNumber ||
+        results.combined?.documentNumber ||
+        "",
+      documentType:
+        results.documentData?.documentType ||
+        results.combined?.documentType ||
+        "",
+      issuingCountry:
+        results.documentData?.issuingCountry || results.combined?.country || "",
+      issuingState:
+        results.documentData?.issuingState || results.combined?.region || "",
+      dateOfExpiry:
+        results.documentData?.expiryDate ||
+        results.documentData?.dateOfExpiry ||
+        results.combined?.dateOfExpiry ||
+        "",
+      dateOfIssue:
+        results.documentData?.dateOfIssue ||
+        results.combined?.dateOfIssue ||
+        "",
 
-      if (!checkResponse.success) {
-        throw new Error(checkResponse.error || "Failed to create check");
-      }
+      // Additional information
+      address: results.documentData?.address || results.combined?.address || "",
+      personalIdNumber:
+        results.documentData?.personalIdNumber ||
+        results.combined?.personalIdNumber ||
+        "",
 
-      setCheckId(checkResponse.data.id);
+      // Images (base64 encoded) - Fixed to get from documentData
+      faceImage:
+        results.documentData?.faceImage || results.combined?.faceImage || null,
+      documentImage:
+        results.documentData?.documentImage ||
+        results.documentData?.fullDocumentImage ||
+        results.combined?.fullDocumentImage ||
+        null,
+      signatureImage:
+        results.documentData?.signatureImage ||
+        results.combined?.signatureImage ||
+        null,
 
-      // Wait a moment for the check to be processed
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Verification status
+      documentDataMatch:
+        results.documentData?.documentDataMatch ||
+        results.combined?.documentDataMatch,
 
-      // Extract the document data
-      const extractResponse = await onfidoService.extractDocumentData(
-        checkResponse.data.id
+      // Additional metadata
+      isMockData: results.documentData?.isMockData || useMockScanner, // Flag to indicate if this is mock data
+
+      // Raw BlinkID data for reference
+      rawBlinkIDData: results,
+    };
+
+    console.log("Transformed data for ConfirmInfo:", transformedData);
+    console.log("Image data available:", {
+      faceImage: !!transformedData.faceImage,
+      documentImage: !!transformedData.documentImage,
+      signatureImage: !!transformedData.signatureImage,
+    });
+
+    // Call the completion handler with transformed data
+    if (onComplete) {
+      onComplete(transformedData);
+    }
+  };
+
+  const handleScanError = (error) => {
+    console.error("BlinkID scan error:", error);
+    setError(error.message || "Failed to scan ID document");
+
+    // If the error is license-related, suggest using mock scanner
+    if (error.message && error.message.includes("licence is invalid")) {
+      setError(
+        "BlinkID license key is invalid. You can use the mock scanner below to test the functionality."
       );
-
-      if (!extractResponse.success) {
-        throw new Error(
-          extractResponse.error || "Failed to extract document data"
-        );
-      }
-
-      setExtractedData(extractResponse.data.extractedData);
-      setScanComplete(true);
-    } catch (err) {
-      console.error("Error handling Onfido completion:", err);
-      setError(err.message || "Failed to process ID verification");
     }
   };
 
-  // Start the Onfido scanning process
-  const startScan = async () => {
-    if (!sdkToken || !window.Onfido) {
-      setError("SDK not ready. Please try again in a moment.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      // Clean up any existing instance
-      if (onfidoInstanceRef.current) {
-        onfidoInstanceRef.current.tearDown();
-      }
-
-      console.log("Initializing Onfido SDK...");
-      onfidoInstanceRef.current = window.Onfido.init({
-        token: sdkToken,
-        containerId: "onfido-mount",
-        onComplete: handleOnfidoComplete,
-        useModal: false,
-        useMemoryHistory: true,
-        customUI: {
-          fontFamilyTitle: "'Inter', sans-serif",
-          fontFamilyBody: "'Inter', sans-serif",
-          colorBackgroundSurfaceModal: "#ffffff",
-          colorBorderDocumentCapture: "#4f46e5",
-          colorBackgroundDocumentCapturePressed: "#4338ca",
-          colorBorderDocumentCaptureError: "#ef4444",
-        },
-        steps: [
-          {
-            type: "document",
-            options: {
-              documentTypes: {
-                driving_licence: {
-                  country: "USA",
-                },
-                passport: true,
-                national_identity_card: true,
-                residence_permit: true,
-              },
-              hideCountrySelection: true,
-              forceCrossDevice: false,
-              useLiveDocumentCapture: true,
-              showCameraSelection: true,
-            },
-          },
-        ],
-      });
-
-      console.log("Onfido SDK initialized successfully");
-      setLoading(false);
-    } catch (err) {
-      console.error("Error manually initializing Onfido:", err);
-      setError(err.message || "Failed to initialize ID verification");
-      setLoading(false);
-    }
+  const handleProgress = (progress) => {
+    console.log("BlinkID progress:", progress);
   };
 
-  // Initialize Onfido when component mounts
-  useEffect(() => {
-    const initOnfido = async () => {
-      try {
-        setLoading(true);
-
-        // Step 1: Load Onfido SDK script if not already loaded
-        if (!window.Onfido) {
-          console.log("Loading Onfido SDK script...");
-          await new Promise((resolve, reject) => {
-            const script = document.createElement("script");
-            script.src =
-              "https://assets.onfido.com/web-sdk-releases/17.4.0/onfido.min.js";
-            script.async = true;
-            script.onload = () => {
-              console.log("Onfido SDK script loaded successfully");
-              setScriptLoaded(true);
-              resolve();
-            };
-            script.onerror = (err) => {
-              console.error("Failed to load Onfido SDK:", err);
-              reject(new Error("Failed to load Onfido SDK"));
-            };
-            document.body.appendChild(script);
-          });
-        } else {
-          setScriptLoaded(true);
-        }
-
-        // Step 2: Create an applicant
-        console.log("Creating Onfido applicant...");
-        const applicantResponse = await onfidoService.createApplicant(
-          "Test",
-          "User",
-          "test@example.com"
-        );
-
-        if (!applicantResponse.success) {
-          throw new Error(
-            applicantResponse.error || "Failed to create applicant"
-          );
-        }
-
-        const newApplicantId = applicantResponse.data.id;
-        console.log("Applicant created:", newApplicantId);
-        setApplicantId(newApplicantId);
-
-        // Step 3: Generate SDK token
-        console.log("Generating SDK token...");
-        const tokenResponse = await onfidoService.generateSdkToken(
-          newApplicantId
-        );
-
-        if (!tokenResponse.success) {
-          throw new Error(
-            tokenResponse.error || "Failed to generate SDK token"
-          );
-        }
-
-        console.log("SDK token generated successfully");
-        setSdkToken(tokenResponse.data.token);
-
-        // Step 4: Initialize Onfido SDK immediately
-        if (!window.Onfido) {
-          throw new Error("Onfido SDK not available");
-        }
-
-        try {
-          console.log("Auto-initializing Onfido SDK...");
-          if (onfidoInstanceRef.current) {
-            onfidoInstanceRef.current.tearDown();
-          }
-
-          onfidoInstanceRef.current = window.Onfido.init({
-            token: tokenResponse.data.token,
-            containerId: "onfido-mount",
-            onComplete: handleOnfidoComplete,
-            useModal: false,
-            useMemoryHistory: true,
-            customUI: {
-              fontFamilyTitle: "'Inter', sans-serif",
-              fontFamilyBody: "'Inter', sans-serif",
-              colorBackgroundSurfaceModal: "#ffffff",
-              colorBorderDocumentCapture: "#4f46e5",
-              colorBackgroundDocumentCapturePressed: "#4338ca",
-              colorBorderDocumentCaptureError: "#ef4444",
-            },
-            steps: [
-              {
-                type: "document",
-                options: {
-                  documentTypes: {
-                    driving_licence: {
-                      country: "USA",
-                    },
-                    passport: true,
-                    national_identity_card: true,
-                    residence_permit: true,
-                  },
-                  hideCountrySelection: true,
-                  forceCrossDevice: false,
-                  useLiveDocumentCapture: true,
-                  showCameraSelection: true,
-                },
-              },
-            ],
-          });
-
-          console.log("Onfido SDK auto-initialized successfully");
-        } catch (initError) {
-          console.error(
-            "Auto-initialization failed, will require manual init:",
-            initError
-          );
-          setManualInitRequired(true);
-        }
-
-        setLoading(false);
-      } catch (err) {
-        console.error("Error initializing Onfido:", err);
-        setError(err.message || "Failed to initialize ID verification");
-        setManualInitRequired(true);
-        setLoading(false);
-      }
-    };
-
-    initOnfido();
-
-    // Clean up on unmount
-    return () => {
-      if (onfidoInstanceRef.current) {
-        try {
-          console.log("Tearing down Onfido instance");
-          onfidoInstanceRef.current.tearDown();
-          onfidoInstanceRef.current = null;
-        } catch (err) {
-          console.error("Error tearing down Onfido:", err);
-        }
-      }
-    };
-  }, []);
-
-  // When the user clicks Verify, pass the extracted data to the parent component
-  const handleVerify = () => {
-    if (extractedData && scanComplete) {
-      // Format the data to match the expected structure
-      const formattedData = {
-        documentNumber: extractedData.documentNumber || "",
-        issuingState: extractedData.issuingCountry || "",
-        surname: extractedData.lastName || "",
-        givenName: extractedData.firstName || "",
-        sex: "",
-        nationality: extractedData.nationality || "",
-        birthDate: extractedData.dateOfBirth || "",
-        expiryDate: extractedData.expirationDate || "",
-      };
-
-      onComplete(formattedData);
-    } else {
-      // If no data extracted, use fallback
-      handleManualVerify();
-    }
-  };
-
-  // Fallback to simulated data if extraction fails
-  const handleManualVerify = () => {
-    // Use the same simulated data as before
-    const simulatedData = {
-      documentNumber: "12888817",
-      issuingState: "Texas",
-      surname: "Nico",
-      givenName: "Vanny",
-      sex: "Male",
-      nationality: "N/A",
-      birthDate: "20 November 1999",
-      expiryDate: "20 December 2022",
-    };
-
-    onComplete(simulatedData);
-  };
-
-  // Handle retry
   const handleRetry = () => {
-    window.location.reload();
+    setError(null);
+    setScanResults(null);
+    setUseMockScanner(false);
+  };
+
+  const handleUseMockScanner = () => {
+    setUseMockScanner(true);
+    setError(null);
   };
 
   return (
-    <Box
-      sx={{
-        backgroundColor: "white",
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      {/* Back button - always visible */}
-      <IconButton
-        onClick={onBack}
-        sx={{
-          position: "absolute",
-          top: 16,
-          left: 16,
-          color: "#000",
-          zIndex: 1000,
-        }}
-      >
-        <ArrowBackIcon />
-      </IconButton>
-
-      {/* Error message if present */}
-      {error && (
-        <Alert
-          severity="error"
-          sx={{
-            position: "absolute",
-            top: 16,
-            right: 16,
-            zIndex: 1000,
-            maxWidth: "400px",
-          }}
-        >
-          {error}
-          <Button size="small" onClick={handleRetry} sx={{ ml: 2 }}>
-            Retry
-          </Button>
-        </Alert>
-      )}
-
-      {/* Manual scan button for cases when auto-init fails */}
-      {manualInitRequired && !loading && !scanComplete && (
-        <Box
-          sx={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            zIndex: 950,
-            backgroundColor: "rgba(0,0,0,0.8)",
-            p: 4,
-            borderRadius: 2,
-            maxWidth: "400px",
-            textAlign: "center",
-          }}
-        >
-          <Typography variant="h6" sx={{ color: "white", mb: 2 }}>
-            Camera not starting automatically
-          </Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            size="large"
-            onClick={startScan}
-            sx={{ py: 1.5, px: 4 }}
-          >
-            Start Scan
-          </Button>
-        </Box>
-      )}
-
-      {/* Status overlay during loading */}
-      {loading && (
-        <Box
-          sx={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            alignItems: "center",
-            backgroundColor: "rgba(0,0,0,0.7)",
-            zIndex: 900,
-            color: "white",
-          }}
-        >
-          <CircularProgress color="inherit" sx={{ mb: 2 }} />
-          <Typography variant="h6">
-            {!scriptLoaded
-              ? "Loading ID verification..."
-              : "Starting camera..."}
+    <Box sx={{ minHeight: "100vh", backgroundColor: "#f5f5f5", py: 3 }}>
+      <Box sx={{ maxWidth: 800, mx: "auto", px: 2 }}>
+        {/* Header */}
+        <Box sx={{ mb: 3, display: "flex", alignItems: "center" }}>
+          <IconButton onClick={onBack} sx={{ mr: 2 }}>
+            <ArrowBackIcon />
+          </IconButton>
+          <Typography variant="h4" component="h1">
+            Scan Your ID
           </Typography>
         </Box>
-      )}
 
-      {/* Onfido mount container - always present */}
-      <div
-        id="onfido-mount"
-        style={{
-          width: "100%",
-          height: "100vh",
-          position: "relative",
-          backgroundColor: "#f8fafc",
-        }}
-      />
+        {/* Instructions */}
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="body1" paragraph>
+            Please scan your government-issued ID document to verify your
+            identity. We support driver's licenses, passports, and national ID
+            cards.
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            Your document will be processed securely and the data will be used
+            only for verification purposes.
+          </Typography>
+        </Paper>
 
-      {/* Success overlay after scanning */}
-      {scanComplete && extractedData && (
-        <Box
-          sx={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            alignItems: "center",
-            backgroundColor: "rgba(0,0,0,0.8)",
-            zIndex: 950,
-            p: 3,
-          }}
-        >
-          <Paper elevation={4} sx={{ p: 4, maxWidth: "600px", width: "100%" }}>
-            <Typography
-              variant="h5"
-              gutterBottom
-              align="center"
-              sx={{ color: "green", mb: 3 }}
-            >
-              ID Scan Complete
+        {/* Error Display */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+            {error}
+            <Box sx={{ mt: 2, display: "flex", gap: 1 }}>
+              <Button size="small" onClick={handleRetry}>
+                Try Again
+              </Button>
+              {error.includes("licence is invalid") && (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={handleUseMockScanner}
+                >
+                  Use Mock Scanner
+                </Button>
+              )}
+            </Box>
+          </Alert>
+        )}
+
+        {/* License Key Warning */}
+        {BLINKID_LICENSE_KEY === "YOUR_LICENSE_KEY_HERE" && (
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            <Typography variant="body2">
+              BlinkID license key is not configured. Please set
+              REACT_APP_BLINKID_LICENSE_KEY environment variable.
+            </Typography>
+            <Button size="small" onClick={handleUseMockScanner} sx={{ mt: 1 }}>
+              Use Mock Scanner for Testing
+            </Button>
+          </Alert>
+        )}
+
+        {/* Scanner Toggle */}
+        {!scanResults && (
+          <Paper sx={{ p: 2, mb: 3, backgroundColor: "#e3f2fd" }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Scanner Options:
+            </Typography>
+            <Box sx={{ display: "flex", gap: 2 }}>
+              <Button
+                variant={!useMockScanner ? "contained" : "outlined"}
+                size="small"
+                onClick={() => setUseMockScanner(false)}
+                disabled={BLINKID_LICENSE_KEY === "YOUR_LICENSE_KEY_HERE"}
+              >
+                Real BlinkID Scanner
+              </Button>
+              <Button
+                variant={useMockScanner ? "contained" : "outlined"}
+                size="small"
+                onClick={handleUseMockScanner}
+              >
+                Mock Scanner (Testing)
+              </Button>
+            </Box>
+          </Paper>
+        )}
+
+        {/* Scanner Component */}
+        <Paper sx={{ p: 3 }}>
+          {useMockScanner ? (
+            <MockBlinkIDStep
+              onComplete={handleScanComplete}
+              onError={handleScanError}
+              onBack={() => setUseMockScanner(false)}
+            />
+          ) : (
+            <BlinkIDStep
+              licenseKey={BLINKID_LICENSE_KEY}
+              documentType="single-side" // or "multi-side" for documents that require both sides
+              onComplete={handleScanComplete}
+              onError={handleScanError}
+              onProgress={handleProgress}
+            />
+          )}
+        </Paper>
+
+        {/* Results Display */}
+        {scanResults && (
+          <Paper sx={{ p: 3, mt: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Scan Results {scanResults.isMockData && "(Mock Data)"}
+            </Typography>
+            <Typography variant="body2" color="textSecondary" paragraph>
+              Your ID has been successfully scanned and verified.
+              {scanResults.isMockData &&
+                " Note: This is test data from the mock scanner."}
             </Typography>
 
-            <Grid container spacing={2}>
-              <Grid item xs={6}>
-                <Typography variant="subtitle2">First Name</Typography>
-                <Typography variant="body1">
-                  {extractedData?.firstName || "N/A"}
-                </Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography variant="subtitle2">Last Name</Typography>
-                <Typography variant="body1">
-                  {extractedData?.lastName || "N/A"}
-                </Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography variant="subtitle2">Date of Birth</Typography>
-                <Typography variant="body1">
-                  {extractedData?.dateOfBirth || "N/A"}
-                </Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography variant="subtitle2">Document Number</Typography>
-                <Typography variant="body1">
-                  {extractedData?.documentNumber || "N/A"}
-                </Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography variant="subtitle2">Nationality</Typography>
-                <Typography variant="body1">
-                  {extractedData?.nationality || "N/A"}
-                </Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography variant="subtitle2">Issuing Country</Typography>
-                <Typography variant="body1">
-                  {extractedData?.issuingCountry || "N/A"}
-                </Typography>
-              </Grid>
-            </Grid>
-
-            <Box sx={{ mt: 4, display: "flex", justifyContent: "center" }}>
+            <Box sx={{ mt: 2, display: "flex", gap: 2 }}>
+              <Button variant="outlined" onClick={handleRetry}>
+                Scan Again
+              </Button>
               <Button
                 variant="contained"
-                color="primary"
-                size="large"
-                onClick={handleVerify}
-                sx={{ py: 1.5, px: 4 }}
+                onClick={() => onComplete && onComplete(scanResults)}
               >
                 Continue
               </Button>
             </Box>
           </Paper>
-        </Box>
-      )}
+        )}
+      </Box>
     </Box>
   );
 };
