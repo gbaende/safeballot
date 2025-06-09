@@ -429,7 +429,7 @@ const ElectionDashboard = () => {
 
       if (isFuture(startDate)) return "Scheduled";
       if (isFuture(endDate)) return "Live";
-      return "Completed";
+      return "Inactive";
     } catch (error) {
       console.error("Error determining election status:", error);
       return election.status || "Unknown";

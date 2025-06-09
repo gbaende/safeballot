@@ -2,21 +2,19 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
-  TextField,
   Button,
   CircularProgress,
   Alert,
   Paper,
-  Grid,
   Link,
-  InputAdornment,
   IconButton,
+  TextField,
 } from "@mui/material";
 import { useNavigate, useLocation } from "react-router-dom";
 import api from "../../services/api";
 import { useDispatch } from "react-redux";
 import { loginSuccess } from "../../store/authSlice";
-import RefreshIcon from "@mui/icons-material/Refresh";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 /**
  * OTP Entry component for 4-digit verification code
@@ -31,21 +29,22 @@ const OtpEntry = () => {
   const userId = location.state?.userId || queryParams.get("uid");
   const userEmail = location.state?.email || queryParams.get("email");
   const redirectUrl = location.state?.redirectUrl || "/voter/dashboard";
+  const isVoterLogin = location.state?.isVoterLogin || false;
 
-  const [otp, setOtp] = useState("");
+  const [otp, setOtp] = useState(["", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [timeLeft, setTimeLeft] = useState(5 * 60); // Default to 5 minutes
   const [resendLoading, setResendLoading] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
 
-  const inputRef = useRef(null);
+  const inputRefs = useRef([]);
   const timerRef = useRef(null);
 
-  // Focus input on mount
+  // Focus first input on mount
   useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
+    if (inputRefs.current[0]) {
+      inputRefs.current[0].focus();
     }
   }, []);
 
@@ -80,17 +79,53 @@ const OtpEntry = () => {
   };
 
   // Handle OTP input change
-  const handleOtpChange = (e) => {
-    const value = e.target.value;
-    // Only allow digits and limit to 4 characters
-    if (/^\d*$/.test(value) && value.length <= 4) {
-      setOtp(value);
+  const handleOtpChange = (index, value) => {
+    // Only allow single digit
+    if (value.length > 1) return;
+
+    // Only allow digits
+    if (!/^\d*$/.test(value)) return;
+
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+
+    // Auto-focus next input
+    if (value && index < 3) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  // Handle backspace
+  const handleKeyDown = (index, e) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  // Handle paste
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text");
+    const digits = pastedData.replace(/\D/g, "").slice(0, 4);
+
+    if (digits.length > 0) {
+      const newOtp = ["", "", "", ""];
+      for (let i = 0; i < digits.length; i++) {
+        newOtp[i] = digits[i];
+      }
+      setOtp(newOtp);
+
+      // Focus the next empty input or the last one
+      const nextIndex = Math.min(digits.length, 3);
+      inputRefs.current[nextIndex]?.focus();
     }
   };
 
   // Handle OTP verification
   const handleVerify = async () => {
-    if (otp.length !== 4) {
+    const otpString = otp.join("");
+    if (otpString.length !== 4) {
       setError("Please enter a 4-digit verification code");
       return;
     }
@@ -101,27 +136,57 @@ const OtpEntry = () => {
     try {
       const response = await api.post("/auth/verify-otp", {
         userId,
-        code: otp,
+        code: otpString,
       });
 
       if (response.data.success) {
         // Store user and token in Redux and localStorage
         const { token, user } = response.data;
 
-        localStorage.setItem("token", token);
-        localStorage.setItem("user", JSON.stringify(user));
+        // For voter login, store as voter token
+        if (isVoterLogin) {
+          localStorage.setItem("voterToken", token);
+          localStorage.setItem("voterUser", JSON.stringify(user));
 
-        dispatch(loginSuccess({ token, user }));
+          // Extract ballot info from redirect URL for voter login flow
+          if (redirectUrl && redirectUrl.includes("/")) {
+            const urlParts = redirectUrl.split("/");
+            const ballotId = urlParts[2];
+            const ballotSlug = urlParts[3];
 
-        // Redirect to appropriate page based on redirectUrl or user role
-        if (redirectUrl) {
+            if (ballotId && ballotSlug) {
+              // Navigate to voter ID verification step for voter login flow
+              navigate("/verify-voter-id", {
+                state: {
+                  ballotId,
+                  ballotSlug,
+                  userEmail: user.email,
+                  redirectUrl: `/scan-id/${ballotId}/${ballotSlug}`,
+                },
+              });
+              return;
+            }
+          }
+
+          // Fallback to redirect URL if ballot info not found
           navigate(redirectUrl);
-        } else if (user.role === "admin") {
-          navigate("/admin/dashboard");
-        } else if (user.role === "voter") {
-          navigate("/voter/dashboard");
         } else {
-          navigate("/dashboard");
+          // Regular admin login flow
+          localStorage.setItem("token", token);
+          localStorage.setItem("user", JSON.stringify(user));
+
+          dispatch(loginSuccess({ token, user }));
+
+          // Redirect to appropriate page based on redirectUrl or user role
+          if (redirectUrl) {
+            navigate(redirectUrl);
+          } else if (user.role === "admin") {
+            navigate("/admin/dashboard");
+          } else if (user.role === "voter") {
+            navigate("/voter/dashboard");
+          } else {
+            navigate("/dashboard");
+          }
         }
       }
     } catch (err) {
@@ -177,131 +242,188 @@ const OtpEntry = () => {
     }
   };
 
-  // Handle key press (Enter)
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter" && otp.length === 4) {
-      handleVerify();
-    }
-  };
-
   return (
-    <Grid container justifyContent="center" sx={{ mt: 8 }}>
-      <Grid item xs={12} sm={8} md={6} lg={4}>
-        <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
-          <Typography variant="h5" component="h1" align="center" gutterBottom>
-            Verification Required
-          </Typography>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        background: "linear-gradient(to right, #1e293b, #3b5998)",
+        padding: 2,
+      }}
+    >
+      <Paper
+        elevation={0}
+        sx={{
+          width: "100%",
+          maxWidth: "480px",
+          minHeight: "500px",
+          borderRadius: 3,
+          p: 4,
+          textAlign: "center",
+          position: "relative",
+          backgroundColor: "#ffffff",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+        }}
+      >
+        {/* Back button */}
+        <IconButton
+          onClick={() => navigate(-1)}
+          sx={{
+            position: "absolute",
+            top: 16,
+            left: 16,
+            color: "#6b7280",
+          }}
+        >
+          <ArrowBackIcon />
+        </IconButton>
 
-          <Typography
-            variant="body1"
-            align="center"
-            gutterBottom
-            sx={{ mb: 3 }}
-          >
-            We've sent a 4-digit code to{" "}
-            <strong>{userEmail || "your email"}</strong>
-          </Typography>
+        {/* Title */}
+        <Typography
+          variant="h5"
+          sx={{
+            fontWeight: 600,
+            mb: 3,
+            color: "#1f2937",
+          }}
+        >
+          Confirm OTP
+        </Typography>
 
-          {timeLeft > 0 && (
-            <Alert severity="info" sx={{ mb: 3 }}>
-              Code expires in {formatTime(timeLeft)}
-            </Alert>
-          )}
+        {/* Subtitle */}
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{
+            mb: 4,
+            lineHeight: 1.5,
+          }}
+        >
+          We sent 4-digit code to {userEmail || "email@email.com"}
+        </Typography>
 
-          {timeLeft === 0 && (
-            <Alert severity="warning" sx={{ mb: 3 }}>
-              Your verification code has expired. Please request a new one.
-            </Alert>
-          )}
+        {/* Error Alert */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 3 }}>
-              {error}
-            </Alert>
-          )}
+        {/* Success Alert */}
+        {resendSuccess && (
+          <Alert severity="success" sx={{ mb: 3 }}>
+            Verification code resent successfully!
+          </Alert>
+        )}
 
-          {resendSuccess && (
-            <Alert severity="success" sx={{ mb: 3 }}>
-              Verification code resent successfully!
-            </Alert>
-          )}
-
-          <Box sx={{ mb: 3 }}>
+        {/* OTP Input Boxes */}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            gap: 2,
+            mb: 4,
+          }}
+        >
+          {otp.map((digit, index) => (
             <TextField
-              inputRef={inputRef}
-              fullWidth
-              label="4-Digit Code"
-              value={otp}
-              onChange={handleOtpChange}
-              onKeyDown={handleKeyPress}
+              key={index}
+              inputRef={(el) => (inputRefs.current[index] = el)}
+              value={digit}
+              onChange={(e) => handleOtpChange(index, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(index, e)}
+              onPaste={handlePaste}
               inputProps={{
-                maxLength: 4,
+                maxLength: 1,
                 inputMode: "numeric",
                 pattern: "[0-9]*",
                 style: {
-                  fontSize: "1.5rem",
-                  letterSpacing: "0.5rem",
                   textAlign: "center",
+                  fontSize: "1.5rem",
+                  fontWeight: 500,
+                },
+              }}
+              sx={{
+                width: 60,
+                height: 60,
+                "& .MuiOutlinedInput-root": {
+                  height: "100%",
+                  borderRadius: 2,
+                  backgroundColor: "#f8fafc",
+                  "& fieldset": {
+                    borderColor: "#e2e8f0",
+                  },
+                  "&:hover fieldset": {
+                    borderColor: "#cbd5e1",
+                  },
+                  "&.Mui-focused fieldset": {
+                    borderColor: "#3b5998",
+                    borderWidth: 2,
+                  },
                 },
               }}
               disabled={loading}
-              placeholder="0000"
-              variant="outlined"
-              InputProps={{
-                endAdornment: timeLeft === 0 && (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={handleResendOtp}
-                      disabled={resendLoading}
-                      edge="end"
-                      color="primary"
-                    >
-                      <RefreshIcon />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
             />
-          </Box>
+          ))}
+        </Box>
 
-          <Button
-            fullWidth
-            variant="contained"
-            color="primary"
-            size="large"
-            onClick={handleVerify}
-            disabled={otp.length !== 4 || loading || timeLeft === 0}
-            sx={{ mb: 2 }}
-          >
-            {loading ? <CircularProgress size={24} /> : "Verify"}
-          </Button>
+        {/* Didn't get code section */}
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Didn't get code?
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {timeLeft > 0 ? formatTime(timeLeft) : "0:00"}{" "}
+            <Link
+              component="button"
+              variant="body2"
+              onClick={handleResendOtp}
+              disabled={resendLoading || timeLeft > 4 * 60}
+              sx={{
+                color: "#3b5998",
+                textDecoration: "none",
+                "&:hover": {
+                  textDecoration: "underline",
+                },
+              }}
+            >
+              {resendLoading ? "Sending..." : "Resend"}
+            </Link>
+          </Typography>
+        </Box>
 
-          <Box sx={{ textAlign: "center", mt: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-              Didn't receive the code?{" "}
-              <Link
-                component="button"
-                variant="body2"
-                onClick={handleResendOtp}
-                disabled={resendLoading || timeLeft > 4 * 60} // Allow resend after 1 minute
-              >
-                {resendLoading ? "Sending..." : "Resend"}
-              </Link>
-            </Typography>
-
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              <Link
-                component="button"
-                variant="body2"
-                onClick={() => navigate("/login")}
-              >
-                Back to Login
-              </Link>
-            </Typography>
-          </Box>
-        </Paper>
-      </Grid>
-    </Grid>
+        {/* Confirm Button */}
+        <Button
+          fullWidth
+          variant="contained"
+          size="large"
+          onClick={handleVerify}
+          disabled={otp.join("").length !== 4 || loading || timeLeft === 0}
+          sx={{
+            py: 1.5,
+            backgroundColor: "#9ca3af",
+            color: "white",
+            borderRadius: 2,
+            textTransform: "none",
+            fontSize: "1rem",
+            fontWeight: 500,
+            "&:hover": {
+              backgroundColor: "#6b7280",
+            },
+            "&:disabled": {
+              backgroundColor: "#d1d5db",
+              color: "#9ca3af",
+            },
+          }}
+        >
+          {loading ? <CircularProgress size={24} color="inherit" /> : "Confirm"}
+        </Button>
+      </Paper>
+    </Box>
   );
 };
 

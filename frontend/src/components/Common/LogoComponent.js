@@ -1,7 +1,7 @@
 import React from "react";
 import { Box } from "@mui/material";
 
-// SafeBallot logo - using external SVG file
+// SafeBallot logo - using the same logo file as all other components
 const LogoComponent = ({ width = 80, height = 80 }) => {
   return (
     <Box
@@ -14,7 +14,7 @@ const LogoComponent = ({ width = 80, height = 80 }) => {
       }}
     >
       <img
-        src="frontend/src/assets/images/logo.png"
+        src="/images/logo.svg"
         alt="SafeBallot Logo"
         style={{
           width: "100%",

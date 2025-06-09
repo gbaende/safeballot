@@ -14,6 +14,8 @@ const { connectDB } = require("./database/connection");
 const setupDatabase = require("./setup-db");
 // Import MongoDB connection
 const { connectDb } = require("./db/db");
+// Import email transporter
+const { getTransporter } = require("./utils/email");
 
 // Import routes
 const authRoutes = require("./routes/auth.routes");
@@ -113,6 +115,18 @@ const startServer = async () => {
           message: mongoErr.message,
         });
       }
+    }
+
+    // Initialize email transporter
+    try {
+      console.log("Initializing email transporter...");
+      await getTransporter();
+    } catch (emailErr) {
+      console.error(
+        "❌ Email transporter initialization failed:",
+        emailErr.message
+      );
+      console.log("📧 Email features may not work properly");
     }
 
     // Don't run setup every time

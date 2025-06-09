@@ -30,6 +30,12 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
+    "test:routes": "react-scripts test --testPathPattern=__tests__ --verbose",
+    "test:smoke": "react-scripts test --testPathPattern=RouteSmoke.test.js --verbose --watchAll=false",
+    "test:registration": "react-scripts test --testPathPattern=RegistrationFlowRouter.test.jsx --verbose --watchAll=false",
+    "test:login": "react-scripts test --testPathPattern=LoginFlowRouter.test.jsx --verbose --watchAll=false",
+    "test:qa": "node src/__tests__/TestRunner.js",
+    "test:coverage": "react-scripts test --coverage --testPathPattern=__tests__ --watchAll=false",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -51,6 +57,31 @@
     ]
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/react-hooks": "^8.0.1",
+    "@testing-library/user-event": "^14.5.2",
     "@types/uuid": "^10.0.0"
+  },
+  "jest": {
+    "collectCoverageFrom": [
+      "src/**/*.{js,jsx}",
+      "!src/**/*.test.{js,jsx}",
+      "!src/index.js",
+      "!src/reportWebVitals.js",
+      "!src/__tests__/**"
+    ],
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "html"
+    ],
+    "transformIgnorePatterns": [
+      "node_modules/(?!(axios)/)"
+    ],
+    "moduleNameMapper": {
+      "^axios$": "axios/dist/node/axios.cjs"
+    }
   }
 }

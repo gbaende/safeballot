@@ -17,9 +17,9 @@ import {
 } from "@mui/material";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import HomeIcon from "@mui/icons-material/Home";
-import BallotIcon from "@mui/icons-material/Ballot";
 import PeopleIcon from "@mui/icons-material/People";
 import LogoutIcon from "@mui/icons-material/Logout";
+import MyElectionsIcon from "../icons/MyElectionsIcon";
 
 const drawerWidth = 240;
 
@@ -160,7 +160,7 @@ const MainLayout = () => {
 
   const menuItems = [
     { text: "Home", path: "/", icon: <HomeIcon /> },
-    { text: "My Elections", path: "/my-elections", icon: <BallotIcon /> },
+    { text: "My Elections", path: "/my-elections", icon: <MyElectionsIcon /> },
     {
       text: "Ballot Builder",
       path: "/create-election",
@@ -238,11 +238,7 @@ const MainLayout = () => {
                 borderRadius: "8px",
                 mb: 0.5,
                 "&.Mui-selected": {
-                  backgroundColor: "#EBF8FF",
-                  color: "#3182CE",
-                  "& .MuiListItemIcon-root": {
-                    color: "#3182CE",
-                  },
+                  backgroundColor: "#E5EBF7",
                 },
                 "&:hover": {
                   backgroundColor: "#F7FAFC",
@@ -252,8 +248,7 @@ const MainLayout = () => {
               <ListItemIcon
                 sx={{
                   minWidth: 40,
-                  color:
-                    location.pathname === item.path ? "#3182CE" : "#718096",
+                  color: "#718096",
                 }}
               >
                 {item.icon}
@@ -334,7 +329,7 @@ const MainLayout = () => {
           flexGrow: 1,
           p: 3,
           width: { sm: `calc(100% - ${drawerWidth}px)` },
-          backgroundColor: "#F8F9FA",
+          backgroundColor: "#FFFFFF",
           minHeight: "100vh",
         }}
       >

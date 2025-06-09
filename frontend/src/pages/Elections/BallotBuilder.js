@@ -147,7 +147,11 @@ const BallotBuilder = () => {
 
   // Calculate the total price whenever voter count changes
   useEffect(() => {
-    const calculatedPrice = (voterCount * pricePerVoter).toFixed(2);
+    const validVoterCount =
+      typeof voterCount === "string"
+        ? parseInt(voterCount, 10) || 1
+        : voterCount || 1;
+    const calculatedPrice = (validVoterCount * pricePerVoter).toFixed(2);
     setTotalPrice(parseFloat(calculatedPrice));
   }, [voterCount, pricePerVoter]);
 
@@ -244,20 +248,45 @@ const BallotBuilder = () => {
   };
 
   const handleVoterCountChange = (e) => {
-    const value = parseInt(e.target.value, 10);
-    if (!isNaN(value) && value >= 0) {
+    const inputValue = e.target.value;
+
+    // Allow empty string for editing
+    if (inputValue === "") {
+      setVoterCount("");
+      return;
+    }
+
+    const value = parseInt(inputValue, 10);
+    if (!isNaN(value) && value >= 1) {
       setVoterCount(value);
     }
   };
 
   const decreaseVoterCount = () => {
-    if (voterCount > 1) {
-      setVoterCount(voterCount - 1);
-    }
+    setVoterCount((prevCount) => {
+      const currentCount =
+        typeof prevCount === "string"
+          ? parseInt(prevCount, 10) || 1
+          : prevCount;
+      return Math.max(1, currentCount - 1);
+    });
   };
 
   const increaseVoterCount = () => {
-    setVoterCount(voterCount + 1);
+    setVoterCount((prevCount) => {
+      const currentCount =
+        typeof prevCount === "string"
+          ? parseInt(prevCount, 10) || 1
+          : prevCount;
+      return currentCount + 1;
+    });
+  };
+
+  // Handle blur event to ensure valid value
+  const handleVoterCountBlur = () => {
+    if (typeof voterCount === "string" || voterCount < 1) {
+      setVoterCount(1);
+    }
   };
 
   // Add helper functions for date picker dialogs
@@ -1245,6 +1274,7 @@ const BallotBuilder = () => {
                     <TextField
                       value={voterCount}
                       onChange={handleVoterCountChange}
+                      onBlur={handleVoterCountBlur}
                       inputProps={{
                         min: 1,
                         style: {
@@ -1325,7 +1355,14 @@ const BallotBuilder = () => {
                       fontWeight={500}
                       sx={{ textAlign: "right", minWidth: "60px" }}
                     >
-                      ${(voterCount * pricePerVoter).toFixed(2)}
+                      $
+                      {(() => {
+                        const validVoterCount =
+                          typeof voterCount === "string"
+                            ? parseInt(voterCount, 10) || 1
+                            : voterCount || 1;
+                        return (validVoterCount * pricePerVoter).toFixed(2);
+                      })()}
                     </Typography>
                   </Box>
                 </Box>
@@ -1409,7 +1446,6 @@ const BallotBuilder = () => {
             elements,
             confirmParams: {
               return_url: window.location.origin + "/payment-success",
-              cancel_url: window.location.origin + "/checkout/cancel",
               payment_method_data: {
                 billing_details: {
                   name: cardholderName || "",

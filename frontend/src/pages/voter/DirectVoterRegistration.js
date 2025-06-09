@@ -185,7 +185,7 @@ const DirectVoterRegistration = () => {
       }
 
       // ---------- STEP 3: Navigate to pre-registration flow ----------
-      navigate(`/preregister/${id}/${slug}`);
+      navigate(`/verify-registration/${id}/${slug}`);
     } catch (error) {
       console.error("Registration failed:", error);
       setError("Network error: " + error.message);
@@ -195,7 +195,7 @@ const DirectVoterRegistration = () => {
   };
 
   const handleLoginClick = () => {
-    navigate(`/login?redirect=/preregister/${id}/${slug}`);
+    navigate(`/login?redirect=/verify-registration/${id}/${slug}`);
   };
 
   return (

@@ -1257,7 +1257,10 @@ export const ballotService = {
         // Store voter ID for this ballot
         localStorage.setItem(`voter_id_${ballotId}`, data.data.voter.id);
         console.log(
-          `Stored voter ID ${data.data.voter.id} for ballot ${ballotId}`
+          `🎯 [VOTER ID] Successfully created and stored voter ID: ${data.data.voter.id} for ballot ${ballotId}`
+        );
+        console.log(
+          `🎯 [VOTER ID] Voter details - Name: ${data.data.voter.name}, Email: ${data.data.voter.email}`
         );
 
         // If a token was provided, store it (for JWT-based authentication)
@@ -1289,6 +1292,11 @@ export const ballotService = {
         localStorage.setItem("email", voterData.email);
 
         return data.data;
+      } else {
+        // Log the error response for debugging
+        console.error("❌ [VOTER ID] Registration failed:", data);
+        console.error("❌ [VOTER ID] Response status:", response.status);
+        console.error("❌ [VOTER ID] Response data:", data);
       }
 
       return { error: data.message || "Registration failed" };
@@ -1313,6 +1321,57 @@ export const ballotService = {
         );
       }
 
+      throw error;
+    }
+  },
+
+  // Send voter ID email after successful registration
+  sendVoterIdEmail: async (ballotId, voterData) => {
+    try {
+      console.log(`Sending voter ID email for ballot ${ballotId}:`, {
+        name: voterData.name,
+        email: voterData.email
+          ? `${voterData.email.substring(0, 3)}...`
+          : "none",
+      });
+
+      const response = await fetch(
+        `${API_URL}/ballots/${ballotId}/send-voter-id`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            voterEmail: voterData.email,
+            voterName: voterData.name,
+          }),
+        }
+      );
+
+      const data = await response.json();
+      console.log("Send voter ID email response:", data);
+
+      if (response.ok) {
+        console.log("📧 [VOTER ID EMAIL] Successfully sent voter ID email");
+        if (data?.voterId) {
+          console.log("📧 [VOTER ID EMAIL] Voter ID in email:", data.voterId);
+        }
+        if (data?.data?.voterId) {
+          console.log(
+            "📧 [VOTER ID EMAIL] Voter ID in email data:",
+            data.data.voterId
+          );
+        }
+        return data;
+      } else {
+        console.error("❌ [VOTER ID EMAIL] Failed to send email:", data);
+        console.error("❌ [VOTER ID EMAIL] Response status:", response.status);
+      }
+
+      return { error: data.message || "Failed to send voter ID email" };
+    } catch (error) {
+      console.error("Error sending voter ID email:", error);
       throw error;
     }
   },

@@ -33,8 +33,33 @@ const BlinkIDStep = ({
   documentType = "single-side", // 'single-side' or 'multi-side'
   allowedDocuments = null, // array of allowed document types
   onProgress = null,
+  onBack,
 }) => {
-  const [isLoading, setIsLoading] = useState(false);
+  // Helper function to safely extract string values from BlinkID complex objects
+  const extractStringValue = (value) => {
+    if (!value) return "";
+
+    // If it's already a string, return it
+    if (typeof value === "string") return value;
+
+    // If it's an object with different script properties, try to extract a string value
+    if (typeof value === "object") {
+      // Try common BlinkID properties in order of preference
+      return (
+        value.latin ||
+        value.originalString ||
+        value.originalDateString ||
+        value.value ||
+        value.toString?.() ||
+        ""
+      );
+    }
+
+    // Convert other types to string
+    return String(value || "");
+  };
+
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sdkLoaded, setSdkLoaded] = useState(false);
   const [scanningActive, setScanningActive] = useState(false);
@@ -243,22 +268,22 @@ const BlinkIDStep = ({
         documentType: result.classInfo?.documentType || "unknown",
         country: result.classInfo?.country || "unknown",
         region: result.classInfo?.region || "unknown",
-        firstName: result.firstName?.value || "",
-        lastName: result.lastName?.value || "",
-        fullName: result.fullName?.value || "",
-        dateOfBirth: result.dateOfBirth?.value || "",
-        documentNumber: result.documentNumber?.value || "",
-        address: result.address?.value || "",
-        dateOfExpiry: result.dateOfExpiry?.value || "",
-        dateOfIssue: result.dateOfIssue?.value || "",
-        sex: result.sex?.value || "",
-        nationality: result.nationality?.value || "",
+        firstName: extractStringValue(result.firstName),
+        lastName: extractStringValue(result.lastName),
+        fullName: extractStringValue(result.fullName),
+        dateOfBirth: extractStringValue(result.dateOfBirth),
+        documentNumber: extractStringValue(result.documentNumber),
+        address: extractStringValue(result.address),
+        dateOfExpiry: extractStringValue(result.dateOfExpiry),
+        dateOfIssue: extractStringValue(result.dateOfIssue),
+        sex: extractStringValue(result.sex),
+        nationality: extractStringValue(result.nationality),
         // Images
         faceImage: result.faceImage || null,
         fullDocumentImage: result.fullDocumentImage || null,
         signatureImage: result.signatureImage || null,
         // Additional fields
-        personalIdNumber: result.personalIdNumber?.value || "",
+        personalIdNumber: extractStringValue(result.personalIdNumber),
         drivingLicenceDetailedInfo: result.drivingLicenceDetailedInfo || null,
         // Verification status
         documentDataMatch: result.documentDataMatch || null,

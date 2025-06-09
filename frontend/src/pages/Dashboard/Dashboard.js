@@ -4,6 +4,13 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import {
+  format,
+  isValid,
+  formatDistanceToNow,
+  isFuture,
+  isPast,
+} from "date-fns";
+import {
   Box,
   Typography,
   Button,
@@ -60,12 +67,40 @@ const Dashboard = () => {
   }, [getUserDisplayName]);
 
   // Fetch the same elections/ballots as MyElections.js
-  const { elections, loading, error } = useFetchBallots();
+  const { elections: allElections, loading, error } = useFetchBallots();
 
-  // Derive the first active/live election
-  const activeElection = elections.find(
-    (e) => e.status === "active" || e.status === "live"
-  );
+  // Get top 5 elections by total voters (largest first)
+  const elections = React.useMemo(() => {
+    if (!allElections || allElections.length === 0) return [];
+
+    return allElections
+      .map((election) => {
+        // Ensure we have the voter count data processed
+        const totalVoters =
+          election.totalVoters ||
+          election.total_voters ||
+          election.voterCount ||
+          election.maxVoters ||
+          0;
+        return {
+          ...election,
+          totalVoters,
+          total_voters: totalVoters,
+        };
+      })
+      .sort((a, b) => {
+        const aVoters = a.totalVoters || a.total_voters || 0;
+        const bVoters = b.totalVoters || b.total_voters || 0;
+        return bVoters - aVoters; // Sort by largest first
+      })
+      .slice(0, 5); // Take only top 5
+  }, [allElections]);
+
+  // Get the largest election (first in the sorted list) as the active election
+  const activeElection = React.useMemo(() => {
+    if (!elections || elections.length === 0) return null;
+    return elections[0]; // The largest election by voters
+  }, [elections]);
 
   // Helper: format remaining time for active election
   const formatTimeRemaining = (election) => {
@@ -86,24 +121,6 @@ const Dashboard = () => {
       .padStart(2, "0")}s`;
   };
 
-  // Helper: normalize status values
-  const formatStatus = (status) => {
-    if (!status) return "Draft";
-    switch (status.toLowerCase()) {
-      case "active":
-      case "live":
-        return "Live";
-      case "completed":
-        return "Completed";
-      case "scheduled":
-        return "Registration";
-      case "draft":
-        return "Draft";
-      default:
-        return status;
-    }
-  };
-
   // Helper: human-readable date
   const formatDateDisplay = (dateString) => {
     if (!dateString) return "Date unavailable";
@@ -112,45 +129,175 @@ const Dashboard = () => {
     return d.toLocaleDateString();
   };
 
-  // Helper: detailed time info for table rows
-  const formatTimeInfo = (e) => {
-    const start = e._startDate || e.startDate || e.start_date;
-    const end = e._endDate || e.endDate || e.end_date;
-    if (!start || !end) return "Date information not available";
+  // Helper functions matching MyElections.js exactly
+  const formatTimeInfo = (election) => {
+    if (!election) return "Date information not available";
+
+    const start =
+      election._startDate || election.startDate || election.start_date;
+    const end = election._endDate || election.endDate || election.end_date;
+
+    if (!start || !end) {
+      return "Date information not available";
+    }
+
+    try {
+      const now = new Date();
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+
+      // Check if dates are valid
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return "Invalid date format";
+      }
+
+      const currentTime = now.getTime();
+      const startTime = startDate.getTime();
+      const endTime = endDate.getTime();
+
+      if (currentTime < startTime) {
+        // Election hasn't started yet
+        return `Election starts ${startDate.toLocaleString()}`;
+      } else if (currentTime >= startTime && currentTime <= endTime) {
+        // Election is currently active
+        const timeLeft = endTime - currentTime;
+        const hoursLeft = Math.floor(timeLeft / (1000 * 60 * 60));
+        const minutesLeft = Math.floor(
+          (timeLeft % (1000 * 60 * 60)) / (1000 * 60)
+        );
+        const secondsLeft = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+        if (hoursLeft > 0) {
+          return `${hoursLeft}:${minutesLeft
+            .toString()
+            .padStart(2, "0")}:${secondsLeft
+            .toString()
+            .padStart(2, "0")}s remaining`;
+        } else if (minutesLeft > 0) {
+          return `${minutesLeft}:${secondsLeft
+            .toString()
+            .padStart(2, "0")}s remaining`;
+        } else {
+          return `${secondsLeft}s remaining`;
+        }
+      } else {
+        // Election has ended
+        return "Completed";
+      }
+    } catch (error) {
+      console.error("Error parsing dates:", error);
+      return "Date parsing error";
+    }
+  };
+
+  // Helper function to determine status - EXACT copy from MyElections.js
+  const getStatus = (election) => {
+    try {
+      // Get date values (try both camelCase and snake_case properties)
+      const startDateValue = election.startDate || election.start_date;
+      const endDateValue = election.endDate || election.end_date;
+
+      if (!startDateValue || !endDateValue) {
+        return election.status || "Draft";
+      }
+
+      const now = new Date();
+      const startDate = new Date(startDateValue);
+      const endDate = new Date(endDateValue);
+
+      // Check if dates are valid
+      if (!isValid(startDate) || !isValid(endDate)) {
+        return election.status || "Draft";
+      }
+
+      if (election.status === "draft") return "Draft";
+      if (isFuture(startDate)) return "Registration";
+      if (isFuture(endDate)) return "Live";
+      return "Inactive";
+    } catch (error) {
+      console.error("Error determining status:", error);
+      return election.status || "Draft";
+    }
+  };
+
+  // Function to get the maximum voter count set by admin - EXACT copy from MyElections.js
+  const getMaxVoterCount = (election) => {
+    // Add an immediate console log to confirm this function is called
+    console.log(
+      "DASHBOARD: getMaxVoterCount CALLED for election:",
+      election.id,
+      election.title
+    );
+
+    // FORCE CRITICAL PREPROCESSING - this ensures data is consistent
+    if (!election.allowedVoters || election.allowedVoters <= 0) {
+      const sourceValue =
+        election.voterCount ||
+        election.maxVoters ||
+        election.totalVoters ||
+        election.total_voters ||
+        10;
+      console.log(
+        `DASHBOARD: Adding missing allowedVoters=${sourceValue} for election ${election.id}`
+      );
+      election.allowedVoters = sourceValue;
+      election.voterCount = sourceValue;
+      election.maxVoters = sourceValue;
+    }
+
+    // Log all the relevant fields for debugging
+    const fields = {
+      allowedVoters: election.allowedVoters,
+      voterCount: election.voterCount,
+      maxVoters: election.maxVoters,
+      totalVoters: election.totalVoters,
+      total_voters: election.total_voters,
+    };
+
+    console.log(
+      `DASHBOARD: Voter count fields for "${election.title}" (${election.id}):`,
+      fields
+    );
+
+    // Return the exact same allowedVoters value we've standardized
+    return election.allowedVoters;
+  };
+
+  // Update the percentage calculation for the progress bar - EXACT copy from MyElections.js
+  const percentage = (election) => {
+    // Get the ballots received (actual votes cast)
+    const received = election.ballots_received || election.ballotsReceived || 0;
+
+    // Get the admin-set maximum voter count (NOT the count of registered voters)
+    const total = getMaxVoterCount(election);
+
+    // Prevent division by zero
+    if (total <= 0) return 0;
+
+    // Calculate percentage with a cap at 100%
+    return Math.min(Math.round((received / total) * 100), 100);
+  };
+
+  // Helper function to determine the status message for inactive elections
+  const getStatusMessage = (election) => {
+    if (getStatus(election) === "Live") {
+      return formatTimeRemaining(election);
+    }
+
+    // For inactive elections, check if it's not started yet or completed
+    const startString =
+      election._startDate || election.startDate || election.start_date;
+    if (!startString) return "Completed";
+
+    const startDate = new Date(startString);
+    if (isNaN(startDate.getTime())) return "Completed";
+
     const now = new Date();
-    const sd = new Date(start);
-    const ed = new Date(end);
-    if (sd > now) {
-      return `Election starts ${sd.toLocaleString()}`;
-    } else if (ed > now) {
-      const diff = ed - now;
-      const hrs = Math.floor(diff / (1000 * 60 * 60));
-      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const secs = Math.floor((diff % (1000 * 60)) / 1000);
-      return `${hrs}:${mins.toString().padStart(2, "0")}:${secs
-        .toString()
-        .padStart(2, "0")}s remaining`;
+    if (startDate > now) {
+      return "Not Started";
     } else {
       return "Completed";
     }
-  };
-
-  // Helper: ensure allowedVoters is populated
-  const getMaxVoterCount = (e) => {
-    if (!e.allowedVoters || e.allowedVoters <= 0) {
-      const src =
-        e.voterCount || e.maxVoters || e.totalVoters || e.total_voters || 10;
-      e.allowedVoters = src;
-    }
-    return e.allowedVoters;
-  };
-
-  // Helper: calculate ballots-received percentage
-  const calculatePercentage = (e) => {
-    const received = e.ballots_received || e.ballotsReceived || 0;
-    const total = getMaxVoterCount(e);
-    if (total <= 0) return 0;
-    return Math.min(Math.round((received / total) * 100), 100);
   };
 
   return (
@@ -200,32 +347,54 @@ const Dashboard = () => {
             maxWidth: "40%",
           }}
         >
+          {/* 1) State of voting */}
           <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
             <Chip
-              label="Voting is live"
-              color="error"
+              label={
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Box
+                    sx={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      backgroundColor: "white",
+                    }}
+                  />
+                  {getStatus(activeElection) === "Live"
+                    ? "Voting is live"
+                    : "Inactive"}
+                </Box>
+              }
               size="small"
               sx={{
-                background: "linear-gradient(to right, #BA0000, #982323)",
+                background:
+                  getStatus(activeElection) === "Live"
+                    ? "linear-gradient(to right, #BA0000, #982323)"
+                    : "linear-gradient(to right, #9E9E9E, #757575)",
                 color: "white",
                 fontWeight: 500,
               }}
             />
           </Box>
 
+          {/* 2) Time remaining or "Completed" */}
           <Box sx={{ display: "flex", alignItems: "baseline" }}>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              {formatTimeRemaining(activeElection)}
+              {getStatusMessage(activeElection)}
             </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 400, ml: 1 }}>
-              Remaining
-            </Typography>
+            {getStatus(activeElection) === "Live" && (
+              <Typography variant="h5" sx={{ fontWeight: 400, ml: 1 }}>
+                Remaining
+              </Typography>
+            )}
           </Box>
 
+          {/* 3) Title of the election */}
           <Typography variant="h6" sx={{ fontWeight: 400, mb: 2 }}>
             {activeElection.title}
           </Typography>
 
+          {/* 4) Voting time label */}
           <Typography
             variant="body2"
             color="text.secondary"
@@ -233,6 +402,8 @@ const Dashboard = () => {
           >
             Voting time
           </Typography>
+
+          {/* 5) Start date - end date */}
           <Typography variant="body1">
             {formatDateDisplay(
               activeElection.startDate || activeElection.start_date
@@ -327,7 +498,7 @@ const Dashboard = () => {
                 </TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Ballots Received / Total Voters</TableCell>
-                <TableCell>Time</TableCell>
+                <TableCell>Election Time</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -343,16 +514,20 @@ const Dashboard = () => {
                   </TableCell>
                   <TableCell sx={{ py: 3 }}>
                     <Chip
-                      label={formatStatus(election.status)}
+                      label={getStatus(election)}
                       size="small"
                       sx={{
                         bgcolor:
-                          formatStatus(election.status) === "Live"
+                          getStatus(election) === "Live"
                             ? "#EAFDEE"
+                            : getStatus(election) === "Registration"
+                            ? "#EDF2F7"
                             : "#EDF2F7",
                         color:
-                          formatStatus(election.status) === "Live"
+                          getStatus(election) === "Live"
                             ? "#2F855A"
+                            : getStatus(election) === "Registration"
+                            ? "#4A5568"
                             : "#4A5568",
                         fontWeight: 500,
                       }}
@@ -362,7 +537,7 @@ const Dashboard = () => {
                     <Box sx={{ display: "flex", alignItems: "center" }}>
                       <LinearProgress
                         variant="determinate"
-                        value={calculatePercentage(election)}
+                        value={percentage(election)}
                         sx={{
                           flexGrow: 1,
                           mr: 2,
@@ -383,7 +558,9 @@ const Dashboard = () => {
                       </Typography>
                     </Box>
                   </TableCell>
-                  <TableCell>{formatTimeInfo(election)}</TableCell>
+                  <TableCell sx={{ py: 3 }}>
+                    {formatTimeInfo(election)}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

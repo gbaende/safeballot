@@ -20,13 +20,15 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import VoterLogin from "./pages/Verify/VoterLogin";
 import OtpEntry from "./components/Auth/OtpEntry";
+import VoterIdVerification from "./components/Auth/VoterIdVerification";
 
 // Regular pages (maintain backward compatibility)
 import Dashboard from "./pages/Dashboard/Dashboard";
 import VotingPage from "./pages/Ballot/VotingPage";
-import PreRegistration from "./pages/Verify/PreRegistration";
 import VoterRegistration from "./pages/Verify/VoterRegistration";
 import ScanID from "./pages/Verify/ScanID";
+import RegistrationFlowRouter from "./pages/Verify/RegistrationFlowRouter";
+import LoginFlowRouter from "./pages/Verify/LoginFlowRouter";
 
 // Admin (Election Host) pages
 import MyElections from "./pages/Elections/MyElections";
@@ -47,9 +49,6 @@ import AccessKeyRegistration from "./pages/voter/AccessKeyRegistration";
 // Import RegistrationSuccess component
 import RegistrationSuccess from "./components/RegistrationSuccess";
 
-// Import standalone VoterRegistration component
-import StandaloneVoterRegistration from "./components/VoterRegistration";
-
 // Import BlinkIDTest component
 import BlinkIDTest from "./components/BlinkIDTest";
 
@@ -61,14 +60,48 @@ const ScanIDWrapper = () => {
   return (
     <ScanID
       onComplete={(idData) => {
-        // Navigate to the confirmation page in the PreRegistration component
-        navigate(`/preregister/${id}/${slug}`, {
-          state: { fromScan: true, idData },
+        // Check if this is from voter login flow
+        const voterToken = localStorage.getItem("voterToken");
+        const voterUser = localStorage.getItem("voterUser");
+        const isFromVoterLogin = voterToken || voterUser;
+
+        console.log("ScanIDWrapper - checking voter login:", {
+          voterToken: !!voterToken,
+          voterUser: !!voterUser,
+          isFromVoterLogin: !!isFromVoterLogin,
         });
+
+        if (isFromVoterLogin) {
+          // For voter login flow, go to login flow router
+          navigate(`/verify-login/${id}/${slug}`, {
+            state: { fromVoterLogin: true, idData },
+          });
+        } else {
+          // For registration flow, go to registration flow router
+          navigate(`/verify-registration/${id}/${slug}`, {
+            state: { fromScan: true, idData },
+          });
+        }
       }}
       onBack={() => navigate(`/verify-identity/${id}/${slug}`)}
     />
   );
+};
+
+// Redirect components for legacy routes
+const LegacyPreregisterRedirect = () => {
+  const { id, slug } = useParams();
+  return <Navigate to={`/verify-registration/${id}/${slug}`} replace />;
+};
+
+const LegacyVerifyIdentityRedirect = () => {
+  const { id, slug } = useParams();
+  return <Navigate to={`/verify-registration/${id}/${slug}`} replace />;
+};
+
+const LegacyLoginPreregisterRedirect = () => {
+  const { id, slug } = useParams();
+  return <Navigate to={`/verify-login/${id}/${slug}`} replace />;
 };
 
 function App() {
@@ -172,20 +205,41 @@ function App() {
           />
           <Route path="/voter/login" element={<VoterLogin />} />
           <Route path="/verify-otp" element={<OtpEntry />} />
+          <Route path="/verify-voter-id" element={<VoterIdVerification />} />
 
           {/* Voter Flow Routes */}
           <Route path="/vote/:id/:slug" element={<VotingPage />} />
-          <Route path="/register/:id/:slug" element={<VotingPage />} />
           <Route
             path="/voter-registration/:id/:slug"
             element={<VoterRegistration />}
           />
-          <Route path="/preregister/:id/:slug" element={<PreRegistration />} />
+
+          {/* New Dedicated Verified Routes */}
+          {/* Registration Flow - Full process with confirmation */}
+          <Route
+            path="/verify-registration/:id/:slug"
+            element={<RegistrationFlowRouter />}
+          />
+          {/* Login Flow - Streamlined process without confirmation */}
+          <Route path="/verify-login/:id/:slug" element={<LoginFlowRouter />} />
+
+          {/* Legacy Routes - Redirects to new dedicated routes */}
+          <Route
+            path="/preregister/:id/:slug"
+            element={<LegacyPreregisterRedirect />}
+          />
           <Route
             path="/verify-identity/:id/:slug"
-            element={<PreRegistration startAtStep={1} />}
+            element={<LegacyVerifyIdentityRedirect />}
+          />
+          <Route
+            path="/login/preregister/:id/:slug"
+            element={<LegacyLoginPreregisterRedirect />}
           />
           <Route path="/scan-id/:id/:slug" element={<ScanIDWrapper />} />
+
+          {/* Public Election Results Route */}
+          <Route path="/elections/:id/results" element={<ElectionResults />} />
 
           {/* BlinkID Test Route */}
           <Route path="/blinkid-test" element={<BlinkIDTest />} />
@@ -194,12 +248,6 @@ function App() {
           <Route
             path="/registration-success"
             element={<RegistrationSuccess />}
-          />
-
-          {/* Standalone Voter Registration Route */}
-          <Route
-            path="/register-to-vote"
-            element={<StandaloneVoterRegistration />}
           />
 
           {/* Payment Success Route */}

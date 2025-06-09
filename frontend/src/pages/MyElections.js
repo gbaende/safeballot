@@ -71,7 +71,7 @@ const mockElections = [
   {
     id: 3,
     title: "Executive Committee Selection",
-    status: "Completed",
+    status: "Inactive",
     startDate: "2023-07-01",
     endDate: "2023-07-15",
     totalVoters: 50,
@@ -91,7 +91,7 @@ const mockElections = [
   {
     id: 5,
     title: "Budget Approval 2023",
-    status: "Completed",
+    status: "Inactive",
     startDate: "2023-06-01",
     endDate: "2023-06-15",
     totalVoters: 75,
@@ -110,7 +110,7 @@ const StatusChip = styled(Chip)(({ theme, status }) => {
     case "Registration":
       chipColor = "#2196F3";
       break;
-    case "Completed":
+    case "Inactive":
       chipColor = "#9E9E9E";
       break;
     default:
@@ -278,10 +278,15 @@ const MyElections = () => {
       const startDate = new Date(ballot.startDate || ballot.start_date);
       const endDate = new Date(ballot.endDate || ballot.end_date);
 
-      if (ballot.status === "draft") return "Draft";
+      // Apply the exact logic specified:
+      // - if election start date hasn't been reached, ballot status is "Registration"
       if (now < startDate) return "Registration";
+
+      // - if election start has been reached but end date still hasn't been passed, ballot status is "Live"
       if (now >= startDate && now <= endDate) return "Live";
-      if (now > endDate) return "Completed";
+
+      // - if election end date has been passed, then ballot status is "Inactive"
+      if (now > endDate) return "Inactive";
 
       return "Registration"; // Default
     } catch (e) {
@@ -293,6 +298,11 @@ const MyElections = () => {
   const calculateParticipation = (votes, total) => {
     if (!total) return 0;
     return Math.round((votes / total) * 100);
+  };
+
+  // Helper function to get status for display (wrapper around determineStatus)
+  const getStatus = (election) => {
+    return determineStatus(election);
   };
 
   const handleSelectAll = (event) => {

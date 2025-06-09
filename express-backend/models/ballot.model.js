@@ -217,6 +217,54 @@ const Voter = sequelize.define(
       },
       defaultValue: "Registered Voter",
     },
+    firstName: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    lastName: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    dateOfBirth: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+    address: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    city: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    state: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    zipCode: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    ssn: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    phone: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    verificationToken: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    verificationTokenExpires: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    registrationDate: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
     voterId: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -239,15 +287,6 @@ const Voter = sequelize.define(
         model: "ballots",
         key: "id",
       },
-    },
-    ipAddress: {
-      type: DataTypes.STRING,
-    },
-    lastActivity: {
-      type: DataTypes.DATE,
-    },
-    metadata: {
-      type: DataTypes.JSON,
     },
   },
   {

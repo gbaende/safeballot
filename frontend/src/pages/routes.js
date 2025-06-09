@@ -32,7 +32,7 @@ const createScanIDWrapper = (ScanIDComponent) => {
     return (
       <ScanIDComponent
         onComplete={(idData) => {
-          navigate(`/preregister/${id}/${slug}`, {
+          navigate(`/verify-registration/${id}/${slug}`, {
             state: { fromScan: true, idData },
           });
         }}

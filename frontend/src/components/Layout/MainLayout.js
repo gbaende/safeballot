@@ -24,11 +24,11 @@ import {
   Menu as MenuIcon,
   ChevronLeft as ChevronLeftIcon,
   Dashboard as DashboardIcon,
-  Ballot as BallotIcon,
   Add as AddIcon,
   AccountCircle as AccountCircleIcon,
 } from "@mui/icons-material";
 import { logout } from "../../store/authSlice";
+import MyElectionsIcon from "../icons/MyElectionsIcon";
 
 const drawerWidth = 240;
 
@@ -48,7 +48,7 @@ const Main = styled("main", { shouldForwardProp: (prop) => prop !== "open" })(
       }),
       marginLeft: 0,
     }),
-    background: "#F5F6FA",
+    background: "#FFFFFF",
     minHeight: "100vh",
   })
 );
@@ -126,7 +126,7 @@ const MainLayout = ({ children }) => {
 
   const navigationItems = [
     { text: "Dashboard", icon: <DashboardIcon />, path: "/home" },
-    { text: "My Elections", icon: <BallotIcon />, path: "/my-elections" },
+    { text: "My Elections", icon: <MyElectionsIcon />, path: "/my-elections" },
   ];
 
   return (
@@ -226,10 +226,10 @@ const MainLayout = ({ children }) => {
                 selected={isActive(item.path)}
                 sx={{
                   "&.Mui-selected": {
-                    backgroundColor: "rgba(68, 120, 235, 0.08)",
+                    backgroundColor: "#E5EBF7",
                     borderRight: "3px solid #4478EB",
                     "&:hover": {
-                      backgroundColor: "rgba(68, 120, 235, 0.12)",
+                      backgroundColor: "#E5EBF7",
                     },
                   },
                   "&:hover": {
@@ -237,16 +237,14 @@ const MainLayout = ({ children }) => {
                   },
                 }}
               >
-                <ListItemIcon
-                  sx={{ color: isActive(item.path) ? "#4478EB" : "inherit" }}
-                >
+                <ListItemIcon sx={{ color: "#718096" }}>
                   {item.icon}
                 </ListItemIcon>
                 <ListItemText
                   primary={item.text}
                   primaryTypographyProps={{
                     fontWeight: isActive(item.path) ? 600 : 400,
-                    color: isActive(item.path) ? "#4478EB" : "inherit",
+                    color: "inherit",
                   }}
                 />
               </ListItemButton>

@@ -6,6 +6,8 @@ import VerifyIdentity from "./VerifyIdentity";
 import ScanID from "./ScanID";
 import ConfirmInfo from "./ConfirmInfo";
 import DigitalKeyScreen from "./DigitalKeyScreen";
+import VerifiedScreen from "./VerifiedScreen";
+import LoginVerifiedScreen from "./LoginVerifiedScreen";
 import { ballotService, authService } from "../../services/api";
 
 const PreRegistration = ({ startAtStep }) => {
@@ -15,7 +17,7 @@ const PreRegistration = ({ startAtStep }) => {
   const auth = useSelector((state) => state.auth);
 
   // State
-  const [currentScreen, setCurrentScreen] = useState("identity"); // identity, scan, confirm, key
+  const [currentScreen, setCurrentScreen] = useState("identity"); // identity, scan, confirm, verified, key
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [ballot, setBallot] = useState(null);
@@ -28,7 +30,14 @@ const PreRegistration = ({ startAtStep }) => {
 
   // Check if coming from scan with ID data
   useEffect(() => {
-    if (location.state?.fromScan && location.state?.idData) {
+    if (location.state?.fromVoterLogin && location.state?.idData) {
+      // Coming from voter login flow - go directly to verified screen
+      console.log("Coming from voter login flow - going to verified screen");
+      setScannedIdData(location.state.idData);
+      setCurrentScreen("verified");
+    } else if (location.state?.fromScan && location.state?.idData) {
+      // Coming from registration flow - go to confirm screen
+      console.log("Coming from registration flow - going to confirm screen");
       setScannedIdData(location.state.idData);
       setCurrentScreen("confirm");
     }
@@ -41,6 +50,11 @@ const PreRegistration = ({ startAtStep }) => {
       setError(null);
 
       try {
+        // Parse any ID from the slug first
+        const slugParts = slug ? slug.split("-") : [];
+        const idFromSlug =
+          slugParts.length > 0 ? slugParts[slugParts.length - 1] : null;
+
         // Check if user is authenticated
         if (auth.isAuthenticated) {
           console.log("User is authenticated");
@@ -87,11 +101,6 @@ const PreRegistration = ({ startAtStep }) => {
             }
           }
         }
-
-        // Parse any ID from the slug
-        const slugParts = slug ? slug.split("-") : [];
-        const idFromSlug =
-          slugParts.length > 0 ? slugParts[slugParts.length - 1] : null;
 
         const ballotIdToUse = id || idFromSlug;
         console.log("Checking ballot:", {
@@ -160,25 +169,100 @@ const PreRegistration = ({ startAtStep }) => {
     setCurrentScreen("scan");
   };
 
-  // Handle ID scan completion
+  // Handle scan completion - go directly to verified screen for voter login flow
   const handleScanComplete = (idData) => {
-    // Store the scanned ID data
+    console.log("ID scan completed:", idData);
     setScannedIdData(idData);
 
-    // Move to confirm screen
-    setCurrentScreen("confirm");
+    // Check multiple indicators for voter login flow
+    const voterToken = localStorage.getItem("voterToken");
+    const voterUser = localStorage.getItem("voterUser");
+    const isFromVoterLogin = voterToken || voterUser;
+
+    console.log("Checking voter login indicators:", {
+      voterToken: !!voterToken,
+      voterUser: !!voterUser,
+      isFromVoterLogin: !!isFromVoterLogin,
+    });
+
+    if (isFromVoterLogin) {
+      // For voter login flow, go directly to verified screen (skip confirmation)
+      console.log("Voter login detected - going directly to verified screen");
+      setCurrentScreen("verified");
+    } else {
+      // For registration flow, go to confirm screen
+      console.log("Registration flow - going to confirm screen");
+      setCurrentScreen("confirm");
+    }
   };
 
-  // Handle confirmation screen completion
-  const handleConfirmComplete = () => {
-    // Store the ID data with voter info
-    setVoterInfo((prev) => ({
-      ...prev,
-      ...scannedIdData,
-    }));
+  // Handle confirmation screen completion (for registration flow)
+  const handleConfirmComplete = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-    // Generate digital key
-    generateDigitalKey();
+      // Extract voter information from scanned ID data - only safe string values
+      const firstName =
+        scannedIdData?.givenName || scannedIdData?.firstName || "";
+      const lastName = scannedIdData?.surname || scannedIdData?.lastName || "";
+      const fullName = `${firstName} ${lastName}`.trim() || "Registered Voter";
+
+      // Update voter info with only safe string values (no complex BlinkID objects)
+      const updatedVoterInfo = {
+        email: voterInfo.email, // Keep the email from authenticated user or previous input
+        name: fullName,
+        // Only include safe string properties from scanned data
+        firstName:
+          typeof scannedIdData?.firstName === "string"
+            ? scannedIdData.firstName
+            : firstName,
+        lastName:
+          typeof scannedIdData?.lastName === "string"
+            ? scannedIdData.lastName
+            : lastName,
+        dateOfBirth:
+          typeof scannedIdData?.dateOfBirth === "string"
+            ? scannedIdData.dateOfBirth
+            : "",
+        documentNumber:
+          typeof scannedIdData?.documentNumber === "string"
+            ? scannedIdData.documentNumber
+            : "",
+        nationality:
+          typeof scannedIdData?.nationality === "string"
+            ? scannedIdData.nationality
+            : "",
+      };
+
+      setVoterInfo(updatedVoterInfo);
+
+      // Register the voter with the ballot
+      console.log("Registering voter for ballot:", id);
+      const registrationResponse = await ballotService.publicRegisterVoter(id, {
+        name: fullName,
+        email: voterInfo.email,
+      });
+
+      console.log("Voter registration response:", registrationResponse);
+
+      // Send voter ID email
+      console.log("Sending voter ID email");
+      const emailResponse = await ballotService.sendVoterIdEmail(id, {
+        name: fullName,
+        email: voterInfo.email,
+      });
+
+      console.log("Voter ID email response:", emailResponse);
+
+      // Move to verified screen
+      setCurrentScreen("verified");
+    } catch (err) {
+      console.error("Error in voter registration/email flow:", err);
+      setError("Failed to complete registration. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Start voting with digital key
@@ -241,6 +325,14 @@ const PreRegistration = ({ startAtStep }) => {
     }
   };
 
+  // Helper function to determine if this is a voter login flow
+  const isVoterLoginFlow = () => {
+    const voterToken = localStorage.getItem("voterToken");
+    const voterUser = localStorage.getItem("voterUser");
+    const fromVoterLogin = location.state?.fromVoterLogin;
+    return !!(voterToken || voterUser || fromVoterLogin);
+  };
+
   // Render current screen
   if (loading && !ballot) {
     return (
@@ -291,8 +383,28 @@ const PreRegistration = ({ startAtStep }) => {
           idData={scannedIdData}
           onConfirm={handleConfirmComplete}
           onBack={() => setCurrentScreen("scan")}
+          loading={loading}
         />
       );
+    case "verified":
+      // Use different verified screens based on the flow
+      if (isVoterLoginFlow()) {
+        return (
+          <LoginVerifiedScreen
+            ballotInfo={ballot}
+            voterInfo={voterInfo}
+            onComplete={handleStartVoting}
+          />
+        );
+      } else {
+        return (
+          <VerifiedScreen
+            ballotInfo={ballot}
+            voterInfo={voterInfo}
+            onComplete={handleStartVoting}
+          />
+        );
+      }
     case "key":
       return (
         <DigitalKeyScreen

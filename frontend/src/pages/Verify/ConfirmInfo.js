@@ -1,8 +1,15 @@
 import React from "react";
-import { Box, Typography, Button, Grid, IconButton } from "@mui/material";
+import {
+  Box,
+  Typography,
+  Button,
+  Grid,
+  IconButton,
+  CircularProgress,
+} from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
-const ConfirmInfo = ({ idData, onConfirm, onBack }) => {
+const ConfirmInfo = ({ idData, onConfirm, onBack, loading }) => {
   // Determine the image source - use the scanned document image if available
   const getImageSrc = () => {
     // If we have a scanned document image, use it
@@ -136,7 +143,7 @@ const ConfirmInfo = ({ idData, onConfirm, onBack }) => {
                 sx={{ fontWeight: 700, mb: 1 }}
               >
                 {formatValue(idData?.documentType) !== "N/A"
-                  ? idData.documentType
+                  ? formatValue(idData?.documentType)
                   : "Driver's License"}
               </Typography>
               <Typography
@@ -239,14 +246,21 @@ const ConfirmInfo = ({ idData, onConfirm, onBack }) => {
               <Button
                 variant="contained"
                 onClick={onConfirm}
+                disabled={loading}
                 sx={{
                   py: 1.5,
                   px: 4,
                   bgcolor: "#1f2937",
                   "&:hover": { bgcolor: "#0f172a" },
+                  "&:disabled": { bgcolor: "#9ca3af" },
                 }}
+                startIcon={
+                  loading ? (
+                    <CircularProgress size={20} color="inherit" />
+                  ) : null
+                }
               >
-                Next
+                {loading ? "Processing..." : "Next"}
               </Button>
             </Box>
           </Box>

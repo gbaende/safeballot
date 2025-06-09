@@ -8,6 +8,56 @@ let globalRecognizer = null;
 let sdkInitializationPromise = null;
 
 const BlinkIDStep = ({ onComplete, onError, onBack }) => {
+  // Helper function to safely extract string values from BlinkID complex objects
+  const extractStringValue = (value) => {
+    if (!value) return "";
+
+    // If it's already a string, return it
+    if (typeof value === "string") return value;
+
+    // If it's an object with different script properties, try to extract a string value
+    if (typeof value === "object") {
+      console.log(
+        "Extracting from object:",
+        value,
+        "Keys:",
+        Object.keys(value)
+      );
+
+      // Try common BlinkID properties in order of preference
+      const extracted =
+        value.latin ||
+        value.originalString ||
+        value.originalDateString ||
+        value.value ||
+        value.rawText ||
+        value.text ||
+        "";
+
+      if (extracted && typeof extracted === "string") {
+        console.log("Successfully extracted string:", extracted);
+        return extracted;
+      }
+
+      // If no string property found, try toString as last resort but avoid [object Object]
+      if (value.toString && typeof value.toString === "function") {
+        const stringified = value.toString();
+        if (stringified !== "[object Object]") {
+          console.log("Used toString():", stringified);
+          return stringified;
+        }
+      }
+
+      console.log(
+        "Could not extract string from object, returning empty string"
+      );
+      return "";
+    }
+
+    // Convert other types to string
+    return String(value || "");
+  };
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -332,14 +382,20 @@ const BlinkIDStep = ({ onComplete, onError, onBack }) => {
 
   const handleScanSuccess = (result, fallbackImageBase64) => {
     console.log("Scan result:", result);
-    setScanResult(result);
-    setIsScanning(false);
 
     // Stop camera
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = videoRef.current.srcObject.getTracks();
       tracks.forEach((track) => track.stop());
     }
+
+    // Debug the fullName object specifically
+    console.log("Debug fullName object:", result.fullName);
+    console.log("fullName type:", typeof result.fullName);
+    console.log(
+      "fullName keys:",
+      result.fullName ? Object.keys(result.fullName) : "no keys"
+    );
 
     // Debug image data before processing
     console.log("Raw image data from BlinkID:", {
@@ -386,33 +442,55 @@ const BlinkIDStep = ({ onComplete, onError, onBack }) => {
       }
     };
 
+    // Helper function to safely extract fullName
+    const extractFullName = (fullNameObj, firstName, lastName) => {
+      // First try to extract from fullName object
+      const extractedFullName = extractStringValue(fullNameObj);
+      if (extractedFullName && extractedFullName !== "[object Object]") {
+        console.log("Successfully extracted fullName:", extractedFullName);
+        return extractedFullName;
+      }
+
+      // Fallback: construct from firstName and lastName
+      const firstNameStr = extractStringValue(firstName) || "";
+      const lastNameStr = extractStringValue(lastName) || "";
+      const constructedFullName = `${firstNameStr} ${lastNameStr}`.trim();
+
+      console.log("Constructed fullName from parts:", constructedFullName);
+      return constructedFullName;
+    };
+
     // Extract document data with images
     const documentData = {
-      // Basic extracted text data
-      firstName: result.firstName?.latin || "",
-      lastName: result.lastName?.latin || "",
-      givenName: result.firstName?.latin || "",
-      surname: result.lastName?.latin || "",
-      fullName: result.fullName?.latin || "",
-      dateOfBirth: result.dateOfBirth?.originalString || "",
-      documentNumber: result.documentNumber?.latin || "",
-      expiryDate: result.dateOfExpiry?.originalString || "",
-      dateOfExpiry: result.dateOfExpiry?.originalString || "",
-      dateOfIssue: result.dateOfIssue?.originalString || "",
-      nationality: result.nationality?.latin || "",
+      // Basic extracted text data - ensure all values are strings
+      firstName: extractStringValue(result.firstName) || "",
+      lastName: extractStringValue(result.lastName) || "",
+      givenName: extractStringValue(result.firstName) || "",
+      surname: extractStringValue(result.lastName) || "",
+      fullName: extractFullName(
+        result.fullName,
+        result.firstName,
+        result.lastName
+      ),
+      dateOfBirth: extractStringValue(result.dateOfBirth) || "",
+      documentNumber: extractStringValue(result.documentNumber) || "",
+      expiryDate: extractStringValue(result.dateOfExpiry) || "",
+      dateOfExpiry: extractStringValue(result.dateOfExpiry) || "",
+      dateOfIssue: extractStringValue(result.dateOfIssue) || "",
+      nationality: extractStringValue(result.nationality) || "",
       issuingCountry: result.classInfo?.countryName || "",
       issuingState:
-        result.address?.latin
+        extractStringValue(result.address)
           ?.split("\n")?.[1]
           ?.split(", ")?.[1]
           ?.split(" ")?.[0] || "",
       documentType:
-        result.documentSubtype?.latin ||
+        extractStringValue(result.documentSubtype) ||
         result.classInfo?.documentType ||
         "unknown",
-      sex: result.sex?.latin || "",
-      address: result.address?.latin || "",
-      personalIdNumber: result.personalIdNumber?.latin || "",
+      sex: extractStringValue(result.sex) || "",
+      address: extractStringValue(result.address) || "",
+      personalIdNumber: extractStringValue(result.personalIdNumber) || "",
 
       // Document images - convert from Uint8Array to base64, with fallback
       documentImage:
@@ -446,6 +524,10 @@ const BlinkIDStep = ({ onComplete, onError, onBack }) => {
       faceImage: !!documentData.faceImage,
       signatureImage: !!documentData.signatureImage,
     });
+
+    // Set the processed document data instead of raw result
+    setScanResult(documentData);
+    setIsScanning(false);
 
     if (onComplete) {
       onComplete({

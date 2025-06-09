@@ -14,6 +14,7 @@ const Voter = sequelize.define(
       allowNull: false,
       validate: {
         notEmpty: true,
+        len: [1, 100],
       },
     },
     lastName: {
@@ -21,6 +22,7 @@ const Voter = sequelize.define(
       allowNull: false,
       validate: {
         notEmpty: true,
+        len: [1, 100],
       },
     },
     email: {
@@ -31,27 +33,35 @@ const Voter = sequelize.define(
         isEmail: true,
       },
     },
+    voterId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: true,
+      validate: {
+        len: [1, 255],
+      },
+    },
     dateOfBirth: {
       type: DataTypes.DATEONLY,
-      allowNull: false,
+      allowNull: true,
     },
     address: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
       validate: {
         notEmpty: true,
       },
     },
     city: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
       validate: {
         notEmpty: true,
       },
     },
     state: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
       validate: {
         notEmpty: true,
         len: [2, 2], // State abbreviation
@@ -59,7 +69,7 @@ const Voter = sequelize.define(
     },
     zipCode: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
       validate: {
         notEmpty: true,
         len: [5, 10], // ZIP code can be 5 or 9 digits
@@ -67,7 +77,7 @@ const Voter = sequelize.define(
     },
     ssn: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
       validate: {
         notEmpty: true,
         len: [9, 9], // SSN without dashes
@@ -75,7 +85,7 @@ const Voter = sequelize.define(
     },
     phone: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
       validate: {
         notEmpty: true,
         len: [10, 10], // Phone number without formatting
@@ -101,14 +111,24 @@ const Voter = sequelize.define(
     name: {
       type: DataTypes.VIRTUAL,
       get() {
-        return `${this.firstName} ${this.lastName}`;
+        if (this.firstName && this.lastName) {
+          return `${this.firstName} ${this.lastName}`;
+        }
+        // Fallback to stored name if firstName/lastName not available
+        return this.getDataValue("storedName") || "Registered Voter";
       },
+    },
+    // Store the original name field for backward compatibility
+    storedName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: "name", // Maps to the existing 'name' column
     },
     ballotId: {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
-        model: "Ballots",
+        model: "ballots",
         key: "id",
       },
     },
@@ -136,6 +156,26 @@ const Voter = sequelize.define(
         fields: ["isVerified"],
       },
     ],
+    hooks: {
+      beforeSave: async (voter, options) => {
+        // If firstName/lastName are not set but storedName is, try to split it
+        if (!voter.firstName && !voter.lastName && voter.storedName) {
+          const nameParts = voter.storedName.trim().split(/\s+/);
+          if (nameParts.length >= 2) {
+            voter.firstName = nameParts[0];
+            voter.lastName = nameParts.slice(1).join(" ");
+          } else if (nameParts.length === 1) {
+            voter.firstName = nameParts[0];
+            voter.lastName = "User"; // Default last name
+          }
+        }
+
+        // If firstName/lastName are set but storedName is not, create storedName
+        if (voter.firstName && voter.lastName && !voter.storedName) {
+          voter.storedName = `${voter.firstName} ${voter.lastName}`;
+        }
+      },
+    },
   }
 );
 

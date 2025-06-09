@@ -83,6 +83,7 @@ const VoterLogin = () => {
             email: response.email,
             ttlMinutes: response.ttlMinutes,
             redirectUrl: redirectUrl,
+            isVoterLogin: true, // Flag to indicate this is voter login flow
           },
         });
         return;

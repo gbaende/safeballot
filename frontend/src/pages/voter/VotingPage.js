@@ -25,7 +25,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { ballotService, getVoterInfo } from "../../services/ballotService";
-import VotingConfirmationDialog from "../../components/Voter/VotingConfirmationDialog";
+import VotingConfirmationDialog from "../../components/VotingConfirmationDialog";
 import { toast } from "react-toastify";
 
 // Styled components
@@ -366,6 +366,22 @@ const VotingPage = () => {
       setIsSubmitting(true);
       setSubmitError(null);
       setSubmitSuccess(false);
+
+      // Validate digital key first
+      const storedKey = localStorage.getItem(`digital_key_${id}`);
+      if (!storedKey) {
+        setSubmitError(
+          "Digital key not found. Please complete verification first."
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (digitalKey !== storedKey) {
+        setSubmitError("Invalid digital key. Please enter the correct key.");
+        setIsSubmitting(false);
+        return;
+      }
 
       // Comprehensive voter info gathering approach
       console.log(
@@ -1100,7 +1116,7 @@ const VotingPage = () => {
         open={showConfirmDialog}
         onClose={handleCloseConfirmDialog}
         onSubmit={handleSubmitBallot}
-        digitalKey={storedKey || ""}
+        digitalKey={localStorage.getItem(`digital_key_${id}`) || ""}
       />
 
       {/* Success Dialog */}

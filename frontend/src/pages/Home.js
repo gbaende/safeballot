@@ -30,12 +30,6 @@ import {
   Add as AddIcon,
 } from "@mui/icons-material";
 import MainLayout from "../components/Layout/MainLayout";
-import {
-  fetchElectionsRequest,
-  fetchElectionsSuccess,
-  fetchElectionsFailure,
-} from "../store/electionSlice";
-import { ballotService } from "../services/api";
 
 const StatCard = styled(Card)(({ theme }) => ({
   height: "100%",
@@ -85,7 +79,7 @@ const StatusChip = styled(Chip)(({ theme, status }) => {
     case "Registration":
       chipColor = "#2196F3";
       break;
-    case "Completed":
+    case "Inactive":
       chipColor = "#9E9E9E";
       break;
     default:
@@ -102,185 +96,62 @@ const StatusChip = styled(Chip)(({ theme, status }) => {
 });
 
 const Home = () => {
-  const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { elections, loading } = useSelector((state) => state.elections);
-  const [error, setError] = useState(null);
+  const [topElections, setTopElections] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Fetch elections on component mount
   useEffect(() => {
-    // Attempt to get data from localStorage first - this is what My Elections uses
+    // Get elections from localStorage (same source as My Elections page)
     const userBallots = JSON.parse(localStorage.getItem("userBallots") || "[]");
 
-    // If we already have ballots in localStorage, use those directly (this matches My Elections)
     if (userBallots.length > 0) {
-      console.log(
-        "Home: Using existing ballots from localStorage:",
-        userBallots.length
-      );
+      // Format and sort elections by total voters (largest first)
+      const formattedElections = userBallots
+        .map((ballot) => ({
+          id: ballot.id,
+          title: ballot.title,
+          status: getElectionStatus(ballot),
+          startDate: formatDate(ballot.startDate || ballot.start_date),
+          endDate: formatDate(ballot.endDate || ballot.end_date),
+          totalVoters: ballot.totalVoters || ballot.total_voters || 0,
+          votedCount: ballot.ballotsReceived || ballot.ballots_received || 0,
+          participation: calculateParticipation(
+            ballot.ballotsReceived || ballot.ballots_received || 0,
+            ballot.totalVoters || ballot.total_voters || 0
+          ),
+        }))
+        .sort((a, b) => b.totalVoters - a.totalVoters) // Sort by total voters (largest first)
+        .slice(0, 5); // Take only top 5
 
-      // Format the elections from localStorage to match our display format
-      const formattedElections = userBallots.map((ballot) => ({
-        id: ballot.id,
-        title: ballot.title,
-        status: getBallotStatus(ballot),
-        startDate: formatDate(ballot.startDate || ballot.start_date),
-        endDate: formatDate(ballot.endDate || ballot.end_date),
-        totalVoters: ballot.totalVoters || ballot.total_voters || 0,
-        votedCount: ballot.ballotsReceived || ballot.ballots_received || 0,
-        participation: calculateParticipation(
-          ballot.ballotsReceived || ballot.ballots_received || 0,
-          ballot.totalVoters || ballot.total_voters || 0
-        ),
-      }));
-
-      // Update Redux state with these elections
-      dispatch(fetchElectionsSuccess(formattedElections));
-      return;
+      setTopElections(formattedElections);
     }
 
-    // If we don't have existing data, fetch from API
-    dispatch(fetchElectionsRequest());
-    setError(null);
+    setLoading(false);
+  }, []);
 
-    // Get current user ID and email from auth
-    const adminUser = JSON.parse(localStorage.getItem("adminUser") || "{}");
-    const userId = adminUser.id;
-    const userEmail = adminUser.email;
-    console.log("Current user ID:", userId, "Email:", userEmail);
-
-    // Fetch real data from ballotService
-    ballotService
-      .getBallots()
-      .then((response) => {
-        console.log("Home: Received ballot data from API", response);
-        if (response.data && response.data.data) {
-          // Log the first ballot to see all fields that might contain user ID
-          if (response.data.data.length > 0) {
-            console.log(
-              "First ballot object keys:",
-              Object.keys(response.data.data[0])
-            );
-            console.log("User ID fields in first ballot:", {
-              userId: response.data.data[0].userId,
-              user_id: response.data.data[0].user_id,
-              created_by: response.data.data[0].created_by,
-              createdBy: response.data.data[0].createdBy,
-              creator_id: response.data.data[0].creator_id,
-              creatorId: response.data.data[0].creatorId,
-              admin_id: response.data.data[0].admin_id,
-              adminId: response.data.data[0].adminId,
-              owner_id: response.data.data[0].owner_id,
-              ownerId: response.data.data[0].ownerId,
-              // Email fields
-              admin_email: response.data.data[0].admin_email,
-              adminEmail: response.data.data[0].adminEmail,
-              creator_email: response.data.data[0].creator_email,
-              creatorEmail: response.data.data[0].creatorEmail,
-              user_email: response.data.data[0].user_email,
-              userEmail: response.data.data[0].userEmail,
-              owner_email: response.data.data[0].owner_email,
-              ownerEmail: response.data.data[0].ownerEmail,
-            });
-          }
-
-          // Process data to ensure consistent format and filter by ownership
-          const formattedElections = response.data.data
-            .filter((ballot) => {
-              // Only include ballots owned by current user
-              if (!userId && !userEmail) return false; // If no user ID or email, don't show any ballots
-
-              // Check ID-based ownership
-              const idMatch =
-                ballot.userId === userId ||
-                ballot.user_id === userId ||
-                ballot.created_by === userId ||
-                ballot.createdBy === userId ||
-                ballot.creator_id === userId ||
-                ballot.creatorId === userId ||
-                ballot.admin_id === userId ||
-                ballot.adminId === userId ||
-                ballot.owner_id === userId ||
-                ballot.ownerId === userId;
-
-              // Check email-based ownership if we have a user email
-              const emailMatch =
-                userEmail &&
-                (ballot.admin_email === userEmail ||
-                  ballot.adminEmail === userEmail ||
-                  ballot.creator_email === userEmail ||
-                  ballot.creatorEmail === userEmail ||
-                  ballot.user_email === userEmail ||
-                  ballot.userEmail === userEmail ||
-                  ballot.owner_email === userEmail ||
-                  ballot.ownerEmail === userEmail);
-
-              return idMatch || emailMatch;
-            })
-            .map((ballot) => ({
-              id: ballot.id,
-              title: ballot.title,
-              status: getBallotStatus(ballot),
-              startDate: formatDate(ballot.startDate || ballot.start_date),
-              endDate: formatDate(ballot.endDate || ballot.end_date),
-              totalVoters: ballot.totalVoters || ballot.total_voters || 0,
-              votedCount:
-                ballot.ballotsReceived || ballot.ballots_received || 0,
-              participation: calculateParticipation(
-                ballot.ballotsReceived || ballot.ballots_received || 0,
-                ballot.totalVoters || ballot.total_voters || 0
-              ),
-            }));
-
-          console.log("Filtered elections for user:", formattedElections);
-
-          // Store the processed elections in localStorage so My Elections page can use them too
-          localStorage.setItem(
-            "userBallots",
-            JSON.stringify(response.data.data)
-          );
-
-          dispatch(fetchElectionsSuccess(formattedElections));
-        } else {
-          // If no data, set empty array
-          dispatch(fetchElectionsSuccess([]));
-        }
-      })
-      .catch((error) => {
-        console.error("Error fetching ballots:", error);
-        dispatch(fetchElectionsFailure(error.message));
-        setError("Failed to fetch elections. Please try again later.");
-      });
-  }, [dispatch]); // Only depend on dispatch, not on elections.length or loading
-
-  // Helper to determine ballot status
-  const getBallotStatus = (ballot) => {
+  // Helper function to determine status (simplified version)
+  const getElectionStatus = (ballot) => {
     if (!ballot) return "Unknown";
 
-    if (ballot.status) {
-      // If status is directly available, map it to our display format
-      switch (ballot.status.toLowerCase()) {
-        case "active":
-          return "Live";
-        case "draft":
-          return "Registration";
-        case "scheduled":
-          return "Registration";
-        case "completed":
-          return "Completed";
-        default:
-          return ballot.status;
+    try {
+      const startDateValue = ballot.startDate || ballot.start_date;
+      const endDateValue = ballot.endDate || ballot.end_date;
+
+      if (!startDateValue || !endDateValue) {
+        return ballot.status || "Draft";
       }
+
+      const now = new Date();
+      const startDate = new Date(startDateValue);
+      const endDate = new Date(endDateValue);
+
+      if (ballot.status === "draft") return "Draft";
+      if (now < startDate) return "Registration";
+      if (now >= startDate && now <= endDate) return "Live";
+      return "Inactive";
+    } catch (error) {
+      return ballot.status || "Draft";
     }
-
-    // Fall back to date-based status determination
-    const now = new Date();
-    const startDate = ballot.startDate ? new Date(ballot.startDate) : null;
-    const endDate = ballot.endDate ? new Date(ballot.endDate) : null;
-
-    if (endDate && endDate < now) return "Completed";
-    if (startDate && startDate <= now) return "Live";
-    return "Registration";
   };
 
   // Helper to format dates
@@ -296,44 +167,31 @@ const Home = () => {
     return Math.round((votes / total) * 100);
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "Live":
-        return "success";
-      case "Registration":
-        return "info";
-      case "Completed":
-        return "default";
-      default:
-        return "primary";
-    }
-  };
-
   const getProgressColor = (participation) => {
     if (participation >= 75) return "success";
     if (participation >= 40) return "info";
     return "warning";
   };
 
-  const handleElectionClick = (id) => {
-    navigate(`/election/${id}/dashboard`);
-  };
-
-  // Count elections by status
-  const liveElections = elections.filter((e) => e.status === "Live").length;
-  const upcomingElections = elections.filter(
+  // Calculate stats from top elections
+  const liveElections = topElections.filter((e) => e.status === "Live").length;
+  const upcomingElections = topElections.filter(
     (e) => e.status === "Registration"
   ).length;
-  const completedElections = elections.filter(
-    (e) => e.status === "Completed"
+  const inactiveElections = topElections.filter(
+    (e) => e.status === "Inactive"
   ).length;
+  const totalElections = topElections.length;
 
-  // Calculate overall participation
-  const totalVoters = elections.reduce(
+  // Calculate overall participation from top 5
+  const totalVoters = topElections.reduce(
     (acc, e) => acc + (e.totalVoters || 0),
     0
   );
-  const totalVoted = elections.reduce((acc, e) => acc + (e.votedCount || 0), 0);
+  const totalVoted = topElections.reduce(
+    (acc, e) => acc + (e.votedCount || 0),
+    0
+  );
   const overallParticipation =
     totalVoters > 0 ? Math.round((totalVoted / totalVoters) * 100) : 0;
 
@@ -343,12 +201,6 @@ const Home = () => {
         <Typography variant="h4" mb={3} fontWeight={700}>
           Dashboard
         </Typography>
-
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        )}
 
         {loading && (
           <Box sx={{ display: "flex", justifyContent: "center", my: 4 }}>
@@ -420,14 +272,14 @@ const Home = () => {
                 <Box display="flex" alignItems="center" mb={1}>
                   <CalendarIcon sx={{ mr: 1, color: "#9E9E9E" }} />
                   <Typography variant="subtitle1" fontWeight={600}>
-                    Completed
+                    Total Elections
                   </Typography>
                 </Box>
                 <Typography variant="h3" fontWeight={700} mb={1}>
-                  {completedElections}
+                  {totalElections}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Elections ended
+                  Your largest elections
                 </Typography>
               </CardContent>
             </StatCard>
@@ -442,7 +294,7 @@ const Home = () => {
             mb={2}
           >
             <Typography variant="h5" fontWeight={600}>
-              Recent Elections
+              Top 5 Largest Elections
             </Typography>
             <Button
               variant="outlined"
@@ -450,11 +302,11 @@ const Home = () => {
               endIcon={<ArrowForwardIcon />}
               onClick={() => navigate("/my-elections")}
             >
-              View All
+              View All Elections
             </Button>
           </Box>
 
-          {!loading && elections.length === 0 ? (
+          {!loading && topElections.length === 0 ? (
             <Paper
               elevation={0}
               sx={{ p: 4, textAlign: "center", borderRadius: 2 }}
@@ -488,14 +340,19 @@ const Home = () => {
                     <TableCell>Status</TableCell>
                     <TableCell>Date</TableCell>
                     <TableCell>Participation</TableCell>
-                    <TableCell align="right">Actions</TableCell>
+                    <TableCell align="right">Total Voters</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {elections.map((election) => (
+                  {topElections.map((election) => (
                     <TableRow
                       key={election.id}
-                      sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
+                      sx={{
+                        "&:last-child td, &:last-child th": { border: 0 },
+                        cursor: "pointer",
+                        "&:hover": { backgroundColor: "#f5f5f5" },
+                      }}
+                      onClick={() => navigate("/my-elections")}
                     >
                       <TableCell component="th" scope="row">
                         <Typography variant="subtitle2" fontWeight={600}>
@@ -541,20 +398,13 @@ const Home = () => {
                         </Box>
                       </TableCell>
                       <TableCell align="right">
-                        <Button
-                          variant="contained"
+                        <Typography
+                          variant="h6"
+                          fontWeight={600}
                           color="primary"
-                          size="small"
-                          onClick={() => handleElectionClick(election.id)}
-                          sx={{
-                            background:
-                              "linear-gradient(45deg, #4478EB 30%, #6FA0FF 90%)",
-                            color: "white",
-                            fontWeight: 600,
-                          }}
                         >
-                          View
-                        </Button>
+                          {election.totalVoters.toLocaleString()}
+                        </Typography>
                       </TableCell>
                     </TableRow>
                   ))}

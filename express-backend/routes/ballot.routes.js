@@ -1011,7 +1011,16 @@ router.get("/:id/voters", protect, async (req, res) => {
         const displayVoteCount = voteCount > 0 ? 1 : 0;
 
         return {
-          ...voter.toJSON(),
+          id: voter.id,
+          email: voter.email,
+          name: voter.name,
+          voterId: voter.voterId,
+          hasVoted: voter.hasVoted,
+          verificationCode: voter.verificationCode,
+          isVerified: voter.isVerified,
+          ballotId: voter.ballotId,
+          createdAt: voter.createdAt,
+          updatedAt: voter.updatedAt,
           voteCount: displayVoteCount, // Display 1 vote per voter for UI
           actualVoteCount: voteCount, // Store actual vote count for debug
           questionsAnswered: questionCount,
@@ -1186,6 +1195,7 @@ router.post(
                 .substring(2, 8)
                 .toUpperCase(),
               isVerified: true, // Auto-verify voters for demo purposes
+              lastActivity: new Date(),
             },
             { transaction }
           );
@@ -1402,8 +1412,6 @@ router.post(
                 .toUpperCase(),
               isVerified: true, // Auto-verify for public voting
               hasVoted: false,
-              ipAddress:
-                req.headers["x-forwarded-for"] || req.connection.remoteAddress,
               lastActivity: new Date(),
             },
             { transaction }
@@ -1430,8 +1438,6 @@ router.post(
               .toUpperCase(),
             isVerified: true, // Auto-verify for anonymous voting
             hasVoted: false,
-            ipAddress:
-              req.headers["x-forwarded-for"] || req.connection.remoteAddress,
             lastActivity: new Date(),
           },
           { transaction }
@@ -1858,8 +1864,6 @@ router.post("/:id/register-voter", protect, async (req, res) => {
         verificationCode,
         hasVoted: false,
         isVerified: true, // Auto-verify voters for demo purposes
-        ipAddress:
-          req.headers["x-forwarded-for"] || req.connection.remoteAddress,
         lastActivity: new Date(),
       },
       { transaction }
@@ -2738,20 +2742,25 @@ router.post("/:id/public-register-voter", async (req, res) => {
       `Creating new voter: ${voterName} (${voter.email}) for ballot ${id}`
     );
 
+    // Split the full name into firstName and lastName
+    const nameParts = voterName.trim().split(" ");
+    const firstName = nameParts[0] || "Anonymous";
+    const lastName =
+      nameParts.length > 1 ? nameParts.slice(1).join(" ") : "Voter";
+
     const newVoter = await Voter.create(
       {
         ballotId: id,
         email: voter.email,
         name: voterName,
+        firstName: firstName,
+        lastName: lastName,
         verificationCode: Math.random()
           .toString(36)
           .substring(2, 8)
           .toUpperCase(),
         isVerified: true, // Auto-verify for public registration
         hasVoted: false,
-        ipAddress:
-          req.headers["x-forwarded-for"] || req.connection.remoteAddress,
-        lastActivity: new Date(),
       },
       { transaction }
     );
@@ -3023,8 +3032,6 @@ router.post("/register-with-key", async (req, res) => {
               .toUpperCase(),
             isVerified: true, // Auto-verify for now
             hasVoted: false,
-            ipAddress:
-              req.headers["x-forwarded-for"] || req.connection.remoteAddress,
             lastActivity: new Date(),
           },
           { transaction }
@@ -3405,6 +3412,205 @@ router.post("/:id/voter-vote", voterAuth, async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "Failed to cast vote",
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * Send voter ID email after successful registration
+ * @route POST /api/ballots/:id/send-voter-id
+ * @access Public
+ */
+router.post("/:id/send-voter-id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { voterEmail, voterName } = req.body;
+
+    if (!voterEmail || !voterName) {
+      return res.status(400).json({
+        status: "error",
+        message: "Voter email and name are required",
+      });
+    }
+
+    // Check if ballot exists
+    const ballot = await Ballot.findByPk(id);
+    if (!ballot) {
+      return res.status(404).json({
+        status: "error",
+        message: "Ballot not found",
+      });
+    }
+
+    // Find the voter
+    const voter = await Voter.findOne({
+      where: {
+        ballotId: id,
+        email: voterEmail,
+      },
+    });
+
+    if (!voter) {
+      return res.status(404).json({
+        status: "error",
+        message: "Voter not found for this ballot",
+      });
+    }
+
+    // Generate a unique Voter ID if not already present
+    if (!voter.voterId) {
+      const uniqueVoterId = `SB-${Date.now()}-${Math.random()
+        .toString(36)
+        .substr(2, 6)
+        .toUpperCase()}`;
+      voter.voterId = uniqueVoterId;
+      await voter.save();
+    }
+
+    // Import email utility
+    const { sendEmail } = require("../utils/email");
+
+    // Prepare email content
+    const subject = "It's Time To Cast Your Ballot!";
+    const voterLoginUrl = `${
+      process.env.FRONTEND_URL || "http://localhost:3000"
+    }/voter/login?redirect=/preregister/${id}/${ballot.title
+      .replace(/\s+/g, "-")
+      .toLowerCase()}`;
+
+    const textContent = `
+Hi ${voterName},
+
+The election for "${
+      ballot.title
+    }" is officially underway, and it's time to make your voice heard!
+
+Here's what you need to know:
+• Voting Period: Starts now and ends ${
+      ballot.endDate ? new Date(ballot.endDate).toLocaleDateString() : "TBD"
+    } at 12:30 pm.
+• Your Unique Voter ID: ${
+      voter.voterId
+    }. You will need this to verify your identity.
+
+How to Vote:
+• Click on the "Vote Now" button below. DO NOT share the link with anyone else as this link is unique to you.
+
+If you encounter any issues we're here to help!
+Reply to this email or chat with support here.
+
+Don't wait until the last minute! Cast your ballot today and make an impact.
+Thank you for participating in this election.
+
+Warm regards,
+Safe Ballot
+    `;
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f4f4f4;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.1);">
+        
+        <!-- Header with logo -->
+        <div style="text-align: center; margin-bottom: 30px;">
+            <div style="background-color: #1e40af; color: white; padding: 15px; border-radius: 5px; display: inline-block;">
+                <h1 style="margin: 0; font-size: 24px; font-weight: bold;">SAFEBALLOT</h1>
+                <p style="margin: 5px 0 0 0; font-size: 12px; opacity: 0.9;">VOTES OUTSIDE THE BOX</p>
+            </div>
+        </div>
+
+        <p style="font-size: 16px; margin-bottom: 20px;"><strong>Hi ${voterName},</strong></p>
+
+        <p style="font-size: 16px; margin-bottom: 20px;">
+            The election for <strong>"${
+              ballot.title
+            }"</strong> is officially underway, and it's time to make your voice heard!
+        </p>
+
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin-bottom: 25px;">
+            <h3 style="margin-top: 0; color: #1e40af;">Here's what you need to know:</h3>
+            <ul style="margin: 10px 0;">
+                <li><strong>Voting Period:</strong> Starts now and ends ${
+                  ballot.endDate
+                    ? new Date(ballot.endDate).toLocaleDateString()
+                    : "TBD"
+                } at 12:30 pm.</li>
+                <li><strong>Your Unique Voter ID:</strong> <span style="background-color: #e3f2fd; padding: 2px 6px; border-radius: 3px; font-weight: bold;">${
+                  voter.voterId
+                }</span>. You will need this to verify your identity.</li>
+            </ul>
+        </div>
+
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin-bottom: 25px;">
+            <h3 style="margin-top: 0; color: #1e40af;">How to Vote:</h3>
+            <ul style="margin: 10px 0;">
+                <li>Click on the "Vote Now" button below. <strong>DO NOT</strong> share the link with anyone else as this link is unique to you.</li>
+            </ul>
+        </div>
+
+        <!-- Vote Now Button -->
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="${voterLoginUrl}" 
+               style="background-color: #475569; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                Vote Now →
+            </a>
+        </div>
+
+        <p style="font-size: 14px; margin-bottom: 15px;">
+            <strong>If you encounter any issues we're here to help!</strong><br>
+            Reply to this email or chat with support <a href="#" style="color: #1e40af;">here</a>.
+        </p>
+
+        <p style="font-size: 16px; margin-bottom: 15px;">
+            <strong>Don't wait until the last minute!</strong> Cast your ballot today and make an impact.
+        </p>
+
+        <p style="font-size: 16px; margin-bottom: 15px;">
+            Thank you for participating in this election.
+        </p>
+
+        <p style="font-size: 16px; margin-bottom: 30px;">
+            <strong>Warm regards,</strong><br>
+            Safe Ballot
+        </p>
+
+        <!-- Footer -->
+        <div style="border-top: 1px solid #eee; padding-top: 20px; font-size: 12px; color: #666; text-align: center;">
+            <p style="margin: 0;">This email was sent to ${voterEmail} because you are registered to vote in "${
+      ballot.title
+    }"</p>
+        </div>
+    </div>
+</body>
+</html>
+    `;
+
+    // Send the email
+    await sendEmail(voterEmail, subject, textContent, htmlContent);
+
+    console.log(
+      `Voter ID email sent successfully to ${voterEmail} for ballot ${id}`
+    );
+
+    res.status(200).json({
+      status: "success",
+      message: "Voter ID email sent successfully",
+      data: {
+        voterId: voter.voterId,
+        ballotTitle: ballot.title,
+      },
+    });
+  } catch (error) {
+    console.error("Error sending voter ID email:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to send voter ID email",
       error: error.message,
     });
   }

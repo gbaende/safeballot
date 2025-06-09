@@ -93,7 +93,7 @@ const VoterRegistration = () => {
       }
 
       // After successful registration, redirect to pre-registration flow
-      navigate(`/preregister/${id}/${slug}`);
+      navigate(`/verify-registration/${id}/${slug}`);
     } catch (err) {
       console.error("Registration error:", err);
 
@@ -118,7 +118,7 @@ const VoterRegistration = () => {
 
   const handleLoginClick = () => {
     // Redirect to voter login page, preserving the ballot information
-    navigate(`/voter/login?redirect=/preregister/${id}/${slug}`);
+    navigate(`/voter/login?redirect=/verify-registration/${id}/${slug}`);
   };
 
   return (
