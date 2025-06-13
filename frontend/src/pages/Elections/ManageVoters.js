@@ -29,6 +29,13 @@ import {
   Grid,
   ListItemIcon,
   ListItemText,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  TextField,
+  Snackbar,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
@@ -42,7 +49,10 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import BugReportIcon from "@mui/icons-material/BugReport";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import BackupIcon from "@mui/icons-material/Backup";
+import EmailIcon from "@mui/icons-material/Email";
+import SendIcon from "@mui/icons-material/Send";
 import { ballotService } from "../../services/api";
+import { sendPreRegistrationInvitation } from "../../services/api";
 import { toast } from "react-hot-toast";
 
 const ManageVoters = () => {
@@ -65,7 +75,77 @@ const ManageVoters = () => {
   const [repairInProgress, setRepairInProgress] = useState(false);
   const [anonymousVoterCount, setAnonymousVoterCount] = useState(0);
 
+  // New state variables for email functionality
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [voterEmail, setVoterEmail] = useState("");
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
+
   const open = Boolean(actionMenuAnchor);
+
+  // Email functionality handlers
+  const handleEmailDialogOpen = () => {
+    setEmailDialogOpen(true);
+  };
+
+  const handleEmailDialogClose = () => {
+    setEmailDialogOpen(false);
+    setVoterEmail("");
+  };
+
+  const handleEmailChange = (event) => {
+    setVoterEmail(event.target.value);
+  };
+
+  const handleSendInvitation = async () => {
+    if (!voterEmail || !voterEmail.includes("@")) {
+      setSnackbar({
+        open: true,
+        message: "Please enter a valid email address",
+        severity: "error",
+      });
+      return;
+    }
+
+    setEmailLoading(true);
+    try {
+      const result = await sendPreRegistrationInvitation(id, voterEmail);
+
+      setSnackbar({
+        open: true,
+        message: `Pre-registration invitation sent successfully to ${voterEmail}`,
+        severity: "success",
+      });
+
+      setEmailDialogOpen(false);
+      setVoterEmail("");
+
+      console.log("Pre-registration invitation sent:", result);
+    } catch (error) {
+      console.error("Failed to send pre-registration invitation:", error);
+
+      let errorMessage = "Failed to send invitation. Please try again.";
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: "error",
+      });
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbar({ ...snackbar, open: false });
+  };
 
   // Fetch ballot details and voters when component mounts
   useEffect(() => {
@@ -408,8 +488,15 @@ const ManageVoters = () => {
             </Button>
           )}
           <Button
-            variant="primary"
-            onClick={() => navigate(`/elections/${id}/add-voters`)}
+            variant="contained"
+            onClick={handleEmailDialogOpen}
+            sx={{
+              background: "linear-gradient(45deg, #080E1D 30%, #263C75 90%)",
+              color: "white",
+              "&:hover": {
+                background: "linear-gradient(45deg, #060A15 30%, #1E2F5D 90%)",
+              },
+            }}
           >
             Add Voters
           </Button>
@@ -592,8 +679,7 @@ const ManageVoters = () => {
               </Typography>
               <Button
                 variant="contained"
-                component={Link}
-                to={`/elections/${id}/add-voters`}
+                onClick={handleEmailDialogOpen}
                 startIcon={<AddIcon />}
                 sx={{
                   background: "linear-gradient(to right, #080E1D, #263C75)",
@@ -752,6 +838,113 @@ const ManageVoters = () => {
           </Menu>
         </>
       )}
+
+      {/* Email Dialog */}
+      <Dialog
+        open={emailDialogOpen}
+        onClose={handleEmailDialogClose}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: "flex", alignItems: "center", pb: 2 }}>
+          <EmailIcon sx={{ mr: 2, color: "#263C75" }} />
+          Send Pre-Registration Invitation
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 3, color: "#374151" }}>
+            Enter the email address of the voter you'd like to invite. They will
+            receive a pre-registration link to join this election.
+          </DialogContentText>
+          <TextField
+            autoFocus
+            margin="dense"
+            id="voterEmail"
+            name="voterEmail"
+            label="Voter Email Address"
+            type="email"
+            fullWidth
+            variant="outlined"
+            value={voterEmail}
+            onChange={handleEmailChange}
+            placeholder="Enter voter's email address"
+            disabled={emailLoading}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <EmailIcon color="action" />
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                borderRadius: "8px",
+              },
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button
+            onClick={handleEmailDialogClose}
+            disabled={emailLoading}
+            sx={{
+              textTransform: "none",
+              fontWeight: 600,
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSendInvitation}
+            disabled={!voterEmail || !voterEmail.includes("@") || emailLoading}
+            startIcon={
+              emailLoading ? (
+                <CircularProgress size={20} color="inherit" />
+              ) : (
+                <SendIcon />
+              )
+            }
+            sx={{
+              background: "linear-gradient(45deg, #080E1D 30%, #263C75 90%)",
+              color: "white",
+              textTransform: "none",
+              fontWeight: 600,
+              borderRadius: "8px",
+              px: 3,
+              py: 1,
+              "&:hover": {
+                background: "linear-gradient(45deg, #060A15 30%, #1E2F5D 90%)",
+              },
+              "&:disabled": {
+                backgroundColor: "#d1d5db",
+                color: "#9ca3af",
+              },
+            }}
+          >
+            {emailLoading ? "Sending..." : "Send Invitation"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbar.severity}
+          sx={{
+            width: "100%",
+            borderRadius: "8px",
+            fontWeight: 500,
+          }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

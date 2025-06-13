@@ -213,6 +213,10 @@ function App() {
             path="/voter-registration/:id/:slug"
             element={<VoterRegistration />}
           />
+          <Route
+            path="/voter/register/:id/:slug"
+            element={<VoterRegistration />}
+          />
 
           {/* New Dedicated Verified Routes */}
           {/* Registration Flow - Full process with confirmation */}

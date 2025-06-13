@@ -259,9 +259,10 @@ const OTP = () => {
               textTransform: "none",
               fontSize: "1rem",
               fontWeight: 600,
-              backgroundColor: "#2B3A4E",
+              background: "linear-gradient(45deg, #080E1D 30%, #263C75 90%)",
+              color: "white",
               "&:hover": {
-                backgroundColor: "#1B2838",
+                background: "linear-gradient(45deg, #060A15 30%, #1E2F5D 90%)",
               },
               mb: 3,
             }}

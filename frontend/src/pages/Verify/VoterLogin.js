@@ -115,11 +115,11 @@ const VoterLogin = () => {
     }
   };
 
-  // Extract ballot ID and slug from the redirect URL if it's a preregister URL
+  // Extract ballot ID and slug from the redirect URL if it's a verify-registration URL
   let ballotId = null;
   let ballotSlug = null;
 
-  if (redirectUrl && redirectUrl.startsWith("/preregister/")) {
+  if (redirectUrl && redirectUrl.startsWith("/verify-registration/")) {
     const parts = redirectUrl.split("/");
     if (parts.length >= 4) {
       ballotId = parts[2];
@@ -128,12 +128,11 @@ const VoterLogin = () => {
   }
 
   const handleRegisterClick = () => {
-    // If we have a ballot ID and slug, redirect to the voter registration page
+    // If we have a ballot ID and slug, redirect to the voter registration page with the correct route
     if (ballotId && ballotSlug) {
-      navigate(`/register/${ballotId}/${ballotSlug}`);
+      navigate(`/voter-registration/${ballotId}/${ballotSlug}`);
     } else {
       // Otherwise redirect to a general voter registration page
-      // This might need to be adjusted based on your app's flow
       navigate("/voter/register");
     }
   };
@@ -233,8 +232,12 @@ const VoterLogin = () => {
               sx={{
                 py: 1.5,
                 mb: 2,
-                bgcolor: "#6b7280",
-                "&:hover": { bgcolor: "#4b5563" },
+                background: "linear-gradient(45deg, #080E1D 30%, #263C75 90%)",
+                color: "white",
+                "&:hover": {
+                  background:
+                    "linear-gradient(45deg, #060A15 30%, #1E2F5D 90%)",
+                },
               }}
             >
               {loading ? "Logging in..." : "Log in"}

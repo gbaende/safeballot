@@ -36,6 +36,9 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  CircularProgress,
+  Alert,
+  Snackbar,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import {
@@ -55,6 +58,7 @@ import {
   Schedule as ScheduleIcon,
   Refresh as RefreshIcon,
   Person as PersonIcon,
+  Send as SendIcon,
 } from "@mui/icons-material";
 import MainLayout from "../components/Layout/MainLayout";
 import {
@@ -63,6 +67,7 @@ import {
   getVotersRequest,
   getVotersSuccess,
 } from "../store/electionSlice";
+import { sendPreRegistrationInvitation } from "../services/api";
 
 // Mock data for voters
 const mockVoters = [
@@ -211,6 +216,16 @@ const ManageVoters = () => {
   const [addVoterDialogOpen, setAddVoterDialogOpen] = useState(false);
   const [newVoter, setNewVoter] = useState({ name: "", email: "" });
 
+  // New state variables for email functionality
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [voterEmail, setVoterEmail] = useState("");
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
+
   // Fetch election and voters data on component mount
   useEffect(() => {
     dispatch(getElectionRequest());
@@ -291,32 +306,62 @@ const ManageVoters = () => {
   };
 
   const handleAddVoterOpen = () => {
-    setAddVoterDialogOpen(true);
+    setEmailDialogOpen(true);
   };
 
   const handleAddVoterClose = () => {
-    setAddVoterDialogOpen(false);
-    setNewVoter({ name: "", email: "" });
+    setEmailDialogOpen(false);
+    setVoterEmail("");
   };
 
-  const handleNewVoterChange = (event) => {
-    setNewVoter({
-      ...newVoter,
-      [event.target.name]: event.target.value,
-    });
+  const handleEmailChange = (event) => {
+    setVoterEmail(event.target.value);
   };
 
-  const handleAddVoter = () => {
-    // In a real application, you would call your API here
-    // api.addVoterToElection(id, newVoter)
-    //   .then(data => {
-    //     dispatch(addVoterSuccess(data));
-    //     handleAddVoterClose();
-    //   })
-    //   .catch(error => console.error(error));
+  const handleSendInvitation = async () => {
+    if (!voterEmail || !voterEmail.includes("@")) {
+      setSnackbar({
+        open: true,
+        message: "Please enter a valid email address",
+        severity: "error",
+      });
+      return;
+    }
 
-    console.log("Adding voter:", newVoter);
-    handleAddVoterClose();
+    setEmailLoading(true);
+    try {
+      const result = await sendPreRegistrationInvitation(id, voterEmail);
+
+      setSnackbar({
+        open: true,
+        message: `Pre-registration invitation sent successfully to ${voterEmail}`,
+        severity: "success",
+      });
+
+      setEmailDialogOpen(false);
+      setVoterEmail("");
+
+      console.log("Pre-registration invitation sent:", result);
+    } catch (error) {
+      console.error("Failed to send pre-registration invitation:", error);
+
+      let errorMessage = "Failed to send invitation. Please try again.";
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: "error",
+      });
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbar({ ...snackbar, open: false });
   };
 
   const handleResendVoterId = (voterId) => {
@@ -565,12 +610,16 @@ const ManageVoters = () => {
                   onClick={handleAddVoterOpen}
                   sx={{
                     background:
-                      "linear-gradient(45deg, #4478EB 30%, #6FA0FF 90%)",
+                      "linear-gradient(45deg, #080E1D 30%, #263C75 90%)",
                     color: "white",
                     height: "100%",
+                    "&:hover": {
+                      background:
+                        "linear-gradient(45deg, #060A15 30%, #1E2F5D 90%)",
+                    },
                   }}
                 >
-                  Add Voter
+                  Add Voters
                 </ActionButton>
 
                 <ActionButton
@@ -796,8 +845,98 @@ const ManageVoters = () => {
         )}
       </Box>
 
-      {/* Add Voter Dialog */}
-      <Dialog open={addVoterDialogOpen} onClose={handleAddVoterClose}>
+      {/* Email Dialog */}
+      <Dialog
+        open={emailDialogOpen}
+        onClose={handleAddVoterClose}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: "flex", alignItems: "center", pb: 2 }}>
+          <EmailIcon sx={{ mr: 2, color: "#263C75" }} />
+          Send Pre-Registration Invitation
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 3, color: "#374151" }}>
+            Enter the email address of the voter you'd like to invite. They will
+            receive a pre-registration link to join this election.
+          </DialogContentText>
+          <TextField
+            autoFocus
+            margin="dense"
+            id="voterEmail"
+            name="voterEmail"
+            label="Voter Email Address"
+            type="email"
+            fullWidth
+            variant="outlined"
+            value={voterEmail}
+            onChange={handleEmailChange}
+            placeholder="Enter voter's email address"
+            disabled={emailLoading}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <EmailIcon color="action" />
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                borderRadius: "8px",
+              },
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button
+            onClick={handleAddVoterClose}
+            disabled={emailLoading}
+            sx={{
+              textTransform: "none",
+              fontWeight: 600,
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSendInvitation}
+            disabled={!voterEmail || !voterEmail.includes("@") || emailLoading}
+            startIcon={
+              emailLoading ? (
+                <CircularProgress size={20} color="inherit" />
+              ) : (
+                <SendIcon />
+              )
+            }
+            sx={{
+              background: "linear-gradient(45deg, #080E1D 30%, #263C75 90%)",
+              color: "white",
+              textTransform: "none",
+              fontWeight: 600,
+              borderRadius: "8px",
+              px: 3,
+              py: 1,
+              "&:hover": {
+                background: "linear-gradient(45deg, #060A15 30%, #1E2F5D 90%)",
+              },
+              "&:disabled": {
+                backgroundColor: "#d1d5db",
+                color: "#9ca3af",
+              },
+            }}
+          >
+            {emailLoading ? "Sending..." : "Send Invitation"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Legacy Add Voter Dialog - keeping for potential future use */}
+      <Dialog
+        open={addVoterDialogOpen}
+        onClose={() => setAddVoterDialogOpen(false)}
+      >
         <DialogTitle>Add New Voter</DialogTitle>
         <DialogContent>
           <DialogContentText mb={2}>
@@ -813,7 +952,9 @@ const ManageVoters = () => {
             fullWidth
             variant="outlined"
             value={newVoter.name}
-            onChange={handleNewVoterChange}
+            onChange={(event) =>
+              setNewVoter({ ...newVoter, name: event.target.value })
+            }
             sx={{ mb: 2 }}
           />
           <TextField
@@ -825,25 +966,59 @@ const ManageVoters = () => {
             fullWidth
             variant="outlined"
             value={newVoter.email}
-            onChange={handleNewVoterChange}
+            onChange={(event) =>
+              setNewVoter({ ...newVoter, email: event.target.value })
+            }
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleAddVoterClose}>Cancel</Button>
+          <Button onClick={() => setAddVoterDialogOpen(false)}>Cancel</Button>
           <Button
             variant="contained"
             color="primary"
-            onClick={handleAddVoter}
+            onClick={() => {
+              // Handle adding voter
+              console.log("Adding voter:", newVoter);
+              setAddVoterDialogOpen(false);
+              setNewVoter({ name: "", email: "" });
+            }}
             disabled={!newVoter.name || !newVoter.email}
             sx={{
-              background: "linear-gradient(45deg, #4478EB 30%, #6FA0FF 90%)",
+              background: "linear-gradient(45deg, #080E1D 30%, #263C75 90%)",
               color: "white",
+              "&:hover": {
+                background: "linear-gradient(45deg, #060A15 30%, #1E2F5D 90%)",
+              },
+              "&:disabled": {
+                backgroundColor: "#d1d5db",
+                color: "#9ca3af",
+              },
             }}
           >
             Add Voter
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbar.severity}
+          sx={{
+            width: "100%",
+            borderRadius: "8px",
+            fontWeight: 500,
+          }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </MainLayout>
   );
 };

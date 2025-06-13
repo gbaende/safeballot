@@ -216,14 +216,14 @@ const VoterIdVerification = ({ onComplete, onBack, userEmail }) => {
           disabled={!voterId.trim() || loading}
           sx={{
             py: 1.5,
-            backgroundColor: "#9ca3af",
+            background: "linear-gradient(45deg, #080E1D 30%, #263C75 90%)",
             color: "white",
             borderRadius: 2,
             textTransform: "none",
             fontSize: "1rem",
             fontWeight: 500,
             "&:hover": {
-              backgroundColor: "#6b7280",
+              background: "linear-gradient(45deg, #060A15 30%, #1E2F5D 90%)",
             },
             "&:disabled": {
               backgroundColor: "#d1d5db",

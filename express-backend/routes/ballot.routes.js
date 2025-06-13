@@ -17,6 +17,14 @@ const { sequelize } = require("../database/connection");
 const { Op } = require("sequelize");
 const jwt = require("jsonwebtoken");
 
+// Helper function to get the base URL for hosted assets
+const getLogoUrl = () => {
+  // In production, use the actual domain. In development, use localhost
+  const baseUrl =
+    process.env.BASE_URL || process.env.FRONTEND_URL || "http://localhost:3000";
+  return `${baseUrl}/images/logo@2x.png`;
+};
+
 const router = express.Router();
 
 /**
@@ -3479,6 +3487,8 @@ router.post("/:id/send-voter-id", async (req, res) => {
       .replace(/\s+/g, "-")
       .toLowerCase()}`;
 
+    const logoUrl = getLogoUrl();
+
     const textContent = `
 Hi ${voterName},
 
@@ -3513,78 +3523,105 @@ Safe Ballot
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Voter ID - ${ballot.title}</title>
 </head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f4f4f4;">
-    <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.1);">
+<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f8f9fa;">
+    <div style="background-color: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
         
-        <!-- Header with logo -->
-        <div style="text-align: center; margin-bottom: 30px;">
-            <div style="background-color: #1e40af; color: white; padding: 15px; border-radius: 5px; display: inline-block;">
-                <h1 style="margin: 0; font-size: 24px; font-weight: bold;">SAFEBALLOT</h1>
-                <p style="margin: 5px 0 0 0; font-size: 12px; opacity: 0.9;">VOTES OUTSIDE THE BOX</p>
+        <!-- SafeBallot Logo Header -->
+        <div style="text-align: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #080E1D;">
+            <img
+                src="${logoUrl}"
+                alt="SafeBallot"
+                width="44" height="56"
+                style="display: block; margin: 0 auto 10px; line-height: 1; border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic;"
+            />
+            <div>
+                <h1 style="margin: 0; color: #080E1D; font-size: 28px; font-weight: 700; letter-spacing: 1px;">SAFEBALLOT</h1>
+                <p style="margin: 0; color: #6b7280; font-size: 12px; letter-spacing: 2px; font-weight: 500;">-VOTE OUTSIDE THE BOX-</p>
             </div>
         </div>
 
-        <p style="font-size: 16px; margin-bottom: 20px;"><strong>Hi ${voterName},</strong></p>
+        <!-- Main Content -->
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h2 style="color: #263C75; font-size: 24px; margin-bottom: 15px; font-weight: 600;">It's Time to Vote!</h2>
+            <p style="font-size: 18px; color: #374151; margin-bottom: 20px;">
+                <strong>Hi ${voterName},</strong>
+            </p>
+            <p style="font-size: 16px; color: #374151; margin-bottom: 20px;">
+                The election for <strong>"${
+                  ballot.title
+                }"</strong> is officially underway, and it's time to make your voice heard!
+            </p>
+        </div>
 
-        <p style="font-size: 16px; margin-bottom: 20px;">
-            The election for <strong>"${
-              ballot.title
-            }"</strong> is officially underway, and it's time to make your voice heard!
-        </p>
-
-        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin-bottom: 25px;">
-            <h3 style="margin-top: 0; color: #1e40af;">Here's what you need to know:</h3>
-            <ul style="margin: 10px 0;">
-                <li><strong>Voting Period:</strong> Starts now and ends ${
+        <!-- Election Details -->
+        <div style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); padding: 25px; border-radius: 8px; margin-bottom: 30px; border-left: 4px solid #263C75;">
+            <h3 style="margin-top: 0; color: #263C75; font-size: 18px;">Here's what you need to know:</h3>
+            <ul style="margin: 10px 0; padding-left: 20px; color: #4a5568;">
+                <li style="margin-bottom: 8px;"><strong>Voting Period:</strong> Starts now and ends ${
                   ballot.endDate
                     ? new Date(ballot.endDate).toLocaleDateString()
                     : "TBD"
                 } at 12:30 pm.</li>
-                <li><strong>Your Unique Voter ID:</strong> <span style="background-color: #e3f2fd; padding: 2px 6px; border-radius: 3px; font-weight: bold;">${
-                  voter.voterId
-                }</span>. You will need this to verify your identity.</li>
+                <li style="margin-bottom: 8px;"><strong>Your Unique Voter ID:</strong> 
+                    <div style="background: white; padding: 12px; border-radius: 6px; margin: 8px 0; border: 2px dashed #263C75; text-align: center;">
+                        <span style="font-family: 'Courier New', monospace; font-size: 18px; font-weight: bold; color: #080E1D; letter-spacing: 2px;">${
+                          voter.voterId
+                        }</span>
+                    </div>
+                    You will need this to verify your identity.
+                </li>
             </ul>
         </div>
 
-        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin-bottom: 25px;">
-            <h3 style="margin-top: 0; color: #1e40af;">How to Vote:</h3>
-            <ul style="margin: 10px 0;">
-                <li>Click on the "Vote Now" button below. <strong>DO NOT</strong> share the link with anyone else as this link is unique to you.</li>
+        <!-- Instructions -->
+        <div style="background-color: #f0f4f8; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+            <h3 style="margin-top: 0; color: #263C75; font-size: 16px;">How to Vote:</h3>
+            <ul style="margin: 10px 0; padding-left: 20px; color: #4a5568;">
+                <li style="margin-bottom: 8px;">Click on the "Vote Now" button below. <strong>DO NOT</strong> share the link with anyone else as this link is unique to you.</li>
             </ul>
         </div>
 
         <!-- Vote Now Button -->
-        <div style="text-align: center; margin: 30px 0;">
+        <div style="text-align: center; margin: 35px 0;">
             <a href="${voterLoginUrl}" 
-               style="background-color: #475569; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+               style="background: linear-gradient(45deg, #080E1D 30%, #263C75 90%); color: white !important; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(8, 14, 29, 0.3); transition: all 0.3s ease;">
                 Vote Now →
             </a>
         </div>
 
-        <p style="font-size: 14px; margin-bottom: 15px;">
-            <strong>If you encounter any issues we're here to help!</strong><br>
-            Reply to this email or chat with support <a href="#" style="color: #1e40af;">here</a>.
-        </p>
+        <!-- Support Section -->
+        <div style="background-color: #e0f2fe; padding: 15px; border-radius: 6px; margin-bottom: 25px; border-left: 4px solid #0288d1;">
+            <p style="margin: 0; font-size: 14px; color: #01579b;">
+                <strong>If you encounter any issues we're here to help!</strong><br>
+                Reply to this email or chat with support.
+            </p>
+        </div>
 
-        <p style="font-size: 16px; margin-bottom: 15px;">
+        <p style="font-size: 16px; margin-bottom: 15px; color: #374151;">
             <strong>Don't wait until the last minute!</strong> Cast your ballot today and make an impact.
         </p>
 
-        <p style="font-size: 16px; margin-bottom: 15px;">
+        <p style="font-size: 16px; margin-bottom: 15px; color: #374151;">
             Thank you for participating in this election.
         </p>
 
-        <p style="font-size: 16px; margin-bottom: 30px;">
+        <p style="font-size: 16px; margin-bottom: 30px; color: #374151;">
             <strong>Warm regards,</strong><br>
-            Safe Ballot
+            SafeBallot Team
         </p>
 
         <!-- Footer -->
-        <div style="border-top: 1px solid #eee; padding-top: 20px; font-size: 12px; color: #666; text-align: center;">
-            <p style="margin: 0;">This email was sent to ${voterEmail} because you are registered to vote in "${
+        <div style="border-top: 2px solid #e5e7eb; padding-top: 20px; font-size: 12px; color: #6b7280; text-align: center;">
+            <p style="margin: 0 0 5px 0;">This email was sent to ${voterEmail} because you are registered to vote in "${
       ballot.title
     }"</p>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+                <p style="margin: 0; color: #9ca3af; font-size: 11px;">
+                    © ${new Date().getFullYear()} SafeBallot. Secure, transparent, and democratic voting platform.
+                </p>
+            </div>
         </div>
     </div>
 </body>
@@ -3611,6 +3648,247 @@ Safe Ballot
     res.status(500).json({
       status: "error",
       message: "Failed to send voter ID email",
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * Send pre-registration email invitation to a voter
+ * @route POST /api/ballots/:id/send-pre-registration-email
+ * @access Private
+ */
+router.post("/:id/send-pre-registration-email", protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { voterEmail } = req.body;
+
+    if (!voterEmail) {
+      return res.status(400).json({
+        status: "error",
+        message: "Voter email is required",
+      });
+    }
+
+    // Check if ballot exists and user has access
+    const ballot = await Ballot.findByPk(id);
+    if (!ballot) {
+      return res.status(404).json({
+        status: "error",
+        message: "Ballot not found",
+      });
+    }
+
+    // Only allow access if ballot is created by the user
+    if (ballot.createdBy !== req.user.id) {
+      return res.status(403).json({
+        status: "error",
+        message:
+          "You do not have permission to send invitations for this ballot",
+      });
+    }
+
+    // Generate a unique voter ID for this invitation
+    const crypto = require("crypto");
+    const uniqueVoterId = crypto.randomBytes(16).toString("hex").toUpperCase();
+
+    // Import email utility
+    const { sendEmail } = require("../utils/email");
+
+    // Prepare email content
+    const subject = `You're Invited to Participate in "${ballot.title}"`;
+    const preRegistrationUrl = `${
+      process.env.FRONTEND_URL || "http://localhost:3000"
+    }/voter/register/${id}/${ballot.title
+      .replace(/\s+/g, "-")
+      .toLowerCase()}?voterId=${uniqueVoterId}`;
+
+    const logoUrl = getLogoUrl();
+
+    const textContent = `
+Hi there,
+
+You've been invited to participate in "${ballot.title}".
+
+Your Unique Voter ID: ${uniqueVoterId}
+
+To get started:
+1. Click the link below to pre-register
+2. Complete your voter registration using your Voter ID
+3. You'll receive voting instructions when the election begins
+
+Pre-Registration Link: ${preRegistrationUrl}
+
+About this Election:
+• Title: ${ballot.title}
+• Description: ${ballot.description || "No description provided"}
+• Start Date: ${
+      ballot.startDate ? new Date(ballot.startDate).toLocaleDateString() : "TBD"
+    }
+• End Date: ${
+      ballot.endDate ? new Date(ballot.endDate).toLocaleDateString() : "TBD"
+    }
+
+Important: Please save your Voter ID (${uniqueVoterId}) as you'll need it to access your ballot.
+
+If you have any questions or need assistance, please don't hesitate to reach out.
+
+Thank you for your participation!
+
+Best regards,
+SafeBallot Team
+    `;
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Election Invitation - ${ballot.title}</title>
+</head>
+<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f8f9fa;">
+    <div style="background-color: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        
+        <!-- SafeBallot Logo Header -->
+        <div style="text-align: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #080E1D;">
+            <img
+                src="${logoUrl}"
+                alt="SafeBallot"
+                width="44" height="56"
+                style="display: block; margin: 0 auto 10px; line-height: 1; border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic;"
+            />
+            <div>
+                <h1 style="margin: 0; color: #080E1D; font-size: 28px; font-weight: 700; letter-spacing: 1px;">SAFEBALLOT</h1>
+                <p style="margin: 0; color: #6b7280; font-size: 12px; letter-spacing: 2px; font-weight: 500;">-VOTE OUTSIDE THE BOX-</p>
+            </div>
+        </div>
+
+        <!-- Main content -->
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h2 style="color: #263C75; font-size: 24px; margin-bottom: 15px; font-weight: 600;">You're Invited to Participate</h2>
+            <p style="font-size: 18px; color: #374151; margin-bottom: 20px;">
+                You've been invited to participate in "<strong>${
+                  ballot.title
+                }</strong>".
+            </p>
+        </div>
+
+        <!-- Voter ID Card -->
+        <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 30px; text-align: center; border: 2px solid #080E1D; box-shadow: 0 4px 12px rgba(8, 14, 29, 0.15);">
+            <div style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); padding: 20px; border-radius: 8px; border: 1px solid #cbd5e0;">
+                <p style="margin: 0 0 8px 0; font-size: 14px; color: #4a5568; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Your Unique Voter ID</p>
+                <h3 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 3px; font-family: 'Courier New', monospace; color: #080E1D; background: white; padding: 12px; border-radius: 6px; border: 2px dashed #263C75;">${uniqueVoterId}</h3>
+                <p style="margin: 12px 0 0 0; font-size: 13px; color: #6b7280; font-weight: 500;">Keep this ID safe - you'll need it to vote</p>
+            </div>
+        </div>
+
+        <!-- Election details card -->
+        <div style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); padding: 25px; border-radius: 8px; margin-bottom: 30px; border-left: 4px solid #263C75;">
+            <h3 style="margin-top: 0; color: #263C75; font-size: 18px;">Election Details</h3>
+            <div style="margin: 15px 0;">
+                <p style="margin: 8px 0; font-size: 14px;"><strong>Title:</strong> ${
+                  ballot.title
+                }</p>
+                ${
+                  ballot.description
+                    ? `<p style="margin: 8px 0; font-size: 14px;"><strong>Description:</strong> ${ballot.description}</p>`
+                    : ""
+                }
+                <p style="margin: 8px 0; font-size: 14px;"><strong>Start Date:</strong> ${
+                  ballot.startDate
+                    ? new Date(ballot.startDate).toLocaleDateString()
+                    : "TBD"
+                }</p>
+                <p style="margin: 8px 0; font-size: 14px;"><strong>End Date:</strong> ${
+                  ballot.endDate
+                    ? new Date(ballot.endDate).toLocaleDateString()
+                    : "TBD"
+                }</p>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div style="background-color: #f0f4f8; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+            <h3 style="margin-top: 0; color: #263C75; font-size: 16px;">How to Get Started:</h3>
+            <ol style="margin: 10px 0; padding-left: 20px; color: #4a5568;">
+                <li style="margin-bottom: 8px;">Click the "Start Pre-Registration" button below</li>
+                <li style="margin-bottom: 8px;">Complete your voter registration using your Voter ID</li>
+                <li style="margin-bottom: 8px;">You'll receive voting instructions when the election begins</li>
+            </ol>
+        </div>
+
+        <!-- CTA Button -->
+        <div style="text-align: center; margin: 35px 0;">
+            <a href="${preRegistrationUrl}" 
+               style="background: linear-gradient(45deg, #080E1D 30%, #263C75 90%); color: white !important; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(8, 14, 29, 0.3); transition: all 0.3s ease;">
+                Start Pre-Registration →
+            </a>
+        </div>
+
+        <!-- Important Notice -->
+        <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #f59e0b;">
+            <p style="margin: 0; font-size: 14px; color: #92400e;">
+                <strong>Important:</strong> Please keep your Voter ID (<strong>${uniqueVoterId}</strong>) as you'll need it to access your ballot. If you lose it, contact our support team for assistance.
+            </p>
+        </div>
+
+        <!-- Support section -->
+        <div style="background-color: #e0f2fe; padding: 15px; border-radius: 6px; margin-bottom: 25px; border-left: 4px solid #0288d1;">
+            <p style="margin: 0; font-size: 14px; color: #01579b;">
+                <strong>Need Help?</strong> If you have any questions or need assistance with the registration process, please reply to this email or contact our support team.
+            </p>
+        </div>
+
+        <p style="font-size: 16px; margin-bottom: 20px; color: #374151;">
+            Thank you for participating in this democratic process. Your voice matters!
+        </p>
+
+        <p style="font-size: 16px; margin-bottom: 30px; color: #374151;">
+            <strong>Best regards,</strong><br>
+            SafeBallot Team
+        </p>
+
+        <!-- Footer -->
+        <div style="border-top: 2px solid #e5e7eb; padding-top: 20px; font-size: 12px; color: #6b7280; text-align: center;">
+            <p style="margin: 0 0 5px 0;">This invitation was sent to ${voterEmail}</p>
+            <p style="margin: 0;">You are receiving this because you were invited to participate in "${
+              ballot.title
+            }"</p>
+            <p style="margin: 5px 0 0 0;">Voter ID: ${uniqueVoterId}</p>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+                <p style="margin: 0; color: #9ca3af; font-size: 11px;">
+                    © ${new Date().getFullYear()} SafeBallot. Secure, transparent, and democratic voting platform.
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+    `;
+
+    // Send the email
+    await sendEmail(voterEmail, subject, textContent, htmlContent);
+
+    console.log(
+      `Pre-registration invitation email sent successfully to ${voterEmail} for ballot ${id} with Voter ID: ${uniqueVoterId}`
+    );
+
+    res.status(200).json({
+      status: "success",
+      message: "Pre-registration invitation sent successfully",
+      data: {
+        ballotTitle: ballot.title,
+        invitedEmail: voterEmail,
+        voterId: uniqueVoterId,
+        preRegistrationUrl,
+      },
+    });
+  } catch (error) {
+    console.error("Error sending pre-registration invitation email:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to send pre-registration invitation",
       error: error.message,
     });
   }

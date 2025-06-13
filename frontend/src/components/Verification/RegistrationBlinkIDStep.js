@@ -64,6 +64,66 @@ const RegistrationBlinkIDStep = ({ onComplete, onError, onBack, ballotId }) => {
     return String(value || "");
   };
 
+  // Helper function to preprocess images for better document detection
+  const preprocessImage = async (imageElement) => {
+    try {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      // Set canvas size to match image
+      canvas.width = imageElement.width;
+      canvas.height = imageElement.height;
+
+      // Draw original image
+      ctx.drawImage(imageElement, 0, 0);
+
+      // Get image data for processing
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+
+      // Apply contrast enhancement and sharpening
+      for (let i = 0; i < data.length; i += 4) {
+        // Enhance contrast
+        const contrast = 1.2;
+        const factor =
+          (259 * (contrast * 255 + 255)) / (255 * (259 - contrast * 255));
+
+        data[i] = Math.min(255, Math.max(0, factor * (data[i] - 128) + 128)); // Red
+        data[i + 1] = Math.min(
+          255,
+          Math.max(0, factor * (data[i + 1] - 128) + 128)
+        ); // Green
+        data[i + 2] = Math.min(
+          255,
+          Math.max(0, factor * (data[i + 2] - 128) + 128)
+        ); // Blue
+      }
+
+      // Put processed image data back
+      ctx.putImageData(imageData, 0, 0);
+
+      // Create new image element with processed data
+      const processedImage = new Image();
+      processedImage.src = canvas.toDataURL("image/jpeg", 0.9);
+
+      return new Promise((resolve) => {
+        processedImage.onload = () => resolve(processedImage);
+        processedImage.onerror = () => {
+          console.warn(
+            "[REGISTRATION_BLINKID] Processed image load failed, using original"
+          );
+          resolve(imageElement);
+        };
+      });
+    } catch (error) {
+      console.warn(
+        "[REGISTRATION_BLINKID] Image preprocessing failed, using original:",
+        error
+      );
+      return imageElement;
+    }
+  };
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sdkLoaded, setSdkLoaded] = useState(false);
@@ -153,8 +213,10 @@ const RegistrationBlinkIDStep = ({ onComplete, onError, onBack, ballotId }) => {
         false
       );
 
+      // Store references including wasmSDK for file upload fallback
       recognizerRef.current = recognizer;
       recognizerRunnerRef.current = recognizerRunner;
+      recognizerRunnerRef.current.wasmSDK = wasmSDK; // Store for relaxed recognizer creation
 
       setSdkLoaded(true);
       console.log(
@@ -296,11 +358,11 @@ const RegistrationBlinkIDStep = ({ onComplete, onError, onBack, ballotId }) => {
         };
       });
 
-      // Check image dimensions
-      if (imageElement.width < 300 || imageElement.height < 200) {
+      // Check image dimensions - be more lenient
+      if (imageElement.width < 200 || imageElement.height < 150) {
         URL.revokeObjectURL(imageUrl);
         throw new Error(
-          "Image resolution is too low. Please use a higher quality image (minimum 300x200 pixels)."
+          "Image resolution is too low. Please use a higher quality image (minimum 200x150 pixels)."
         );
       }
 
@@ -308,70 +370,257 @@ const RegistrationBlinkIDStep = ({ onComplete, onError, onBack, ballotId }) => {
         "[REGISTRATION_BLINKID] Image validated, processing with BlinkID SDK"
       );
 
-      // Process with BlinkID SDK
-      const imageFrame = BlinkIDSDK.captureFrame(imageElement);
+      // Preprocess image for better detection
+      const processedImage = await preprocessImage(imageElement);
 
-      if (!imageFrame) {
-        URL.revokeObjectURL(imageUrl);
-        throw new Error(
-          "Failed to capture image frame. Please try a different image."
-        );
-      }
+      // Create a more lenient recognizer for file uploads
+      let processResult;
+      let result;
 
-      const processResult = await recognizerRunnerRef.current.processImage(
-        imageFrame
-      );
+      try {
+        // First attempt with current recognizer using processed image
+        const imageFrame = BlinkIDSDK.captureFrame(processedImage);
 
-      URL.revokeObjectURL(imageUrl);
-
-      console.log(
-        "[REGISTRATION_BLINKID] SDK processing result:",
-        processResult
-      );
-
-      // Log the actual SDK state names for better debugging
-      const stateNames = {
-        0: "Empty",
-        1: "Uncertain",
-        2: "Valid",
-      };
-
-      console.log("[REGISTRATION_BLINKID] SDK processing result details:", {
-        resultCode: processResult,
-        stateName: stateNames[processResult] || "Unknown",
-        imageSize: `${imageElement.width}x${imageElement.height}`,
-        fileSize: `${Math.round(file.size / 1024)}KB`,
-      });
-
-      if (processResult === BlinkIDSDK.RecognizerResultState.Valid) {
-        const result = await recognizerRef.current.getResult();
-        await handleRegistrationScanResult(result);
-      } else if (processResult === BlinkIDSDK.RecognizerResultState.Uncertain) {
-        const result = await recognizerRef.current.getResult();
-        console.warn(
-          "[REGISTRATION_BLINKID] Uncertain result, attempting to process anyway"
-        );
-        await handleRegistrationScanResult(result);
-      } else if (processResult === BlinkIDSDK.RecognizerResultState.Empty) {
-        // Get more detailed information about why the result was empty
-        try {
-          const result = await recognizerRef.current.getResult();
-          console.log("[REGISTRATION_BLINKID] Empty result details:", result);
-        } catch (e) {
+        if (!imageFrame) {
+          // Fallback to original image if processed image fails
           console.log(
-            "[REGISTRATION_BLINKID] Could not get result details for empty state"
+            "[REGISTRATION_BLINKID] Processed image failed, trying original..."
+          );
+          const originalFrame = BlinkIDSDK.captureFrame(imageElement);
+          if (!originalFrame) {
+            throw new Error("Failed to capture image frame");
+          }
+
+          processResult = await recognizerRunnerRef.current.processImage(
+            originalFrame
+          );
+        } else {
+          processResult = await recognizerRunnerRef.current.processImage(
+            imageFrame
           );
         }
 
-        // Show image preview for user to analyze
-        setShowImagePreview(true);
+        console.log("[REGISTRATION_BLINKID] First attempt result:", {
+          resultCode: processResult,
+          stateName:
+            processResult === 0
+              ? "Empty"
+              : processResult === 1
+              ? "Uncertain"
+              : "Valid",
+          imageSize: `${imageElement.width}x${imageElement.height}`,
+          fileSize: `${Math.round(file.size / 1024)}KB`,
+          usedProcessedImage: !!imageFrame,
+        });
 
-        throw new Error(
-          "No valid government-issued document detected. Please ensure your ID document fills most of the frame and is clearly visible."
+        // If first attempt fails, try with relaxed settings
+        if (processResult === BlinkIDSDK.RecognizerResultState.Empty) {
+          console.log(
+            "[REGISTRATION_BLINKID] First attempt failed, trying with relaxed settings..."
+          );
+
+          try {
+            // Update the existing recognizer with more lenient settings instead of creating a new one
+            const currentSettings =
+              await recognizerRef.current.currentSettings();
+
+            // Store original settings for restoration
+            const originalSettings = {
+              allowBlurFilter: currentSettings.allowBlurFilter,
+              allowUnparsedMrzResults: currentSettings.allowUnparsedMrzResults,
+              allowUnverifiedMrzResults:
+                currentSettings.allowUnverifiedMrzResults,
+            };
+
+            // Apply more lenient settings for file uploads
+            currentSettings.allowBlurFilter = true; // Allow blurred images
+            currentSettings.allowUnparsedMrzResults = true; // Allow unparsed MRZ
+            currentSettings.allowUnverifiedMrzResults = true; // Allow unverified MRZ
+
+            await recognizerRef.current.updateSettings(currentSettings);
+
+            // Try processing with relaxed settings - try both processed and original images
+            const relaxedFrame =
+              imageFrame || BlinkIDSDK.captureFrame(imageElement);
+            if (relaxedFrame) {
+              processResult = await recognizerRunnerRef.current.processImage(
+                relaxedFrame
+              );
+
+              console.log("[REGISTRATION_BLINKID] Relaxed attempt result:", {
+                resultCode: processResult,
+                stateName:
+                  processResult === 0
+                    ? "Empty"
+                    : processResult === 1
+                    ? "Uncertain"
+                    : "Valid",
+              });
+
+              if (processResult !== BlinkIDSDK.RecognizerResultState.Empty) {
+                result = await recognizerRef.current.getResult();
+              }
+            }
+
+            // Restore original settings
+            try {
+              currentSettings.allowBlurFilter =
+                originalSettings.allowBlurFilter;
+              currentSettings.allowUnparsedMrzResults =
+                originalSettings.allowUnparsedMrzResults;
+              currentSettings.allowUnverifiedMrzResults =
+                originalSettings.allowUnverifiedMrzResults;
+              await recognizerRef.current.updateSettings(currentSettings);
+            } catch (restoreError) {
+              console.warn(
+                "[REGISTRATION_BLINKID] Failed to restore original settings:",
+                restoreError
+              );
+              // Continue anyway - the recognizer might still work
+            }
+          } catch (relaxedError) {
+            console.warn(
+              "[REGISTRATION_BLINKID] Relaxed processing failed:",
+              relaxedError
+            );
+            // Fall back to original result if relaxed processing fails
+            if (processResult !== BlinkIDSDK.RecognizerResultState.Empty) {
+              result = await recognizerRef.current.getResult();
+            }
+          }
+        } else {
+          result = await recognizerRef.current.getResult();
+        }
+      } catch (frameError) {
+        console.error(
+          "[REGISTRATION_BLINKID] Frame processing error:",
+          frameError
         );
+
+        // If we get an SDK error, try to reinitialize and process again
+        if (
+          frameError.message.includes("Failed to invoke object") ||
+          frameError.message.includes("SDKError")
+        ) {
+          console.log(
+            "[REGISTRATION_BLINKID] SDK error detected, attempting recovery..."
+          );
+
+          try {
+            // Try to process with a simple approach - just the original image
+            const simpleFrame = BlinkIDSDK.captureFrame(imageElement);
+            if (simpleFrame) {
+              // Reset recognizer to default settings first
+              const defaultSettings =
+                await recognizerRef.current.currentSettings();
+              defaultSettings.allowBlurFilter = true;
+              defaultSettings.allowUnparsedMrzResults = true;
+              defaultSettings.allowUnverifiedMrzResults = true;
+              await recognizerRef.current.updateSettings(defaultSettings);
+
+              processResult = await recognizerRunnerRef.current.processImage(
+                simpleFrame
+              );
+
+              console.log("[REGISTRATION_BLINKID] Recovery attempt result:", {
+                resultCode: processResult,
+                stateName:
+                  processResult === 0
+                    ? "Empty"
+                    : processResult === 1
+                    ? "Uncertain"
+                    : "Valid",
+              });
+
+              if (processResult !== BlinkIDSDK.RecognizerResultState.Empty) {
+                result = await recognizerRef.current.getResult();
+              }
+            }
+          } catch (recoveryError) {
+            console.error(
+              "[REGISTRATION_BLINKID] Recovery attempt failed:",
+              recoveryError
+            );
+            throw new Error(
+              "Document processing failed. Please try using the camera instead of uploading an image."
+            );
+          }
+        } else {
+          throw new Error(
+            "Failed to process image. Please try a clearer, well-lit photo of your document."
+          );
+        }
+      }
+
+      URL.revokeObjectURL(imageUrl);
+
+      console.log("[REGISTRATION_BLINKID] Final processing result:", {
+        resultCode: processResult,
+        stateName:
+          processResult === 0
+            ? "Empty"
+            : processResult === 1
+            ? "Uncertain"
+            : "Valid",
+        hasResult: !!result,
+      });
+
+      if (processResult === BlinkIDSDK.RecognizerResultState.Valid) {
+        console.log("[REGISTRATION_BLINKID] Valid result found, processing...");
+        await handleRegistrationScanResult(result);
+      } else if (processResult === BlinkIDSDK.RecognizerResultState.Uncertain) {
+        console.log(
+          "[REGISTRATION_BLINKID] Uncertain result found, attempting to process..."
+        );
+        if (result) {
+          // Check if we have enough data to proceed
+          const hasBasicData =
+            result.firstName ||
+            result.lastName ||
+            result.fullName ||
+            result.documentNumber;
+          if (hasBasicData) {
+            console.log(
+              "[REGISTRATION_BLINKID] Uncertain result has basic data, proceeding..."
+            );
+            await handleRegistrationScanResult(result);
+          } else {
+            console.log(
+              "[REGISTRATION_BLINKID] Uncertain result lacks basic data"
+            );
+            setShowImagePreview(true);
+            throw new Error(
+              "Document partially detected but missing key information. Please ensure your ID document is clearly visible and well-lit."
+            );
+          }
+        } else {
+          setShowImagePreview(true);
+          throw new Error(
+            "Document partially detected but could not extract information. Please try a clearer image."
+          );
+        }
       } else {
+        // Empty result - provide detailed guidance
+        console.log(
+          "[REGISTRATION_BLINKID] Empty result - no document detected"
+        );
+
+        // Get detailed result for debugging
+        try {
+          const emptyResult = await recognizerRef.current.getResult();
+          console.log(
+            "[REGISTRATION_BLINKID] Empty result details:",
+            emptyResult
+          );
+        } catch (e) {
+          console.log(
+            "[REGISTRATION_BLINKID] Could not get empty result details"
+          );
+        }
+
+        setShowImagePreview(true);
         throw new Error(
-          "Document processing failed. Please ensure the document is well-lit, in focus, and fully visible."
+          "No government-issued document detected. Please ensure:\n• Your ID document fills most of the frame\n• The document is well-lit with no shadows or glare\n• All text is clearly readable\n• The document is lying flat (not tilted)\n• You're using a government-issued photo ID (passport, driver's license, or national ID)"
         );
       }
     } catch (err) {
@@ -385,7 +634,10 @@ const RegistrationBlinkIDStep = ({ onComplete, onError, onBack, ballotId }) => {
       // Provide more user-friendly error messages
       let userMessage = err.message;
 
-      if (err.message.includes("captureFrame")) {
+      if (
+        err.message.includes("captureFrame") ||
+        err.message.includes("Failed to capture")
+      ) {
         userMessage =
           "Failed to process image. Please try a clearer, well-lit photo of your document.";
       } else if (err.message.includes("processImage")) {
@@ -557,19 +809,618 @@ const RegistrationBlinkIDStep = ({ onComplete, onError, onBack, ballotId }) => {
     return (
       <Box
         sx={{
+          minHeight: "100vh",
+          bgcolor: "#2c3e50",
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
-          p: 3,
+          position: "relative",
         }}
       >
-        <CircularProgress sx={{ mb: 2 }} />
-        <Typography variant="h6">
-          Initializing Registration Scanner...
-        </Typography>
-        <Typography variant="body2" color="textSecondary">
-          Setting up document verification for voter registration
-        </Typography>
+        {/* Header with Back Button */}
+        <Box
+          sx={{
+            position: "absolute",
+            top: 20,
+            left: 20,
+            zIndex: 1000,
+          }}
+        >
+          {onBack && (
+            <IconButton
+              onClick={onBack}
+              sx={{
+                color: "white",
+                bgcolor: "rgba(255,255,255,0.1)",
+                "&:hover": { bgcolor: "rgba(255,255,255,0.2)" },
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+          )}
+        </Box>
+
+        {/* Main Content - Split 50/50 */}
+        <Box
+          sx={{
+            flex: 1,
+            display: "flex",
+            minHeight: "100vh",
+          }}
+        >
+          {!showCamera ? (
+            <>
+              {/* Left Side - Document Verification */}
+              <Box
+                sx={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  p: 4,
+                  color: "white",
+                }}
+              >
+                <Box
+                  sx={{
+                    maxWidth: 500,
+                    width: "100%",
+                    textAlign: "center",
+                  }}
+                >
+                  <Typography
+                    variant="h4"
+                    sx={{
+                      mb: 2,
+                      fontWeight: 600,
+                      color: "white",
+                    }}
+                  >
+                    Document Verification
+                  </Typography>
+
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      mb: 4,
+                      opacity: 0.9,
+                      lineHeight: 1.6,
+                      fontSize: "1.1rem",
+                    }}
+                  >
+                    Please scan your government-issued ID to complete voter
+                    registration. We support passports, driver's licenses, and
+                    national ID cards.
+                  </Typography>
+
+                  {/* Document Requirements Card */}
+                  <Paper
+                    sx={{
+                      p: 3,
+                      mb: 4,
+                      bgcolor: "rgba(255,255,255,0.95)",
+                      borderRadius: 3,
+                      textAlign: "left",
+                    }}
+                  >
+                    <Typography
+                      variant="h6"
+                      sx={{ mb: 2, color: "#2c3e50", fontWeight: 600 }}
+                    >
+                      📋 Document Requirements
+                    </Typography>
+                    <Box component="ul" sx={{ pl: 2, m: 0, color: "#2c3e50" }}>
+                      <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                        Government-issued photo ID (passport, driver's license,
+                        national ID)
+                      </Typography>
+                      <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                        Document must be valid and not expired
+                      </Typography>
+                      <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                        All text and details must be clearly visible
+                      </Typography>
+                    </Box>
+
+                    <Typography
+                      variant="h6"
+                      sx={{ mt: 3, mb: 2, color: "#2c3e50", fontWeight: 600 }}
+                    >
+                      📸 Photo Tips
+                    </Typography>
+                    <Box component="ul" sx={{ pl: 2, m: 0, color: "#2c3e50" }}>
+                      <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                        Good lighting - avoid shadows and glare
+                      </Typography>
+                      <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                        Hold document flat and steady
+                      </Typography>
+                      <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                        Fill the frame - document should take up most of the
+                        image
+                      </Typography>
+                      <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                        Use JPG, PNG, or BMP format (max 10MB)
+                      </Typography>
+                    </Box>
+                  </Paper>
+
+                  {/* Action Buttons */}
+                  <Box
+                    sx={{
+                      display: "flex",
+                      gap: 2,
+                      flexDirection: "column",
+                    }}
+                  >
+                    <Button
+                      variant="contained"
+                      size="large"
+                      startIcon={<CameraIcon />}
+                      onClick={() => setShowCamera(true)}
+                      disabled={!sdkLoaded || isLoading}
+                      sx={{
+                        py: 2,
+                        bgcolor: "#3498db",
+                        fontSize: "1.1rem",
+                        fontWeight: 600,
+                        "&:hover": { bgcolor: "#2980b9" },
+                      }}
+                    >
+                      Use Camera
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      size="large"
+                      component="label"
+                      startIcon={<UploadIcon />}
+                      disabled={!sdkLoaded || isLoading}
+                      sx={{
+                        py: 2,
+                        borderColor: "white",
+                        color: "white",
+                        fontSize: "1.1rem",
+                        fontWeight: 600,
+                        "&:hover": {
+                          borderColor: "white",
+                          bgcolor: "rgba(255,255,255,0.1)",
+                        },
+                      }}
+                    >
+                      Upload Image
+                      <input
+                        type="file"
+                        hidden
+                        accept="image/jpeg,image/jpg,image/png,image/bmp"
+                        onChange={handleFileUpload}
+                      />
+                    </Button>
+                  </Box>
+
+                  {/* Loading State */}
+                  {isLoading && (
+                    <Box
+                      sx={{
+                        mt: 3,
+                        p: 2,
+                        bgcolor: "rgba(255,255,255,0.1)",
+                        borderRadius: 2,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 2,
+                      }}
+                    >
+                      <CircularProgress size={24} sx={{ color: "white" }} />
+                      <Typography variant="body2" sx={{ color: "white" }}>
+                        Setting up document verification for voter registration
+                      </Typography>
+                    </Box>
+                  )}
+
+                  {/* Error State */}
+                  {error && (
+                    <Alert
+                      severity="error"
+                      sx={{
+                        mt: 3,
+                        bgcolor: "rgba(244, 67, 54, 0.1)",
+                        color: "white",
+                        "& .MuiAlert-icon": { color: "#ff6b6b" },
+                      }}
+                    >
+                      {error}
+                    </Alert>
+                  )}
+                </Box>
+              </Box>
+
+              {/* Right Side - TrueID Section */}
+              <Box
+                sx={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  bgcolor: "white",
+                  p: 4,
+                  position: "relative",
+                }}
+              >
+                {/* TrueID Branding */}
+                <Box sx={{ textAlign: "center", mb: 6 }}>
+                  <Typography
+                    variant="h3"
+                    sx={{
+                      color: "#2c3e50",
+                      fontWeight: 700,
+                      mb: 2,
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    trueID™
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      color: "#7f8c8d",
+                      fontWeight: 400,
+                      mb: 4,
+                    }}
+                  >
+                    Please follow the instructions to upload your ID
+                  </Typography>
+                </Box>
+
+                {/* ID Scanner Icon */}
+                <Box sx={{ textAlign: "center" }}>
+                  <svg
+                    width="47"
+                    height="39"
+                    viewBox="0 0 47 39"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M17 1H13C8.58172 1 5 4.58172 5 9V12"
+                      stroke="#A6A6A6"
+                      strokeWidth="2"
+                    />
+                    <path
+                      d="M30 1H34C38.4183 1 42 4.58172 42 9V12"
+                      stroke="#A6A6A6"
+                      strokeWidth="2"
+                    />
+                    <path
+                      d="M13 12C13 9.79086 14.7909 8 17 8H31C33.2091 8 35 9.79086 35 12V16H13V12Z"
+                      fill="#9A9A9A"
+                    />
+                    <path
+                      d="M17 38H13C8.58172 38 5 34.4183 5 30V26"
+                      stroke="black"
+                      strokeWidth="2"
+                    />
+                    <path
+                      d="M30 38H34C38.4183 38 42 34.4183 42 30V26"
+                      stroke="black"
+                      strokeWidth="2"
+                    />
+                    <path
+                      d="M13 26C13 28.2091 14.7909 30 17 30H31C33.2091 30 35 28.2091 35 26V22H13V26Z"
+                      fill="black"
+                    />
+                    <rect y="20" width="47" height="3" fill="black" />
+                  </svg>
+                </Box>
+              </Box>
+            </>
+          ) : (
+            // Camera Scanning Interface (Full Width)
+            <Box
+              sx={{
+                width: "100%",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                p: 4,
+              }}
+            >
+              <Box
+                sx={{
+                  width: "100%",
+                  maxWidth: 500,
+                  position: "relative",
+                  textAlign: "center",
+                }}
+              >
+                {/* trueID™ Branding */}
+                <Box sx={{ mb: 3 }}>
+                  <Typography
+                    variant="h5"
+                    sx={{
+                      color: "white",
+                      fontWeight: 700,
+                      mb: 1,
+                    }}
+                  >
+                    trueID™
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "rgba(255,255,255,0.8)",
+                      mb: 2,
+                    }}
+                  >
+                    Place the front of your ID into the camera.
+                  </Typography>
+                </Box>
+
+                {/* Camera View */}
+                <Box
+                  sx={{
+                    position: "relative",
+                    borderRadius: 3,
+                    overflow: "hidden",
+                    bgcolor: "#1a1a1a",
+                    border: "2px solid #3498db",
+                    mb: 3,
+                  }}
+                >
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    style={{
+                      width: "100%",
+                      height: "auto",
+                      display: "block",
+                    }}
+                  />
+
+                  {/* Scanning Overlay */}
+                  {scanningActive && (
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        bgcolor: "rgba(0,0,0,0.3)",
+                      }}
+                    >
+                      {/* Scanning Icon */}
+                      <Box
+                        sx={{
+                          width: 80,
+                          height: 80,
+                          border: "3px solid white",
+                          borderRadius: 2,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          mb: 2,
+                          animation: "pulse 2s infinite",
+                          "@keyframes pulse": {
+                            "0%": { opacity: 1 },
+                            "50%": { opacity: 0.5 },
+                            "100%": { opacity: 1 },
+                          },
+                        }}
+                      >
+                        <Typography
+                          variant="body2"
+                          sx={{ color: "white", fontWeight: 600 }}
+                        >
+                          📱
+                        </Typography>
+                      </Box>
+                      <Typography
+                        variant="body1"
+                        sx={{
+                          color: "white",
+                          fontWeight: 600,
+                          textShadow: "0 1px 3px rgba(0,0,0,0.5)",
+                        }}
+                      >
+                        Scanning...
+                      </Typography>
+                    </Box>
+                  )}
+
+                  {/* Camera Error State */}
+                  {cameraError && (
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        bgcolor: "rgba(0,0,0,0.8)",
+                        color: "white",
+                        p: 2,
+                      }}
+                    >
+                      <ErrorIcon
+                        sx={{ fontSize: 48, mb: 2, color: "#ff6b6b" }}
+                      />
+                      <Typography variant="body1" sx={{ textAlign: "center" }}>
+                        {cameraError}
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+
+                {/* Action Buttons */}
+                <Box sx={{ display: "flex", gap: 2, justifyContent: "center" }}>
+                  <Button
+                    variant="outlined"
+                    onClick={() => setShowCamera(false)}
+                    sx={{
+                      borderColor: "white",
+                      color: "white",
+                      "&:hover": {
+                        borderColor: "white",
+                        bgcolor: "rgba(255,255,255,0.1)",
+                      },
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={startCameraScanning}
+                    variant="contained"
+                    disabled={scanningActive}
+                    startIcon={
+                      scanningActive ? (
+                        <CircularProgress size={20} />
+                      ) : (
+                        <CameraIcon />
+                      )
+                    }
+                    sx={{
+                      bgcolor: "#3498db",
+                      "&:hover": { bgcolor: "#2980b9" },
+                      px: 4,
+                    }}
+                  >
+                    {scanningActive ? "Scanning..." : "Verify"}
+                  </Button>
+                </Box>
+              </Box>
+            </Box>
+          )}
+        </Box>
+
+        {/* Image Preview Dialog for Troubleshooting */}
+        <Dialog
+          open={showImagePreview && imagePreview}
+          onClose={() => setShowImagePreview(false)}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              bgcolor: "#2c3e50",
+              color: "white",
+            },
+          }}
+        >
+          <DialogTitle sx={{ color: "white" }}>
+            Document Analysis - Review Required
+            <IconButton
+              onClick={() => setShowImagePreview(false)}
+              sx={{ position: "absolute", right: 8, top: 8, color: "white" }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent>
+            <Alert
+              severity="warning"
+              sx={{
+                mb: 2,
+                bgcolor: "rgba(255, 193, 7, 0.1)",
+                color: "white",
+                "& .MuiAlert-icon": { color: "#ffc107" },
+              }}
+            >
+              The document scanner could not detect a valid government document
+              in this image. Please review the image below and try the
+              suggestions.
+            </Alert>
+
+            {imagePreview && (
+              <Box sx={{ textAlign: "center", mb: 3 }}>
+                <img
+                  src={imagePreview.url}
+                  alt="Document preview"
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "400px",
+                    border: "2px solid #3498db",
+                    borderRadius: "8px",
+                  }}
+                />
+                <Typography
+                  variant="caption"
+                  display="block"
+                  sx={{ mt: 1, color: "white" }}
+                >
+                  {imagePreview.name} • {Math.round(imagePreview.size / 1024)}KB
+                  • {imagePreview.type}
+                </Typography>
+              </Box>
+            )}
+
+            <Paper sx={{ bgcolor: "rgba(255,255,255,0.1)", color: "white" }}>
+              <CardContent>
+                <Typography
+                  variant="subtitle2"
+                  gutterBottom
+                  sx={{ color: "#3498db", fontWeight: 600 }}
+                >
+                  ✅ What to check in your image:
+                </Typography>
+                <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                  <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+                    Is the entire document visible (no cropped edges)?
+                  </Typography>
+                  <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+                    Is it a government-issued photo ID (not a photocopy or
+                    screen)?
+                  </Typography>
+                  <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+                    Is the text clear and readable?
+                  </Typography>
+                  <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+                    Is there good contrast between the document and background?
+                  </Typography>
+                  <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+                    Is the document lying flat (not tilted or curved)?
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Paper>
+          </DialogContent>
+          <DialogActions sx={{ bgcolor: "rgba(0,0,0,0.1)" }}>
+            <Button
+              onClick={() => setShowImagePreview(false)}
+              sx={{ color: "white" }}
+            >
+              Close
+            </Button>
+            <Button
+              variant="contained"
+              onClick={() => {
+                setShowImagePreview(false);
+                setError(null);
+                if (imagePreview?.url) {
+                  URL.revokeObjectURL(imagePreview.url);
+                }
+                setImagePreview(null);
+              }}
+              sx={{
+                bgcolor: "#3498db",
+                "&:hover": { bgcolor: "#2980b9" },
+              }}
+            >
+              Try Another Image
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     );
   }
@@ -720,197 +1571,500 @@ const RegistrationBlinkIDStep = ({ onComplete, onError, onBack, ballotId }) => {
   }
 
   return (
-    <Paper sx={{ p: 3 }}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        bgcolor: "#2c3e50",
+        display: "flex",
+        flexDirection: "column",
+        position: "relative",
+      }}
+    >
+      {/* Header with Back Button */}
       <Box
-        sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}
+        sx={{
+          position: "absolute",
+          top: 20,
+          left: 20,
+          zIndex: 1000,
+        }}
       >
-        <Typography variant="h5" gutterBottom>
-          Document Verification for Registration
-        </Typography>
-        <Typography
-          variant="body1"
-          color="textSecondary"
-          sx={{ mb: 2, textAlign: "center" }}
-        >
-          Please scan your government-issued ID to complete voter registration.
-          We support passports, driver's licenses, and national ID cards.
-        </Typography>
-
-        {/* Document Requirements */}
-        <Card
-          sx={{
-            width: "100%",
-            maxWidth: 500,
-            mb: 3,
-            bgcolor: "background.default",
-          }}
-        >
-          <CardContent>
-            <Typography variant="subtitle2" gutterBottom color="primary">
-              📋 Document Requirements:
-            </Typography>
-            <Box component="ul" sx={{ pl: 2, m: 0 }}>
-              <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-                Government-issued photo ID (passport, driver's license, national
-                ID)
-              </Typography>
-              <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-                Document must be valid and not expired
-              </Typography>
-              <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-                All text and details must be clearly visible
-              </Typography>
-            </Box>
-
-            <Typography
-              variant="subtitle2"
-              gutterBottom
-              color="primary"
-              sx={{ mt: 2 }}
-            >
-              📸 Photo Tips:
-            </Typography>
-            <Box component="ul" sx={{ pl: 2, m: 0 }}>
-              <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-                Good lighting - avoid shadows and glare
-              </Typography>
-              <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-                Hold document flat and steady
-              </Typography>
-              <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-                Fill the frame - document should take up most of the image
-              </Typography>
-              <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-                Use JPG, PNG, or BMP format (max 10MB)
-              </Typography>
-            </Box>
-          </CardContent>
-        </Card>
-
-        <Grid container spacing={2} sx={{ mb: 3, maxWidth: 400 }}>
-          <Grid item xs={12} sm={6}>
-            <Button
-              variant="contained"
-              fullWidth
-              size="large"
-              startIcon={<CameraIcon />}
-              onClick={() => setShowCamera(true)}
-              disabled={!sdkLoaded || isLoading}
-              sx={{ py: 2 }}
-            >
-              Use Camera
-            </Button>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <Button
-              variant="outlined"
-              fullWidth
-              size="large"
-              component="label"
-              startIcon={<UploadIcon />}
-              disabled={!sdkLoaded || isLoading}
-              sx={{ py: 2 }}
-            >
-              Upload Image
-              <input
-                type="file"
-                hidden
-                accept="image/jpeg,image/jpg,image/png,image/bmp"
-                onChange={handleFileUpload}
-              />
-            </Button>
-          </Grid>
-        </Grid>
-
-        {/* Processing Status */}
-        {isLoading && (
-          <Alert severity="info" sx={{ mb: 2, width: "100%", maxWidth: 500 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <CircularProgress size={20} />
-              <Typography variant="body2">
-                Processing document... This may take a few moments.
-              </Typography>
-            </Box>
-          </Alert>
-        )}
-
         {onBack && (
-          <Button variant="text" onClick={onBack}>
-            Go Back
-          </Button>
-        )}
-      </Box>
-
-      {/* Camera Dialog */}
-      <Dialog
-        open={showCamera}
-        onClose={() => setShowCamera(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          Scan Registration Document
           <IconButton
-            onClick={() => setShowCamera(false)}
-            sx={{ position: "absolute", right: 8, top: 8 }}
+            onClick={onBack}
+            sx={{
+              color: "white",
+              bgcolor: "rgba(255,255,255,0.1)",
+              "&:hover": { bgcolor: "rgba(255,255,255,0.2)" },
+            }}
           >
             <CloseIcon />
           </IconButton>
-        </DialogTitle>
-        <DialogContent>
-          {cameraError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {cameraError}
-            </Alert>
-          )}
+        )}
+      </Box>
 
-          <Box sx={{ position: "relative", textAlign: "center" }}>
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              style={{
-                width: "100%",
-                maxWidth: "500px",
-                height: "auto",
-                borderRadius: "8px",
+      {/* Main Content - Split 50/50 */}
+      <Box
+        sx={{
+          flex: 1,
+          display: "flex",
+          minHeight: "100vh",
+        }}
+      >
+        {!showCamera ? (
+          <>
+            {/* Left Side - Document Verification */}
+            <Box
+              sx={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                p: 4,
+                color: "white",
               }}
-            />
-            {scanningActive && (
+            >
               <Box
                 sx={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: "rgba(0,0,0,0.3)",
-                  borderRadius: "8px",
+                  maxWidth: 500,
+                  width: "100%",
+                  textAlign: "center",
                 }}
               >
-                <CircularProgress color="primary" />
+                <Typography
+                  variant="h4"
+                  sx={{
+                    mb: 2,
+                    fontWeight: 600,
+                    color: "white",
+                  }}
+                >
+                  Document Verification
+                </Typography>
+
+                <Typography
+                  variant="body1"
+                  sx={{
+                    mb: 4,
+                    opacity: 0.9,
+                    lineHeight: 1.6,
+                    fontSize: "1.1rem",
+                  }}
+                >
+                  Please scan your government-issued ID to complete voter
+                  registration. We support passports, driver's licenses, and
+                  national ID cards.
+                </Typography>
+
+                {/* Document Requirements Card */}
+                <Paper
+                  sx={{
+                    p: 3,
+                    mb: 4,
+                    bgcolor: "rgba(255,255,255,0.95)",
+                    borderRadius: 3,
+                    textAlign: "left",
+                  }}
+                >
+                  <Typography
+                    variant="h6"
+                    sx={{ mb: 2, color: "#2c3e50", fontWeight: 600 }}
+                  >
+                    📋 Document Requirements
+                  </Typography>
+                  <Box component="ul" sx={{ pl: 2, m: 0, color: "#2c3e50" }}>
+                    <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                      Government-issued photo ID (passport, driver's license,
+                      national ID)
+                    </Typography>
+                    <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                      Document must be valid and not expired
+                    </Typography>
+                    <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                      All text and details must be clearly visible
+                    </Typography>
+                  </Box>
+
+                  <Typography
+                    variant="h6"
+                    sx={{ mt: 3, mb: 2, color: "#2c3e50", fontWeight: 600 }}
+                  >
+                    📸 Photo Tips
+                  </Typography>
+                  <Box component="ul" sx={{ pl: 2, m: 0, color: "#2c3e50" }}>
+                    <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                      Good lighting - avoid shadows and glare
+                    </Typography>
+                    <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                      Hold document flat and steady
+                    </Typography>
+                    <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                      Fill the frame - document should take up most of the image
+                    </Typography>
+                    <Typography component="li" variant="body2" sx={{ mb: 1 }}>
+                      Use JPG, PNG, or BMP format (max 10MB)
+                    </Typography>
+                  </Box>
+                </Paper>
+
+                {/* Action Buttons */}
+                <Box
+                  sx={{
+                    display: "flex",
+                    gap: 2,
+                    flexDirection: "column",
+                  }}
+                >
+                  <Button
+                    variant="contained"
+                    size="large"
+                    startIcon={<CameraIcon />}
+                    onClick={() => setShowCamera(true)}
+                    disabled={!sdkLoaded || isLoading}
+                    sx={{
+                      py: 2,
+                      bgcolor: "#3498db",
+                      fontSize: "1.1rem",
+                      fontWeight: 600,
+                      "&:hover": { bgcolor: "#2980b9" },
+                    }}
+                  >
+                    Use Camera
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="large"
+                    component="label"
+                    startIcon={<UploadIcon />}
+                    disabled={!sdkLoaded || isLoading}
+                    sx={{
+                      py: 2,
+                      borderColor: "white",
+                      color: "white",
+                      fontSize: "1.1rem",
+                      fontWeight: 600,
+                      "&:hover": {
+                        borderColor: "white",
+                        bgcolor: "rgba(255,255,255,0.1)",
+                      },
+                    }}
+                  >
+                    Upload Image
+                    <input
+                      type="file"
+                      hidden
+                      accept="image/jpeg,image/jpg,image/png,image/bmp"
+                      onChange={handleFileUpload}
+                    />
+                  </Button>
+                </Box>
+
+                {/* Loading State */}
+                {isLoading && (
+                  <Box
+                    sx={{
+                      mt: 3,
+                      p: 2,
+                      bgcolor: "rgba(255,255,255,0.1)",
+                      borderRadius: 2,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 2,
+                    }}
+                  >
+                    <CircularProgress size={24} sx={{ color: "white" }} />
+                    <Typography variant="body2" sx={{ color: "white" }}>
+                      Setting up document verification for voter registration
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* Error State */}
+                {error && (
+                  <Alert
+                    severity="error"
+                    sx={{
+                      mt: 3,
+                      bgcolor: "rgba(244, 67, 54, 0.1)",
+                      color: "white",
+                      "& .MuiAlert-icon": { color: "#ff6b6b" },
+                    }}
+                  >
+                    {error}
+                  </Alert>
+                )}
               </Box>
-            )}
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowCamera(false)}>Cancel</Button>
-          <Button
-            onClick={startCameraScanning}
-            variant="contained"
-            disabled={scanningActive}
-            startIcon={
-              scanningActive ? <CircularProgress size={20} /> : <CameraIcon />
-            }
+            </Box>
+
+            {/* Right Side - TrueID Section */}
+            <Box
+              sx={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                bgcolor: "white",
+                p: 4,
+                position: "relative",
+              }}
+            >
+              {/* TrueID Branding */}
+              <Box sx={{ textAlign: "center", mb: 6 }}>
+                <Typography
+                  variant="h3"
+                  sx={{
+                    color: "#2c3e50",
+                    fontWeight: 700,
+                    mb: 2,
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  trueID™
+                </Typography>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    color: "#7f8c8d",
+                    fontWeight: 400,
+                    mb: 4,
+                  }}
+                >
+                  Please follow the instructions to upload your ID
+                </Typography>
+              </Box>
+
+              {/* ID Scanner Icon */}
+              <Box sx={{ textAlign: "center" }}>
+                <svg
+                  width="47"
+                  height="39"
+                  viewBox="0 0 47 39"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M17 1H13C8.58172 1 5 4.58172 5 9V12"
+                    stroke="#A6A6A6"
+                    strokeWidth="2"
+                  />
+                  <path
+                    d="M30 1H34C38.4183 1 42 4.58172 42 9V12"
+                    stroke="#A6A6A6"
+                    strokeWidth="2"
+                  />
+                  <path
+                    d="M13 12C13 9.79086 14.7909 8 17 8H31C33.2091 8 35 9.79086 35 12V16H13V12Z"
+                    fill="#9A9A9A"
+                  />
+                  <path
+                    d="M17 38H13C8.58172 38 5 34.4183 5 30V26"
+                    stroke="black"
+                    strokeWidth="2"
+                  />
+                  <path
+                    d="M30 38H34C38.4183 38 42 34.4183 42 30V26"
+                    stroke="black"
+                    strokeWidth="2"
+                  />
+                  <path
+                    d="M13 26C13 28.2091 14.7909 30 17 30H31C33.2091 30 35 28.2091 35 26V22H13V26Z"
+                    fill="black"
+                  />
+                  <rect y="20" width="47" height="3" fill="black" />
+                </svg>
+              </Box>
+            </Box>
+          </>
+        ) : (
+          // Camera Scanning Interface (Full Width)
+          <Box
+            sx={{
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              p: 4,
+            }}
           >
-            {scanningActive ? "Scanning..." : "Start Registration Scan"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+            <Box
+              sx={{
+                width: "100%",
+                maxWidth: 500,
+                position: "relative",
+                textAlign: "center",
+              }}
+            >
+              {/* trueID™ Branding */}
+              <Box sx={{ mb: 3 }}>
+                <Typography
+                  variant="h5"
+                  sx={{
+                    color: "white",
+                    fontWeight: 700,
+                    mb: 1,
+                  }}
+                >
+                  trueID™
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "rgba(255,255,255,0.8)",
+                    mb: 2,
+                  }}
+                >
+                  Place the front of your ID into the camera.
+                </Typography>
+              </Box>
+
+              {/* Camera View */}
+              <Box
+                sx={{
+                  position: "relative",
+                  borderRadius: 3,
+                  overflow: "hidden",
+                  bgcolor: "#1a1a1a",
+                  border: "2px solid #3498db",
+                  mb: 3,
+                }}
+              >
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{
+                    width: "100%",
+                    height: "auto",
+                    display: "block",
+                  }}
+                />
+
+                {/* Scanning Overlay */}
+                {scanningActive && (
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      bgcolor: "rgba(0,0,0,0.3)",
+                    }}
+                  >
+                    {/* Scanning Icon */}
+                    <Box
+                      sx={{
+                        width: 80,
+                        height: 80,
+                        border: "3px solid white",
+                        borderRadius: 2,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        mb: 2,
+                        animation: "pulse 2s infinite",
+                        "@keyframes pulse": {
+                          "0%": { opacity: 1 },
+                          "50%": { opacity: 0.5 },
+                          "100%": { opacity: 1 },
+                        },
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{ color: "white", fontWeight: 600 }}
+                      >
+                        📱
+                      </Typography>
+                    </Box>
+                    <Typography
+                      variant="body1"
+                      sx={{
+                        color: "white",
+                        fontWeight: 600,
+                        textShadow: "0 1px 3px rgba(0,0,0,0.5)",
+                      }}
+                    >
+                      Scanning...
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* Camera Error State */}
+                {cameraError && (
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      bgcolor: "rgba(0,0,0,0.8)",
+                      color: "white",
+                      p: 2,
+                    }}
+                  >
+                    <ErrorIcon sx={{ fontSize: 48, mb: 2, color: "#ff6b6b" }} />
+                    <Typography variant="body1" sx={{ textAlign: "center" }}>
+                      {cameraError}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+
+              {/* Action Buttons */}
+              <Box sx={{ display: "flex", gap: 2, justifyContent: "center" }}>
+                <Button
+                  variant="outlined"
+                  onClick={() => setShowCamera(false)}
+                  sx={{
+                    borderColor: "white",
+                    color: "white",
+                    "&:hover": {
+                      borderColor: "white",
+                      bgcolor: "rgba(255,255,255,0.1)",
+                    },
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={startCameraScanning}
+                  variant="contained"
+                  disabled={scanningActive}
+                  startIcon={
+                    scanningActive ? (
+                      <CircularProgress size={20} />
+                    ) : (
+                      <CameraIcon />
+                    )
+                  }
+                  sx={{
+                    bgcolor: "#3498db",
+                    "&:hover": { bgcolor: "#2980b9" },
+                    px: 4,
+                  }}
+                >
+                  {scanningActive ? "Scanning..." : "Verify"}
+                </Button>
+              </Box>
+            </Box>
+          </Box>
+        )}
+      </Box>
 
       {/* Image Preview Dialog for Troubleshooting */}
       <Dialog
@@ -918,19 +2072,33 @@ const RegistrationBlinkIDStep = ({ onComplete, onError, onBack, ballotId }) => {
         onClose={() => setShowImagePreview(false)}
         maxWidth="md"
         fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: "#2c3e50",
+            color: "white",
+          },
+        }}
       >
-        <DialogTitle>
-          Image Analysis - Document Not Detected
+        <DialogTitle sx={{ color: "white" }}>
+          Document Analysis - Review Required
           <IconButton
             onClick={() => setShowImagePreview(false)}
-            sx={{ position: "absolute", right: 8, top: 8 }}
+            sx={{ position: "absolute", right: 8, top: 8, color: "white" }}
           >
             <CloseIcon />
           </IconButton>
         </DialogTitle>
         <DialogContent>
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            The BlinkID scanner could not detect a valid government document in
+          <Alert
+            severity="warning"
+            sx={{
+              mb: 2,
+              bgcolor: "rgba(255, 193, 7, 0.1)",
+              color: "white",
+              "& .MuiAlert-icon": { color: "#ffc107" },
+            }}
+          >
+            The document scanner could not detect a valid government document in
             this image. Please review the image below and try the suggestions.
           </Alert>
 
@@ -942,20 +2110,28 @@ const RegistrationBlinkIDStep = ({ onComplete, onError, onBack, ballotId }) => {
                 style={{
                   maxWidth: "100%",
                   maxHeight: "400px",
-                  border: "2px solid #ddd",
+                  border: "2px solid #3498db",
                   borderRadius: "8px",
                 }}
               />
-              <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+              <Typography
+                variant="caption"
+                display="block"
+                sx={{ mt: 1, color: "white" }}
+              >
                 {imagePreview.name} • {Math.round(imagePreview.size / 1024)}KB •{" "}
                 {imagePreview.type}
               </Typography>
             </Box>
           )}
 
-          <Card sx={{ bgcolor: "background.default" }}>
+          <Paper sx={{ bgcolor: "rgba(255,255,255,0.1)", color: "white" }}>
             <CardContent>
-              <Typography variant="subtitle2" gutterBottom color="primary">
+              <Typography
+                variant="subtitle2"
+                gutterBottom
+                sx={{ color: "#3498db", fontWeight: 600 }}
+              >
                 ✅ What to check in your image:
               </Typography>
               <Box component="ul" sx={{ pl: 2, m: 0 }}>
@@ -977,10 +2153,15 @@ const RegistrationBlinkIDStep = ({ onComplete, onError, onBack, ballotId }) => {
                 </Typography>
               </Box>
             </CardContent>
-          </Card>
+          </Paper>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowImagePreview(false)}>Close</Button>
+        <DialogActions sx={{ bgcolor: "rgba(0,0,0,0.1)" }}>
+          <Button
+            onClick={() => setShowImagePreview(false)}
+            sx={{ color: "white" }}
+          >
+            Close
+          </Button>
           <Button
             variant="contained"
             onClick={() => {
@@ -991,12 +2172,16 @@ const RegistrationBlinkIDStep = ({ onComplete, onError, onBack, ballotId }) => {
               }
               setImagePreview(null);
             }}
+            sx={{
+              bgcolor: "#3498db",
+              "&:hover": { bgcolor: "#2980b9" },
+            }}
           >
             Try Another Image
           </Button>
         </DialogActions>
       </Dialog>
-    </Paper>
+    </Box>
   );
 };
 

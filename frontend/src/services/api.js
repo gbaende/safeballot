@@ -1807,3 +1807,37 @@ const resetSafeBallotState = () => {
 
 // Make the function available in the global scope for debugging
 window.resetSafeBallotState = resetSafeBallotState;
+
+// Send voter ID email
+export const sendVoterIdEmail = async (ballotId, email, name) => {
+  try {
+    const response = await api.post(
+      `/ballots/${ballotId}/send-voter-id`,
+      { email, name },
+      {
+        timeout: 30000,
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Failed to send voter ID email:", error);
+    throw error;
+  }
+};
+
+// Send pre-registration invitation email
+export const sendPreRegistrationInvitation = async (ballotId, voterEmail) => {
+  try {
+    const response = await api.post(
+      `/ballots/${ballotId}/send-pre-registration-email`,
+      { voterEmail },
+      {
+        timeout: 30000,
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Failed to send pre-registration invitation:", error);
+    throw error;
+  }
+};

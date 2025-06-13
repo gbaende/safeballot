@@ -16,6 +16,14 @@ const { MongoUser } = require("../models/mongo.models");
 const { User } = require("../models/user.model");
 const { Voter } = require("../models/ballot.model");
 
+// Helper function to get the base URL for hosted assets
+const getLogoUrl = () => {
+  // In production, use the actual domain. In development, use localhost
+  const baseUrl =
+    process.env.BASE_URL || process.env.FRONTEND_URL || "http://localhost:3000";
+  return `${baseUrl}/images/logo@2x.png`;
+};
+
 // JWT secret key - ideally this should be in environment variables
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 // JWT expiration time - default to 24 hours
@@ -274,15 +282,72 @@ exports.voterSignIn = async (req, res) => {
 
       // Send OTP via email
       try {
+        const logoUrl = getLogoUrl();
         await sendEmail(
           mongoUser.email,
           "Your SafeBallot Verification Code",
           `Your 4-digit verification code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes.`,
-          `<h1>Your SafeBallot Verification Code</h1>
-           <p>Your 4-digit verification code is:</p>
-           <h2 style="font-size: 2rem; letter-spacing: 0.5rem; text-align: center; padding: 1rem; background-color: #f0f0f0; border-radius: 0.5rem;">${code}</h2>
-           <p>It expires in ${OTP_TTL_MINUTES} minutes.</p>
-           <p>If you didn't request this code, please ignore this email.</p>`
+          `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeBallot Verification Code</title>
+</head>
+<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f8f9fa;">
+    <div style="background-color: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        
+        <!-- SafeBallot Logo Header -->
+        <div style="text-align: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #080E1D;">
+            <img
+                src="${logoUrl}"
+                alt="SafeBallot"
+                width="44" height="56"
+                style="display: block; margin: 0 auto 10px; line-height: 1; border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic;"
+            />
+            <div>
+                <h1 style="margin: 0; color: #080E1D; font-size: 28px; font-weight: 700; letter-spacing: 1px;">SAFEBALLOT</h1>
+                <p style="margin: 0; color: #6b7280; font-size: 12px; letter-spacing: 2px; font-weight: 500;">-VOTE OUTSIDE THE BOX-</p>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h2 style="color: #263C75; font-size: 24px; margin-bottom: 15px; font-weight: 600;">Verification Code</h2>
+            <p style="font-size: 16px; color: #374151; margin-bottom: 30px;">
+                Your 4-digit verification code is:
+            </p>
+            
+            <!-- OTP Code Display -->
+            <div style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); padding: 25px; border-radius: 12px; margin-bottom: 25px; border: 2px solid #080E1D;">
+                <h3 style="margin: 0; font-size: 36px; font-weight: 700; letter-spacing: 8px; font-family: 'Courier New', monospace; color: #080E1D;">${code}</h3>
+            </div>
+            
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 20px;">
+                This code expires in <strong>${OTP_TTL_MINUTES} minutes</strong>
+            </p>
+            
+            <div style="background-color: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; margin-bottom: 20px;">
+                <p style="margin: 0; font-size: 14px; color: #92400e;">
+                    <strong>Security Notice:</strong> If you didn't request this code, please ignore this email or contact our support team.
+                </p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="border-top: 2px solid #e5e7eb; padding-top: 20px; font-size: 12px; color: #6b7280; text-align: center;">
+            <p style="margin: 0 0 5px 0;">This verification code was sent to ${
+              mongoUser.email
+            }</p>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+                <p style="margin: 0; color: #9ca3af; font-size: 11px;">
+                    © ${new Date().getFullYear()} SafeBallot. Secure, transparent, and democratic voting platform.
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`
         );
         console.log("OTP email sent successfully");
       } catch (emailErr) {
@@ -434,15 +499,72 @@ exports.resendOtp = async (req, res) => {
     console.log(`Generated new OTP ${code} for user ${user.email}`);
 
     // Send OTP via email
+    const logoUrl = getLogoUrl();
     await sendEmail(
       user.email,
       "Your SafeBallot Verification Code (Resent)",
       `Your 4-digit verification code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes.`,
-      `<h1>Your SafeBallot Verification Code</h1>
-       <p>Your 4-digit verification code is:</p>
-       <h2 style="font-size: 2rem; letter-spacing: 0.5rem; text-align: center; padding: 1rem; background-color: #f0f0f0; border-radius: 0.5rem;">${code}</h2>
-       <p>It expires in ${OTP_TTL_MINUTES} minutes.</p>
-       <p>If you didn't request this code, please ignore this email.</p>`
+      `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeBallot Verification Code</title>
+</head>
+<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f8f9fa;">
+    <div style="background-color: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        
+        <!-- SafeBallot Logo Header -->
+        <div style="text-align: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #080E1D;">
+            <img
+                src="${logoUrl}"
+                alt="SafeBallot"
+                width="44" height="56"
+                style="display: block; margin: 0 auto 10px; line-height: 1; border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic;"
+            />
+            <div>
+                <h1 style="margin: 0; color: #080E1D; font-size: 28px; font-weight: 700; letter-spacing: 1px;">SAFEBALLOT</h1>
+                <p style="margin: 0; color: #6b7280; font-size: 12px; letter-spacing: 2px; font-weight: 500;">-VOTE OUTSIDE THE BOX-</p>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h2 style="color: #263C75; font-size: 24px; margin-bottom: 15px; font-weight: 600;">Verification Code</h2>
+            <p style="font-size: 16px; color: #374151; margin-bottom: 30px;">
+                Your 4-digit verification code is:
+            </p>
+            
+            <!-- OTP Code Display -->
+            <div style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); padding: 25px; border-radius: 12px; margin-bottom: 25px; border: 2px solid #080E1D;">
+                <h3 style="margin: 0; font-size: 36px; font-weight: 700; letter-spacing: 8px; font-family: 'Courier New', monospace; color: #080E1D;">${code}</h3>
+            </div>
+            
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 20px;">
+                This code expires in <strong>${OTP_TTL_MINUTES} minutes</strong>
+            </p>
+            
+            <div style="background-color: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; margin-bottom: 20px;">
+                <p style="margin: 0; font-size: 14px; color: #92400e;">
+                    <strong>Security Notice:</strong> If you didn't request this code, please ignore this email or contact our support team.
+                </p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="border-top: 2px solid #e5e7eb; padding-top: 20px; font-size: 12px; color: #6b7280; text-align: center;">
+            <p style="margin: 0 0 5px 0;">This verification code was sent to ${
+              user.email
+            }</p>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+                <p style="margin: 0; color: #9ca3af; font-size: 11px;">
+                    © ${new Date().getFullYear()} SafeBallot. Secure, transparent, and democratic voting platform.
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`
     );
 
     res.json({

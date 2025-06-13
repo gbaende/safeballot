@@ -325,8 +325,12 @@ const AccessKeyRegistration = () => {
               sx={{
                 py: 1.5,
                 mb: 2,
-                bgcolor: "#6b7280",
-                "&:hover": { bgcolor: "#4b5563" },
+                background: "linear-gradient(45deg, #080E1D 30%, #263C75 90%)",
+                color: "white",
+                "&:hover": {
+                  background:
+                    "linear-gradient(45deg, #060A15 30%, #1E2F5D 90%)",
+                },
               }}
             >
               {submitting ? (

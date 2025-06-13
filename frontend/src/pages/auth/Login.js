@@ -318,11 +318,11 @@ const Login = () => {
               mt: 1,
               mb: 2,
               py: 1.5,
-              backgroundColor: "#4478EB",
+              background: "linear-gradient(45deg, #4478EB 30%, #6FA0FF 90%)",
               color: "#FFFFFF",
               borderRadius: "4px",
               "&:hover": {
-                backgroundColor: "#3A63C2",
+                background: "linear-gradient(45deg, #3366d9 30%, #5c8fff 90%)",
               },
             }}
           >
