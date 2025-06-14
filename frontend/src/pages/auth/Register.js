@@ -262,12 +262,13 @@ const Register = () => {
             variant="contained"
             sx={{
               py: 1.5,
-              backgroundColor: "#AAAAAA", // Light gray button as shown in image
+              background: "linear-gradient(to right, #080E1D, #263C75)",
               color: "#FFFFFF",
               textTransform: "none",
               fontWeight: "medium",
+              borderRadius: "4px",
               "&:hover": {
-                backgroundColor: "#999999",
+                background: "linear-gradient(to right, #050912, #1d2e59)",
               },
             }}
           >

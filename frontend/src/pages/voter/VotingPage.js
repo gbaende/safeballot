@@ -66,46 +66,62 @@ const VotingPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [isQuickBallot, setIsQuickBallot] = useState(false);
 
   // Check if user has been verified
   useEffect(() => {
-    // Check for verification status in localStorage
-    const verificationStatus = localStorage.getItem(`verified_${id}`);
-    const storedDigitalKey = localStorage.getItem(`digital_key_${id}`);
+    const verifyOrBypass = async () => {
+      // Check stored verification first
+      const verificationStatus = localStorage.getItem(`verified_${id}`);
+      const storedDigitalKey = localStorage.getItem(`digital_key_${id}`);
 
-    // Parse the slug to potentially extract the ballot ID in case the URL ID is different
-    const slugParts = slug ? slug.split("-") : [];
-    const idFromSlug =
-      slugParts.length > 0 ? slugParts[slugParts.length - 1] : null;
+      // Parse any ID from the slug
+      const slugParts = slug ? slug.split("-") : [];
+      const idFromSlug =
+        slugParts.length > 0 ? slugParts[slugParts.length - 1] : null;
 
-    // Also check verification status using the ID from slug
-    const verificationStatusFromSlug = idFromSlug
-      ? localStorage.getItem(`verified_${idFromSlug}`)
-      : null;
-    const storedDigitalKeyFromSlug = idFromSlug
-      ? localStorage.getItem(`digital_key_${idFromSlug}`)
-      : null;
+      const verificationStatusFromSlug = idFromSlug
+        ? localStorage.getItem(`verified_${idFromSlug}`)
+        : null;
+      const storedDigitalKeyFromSlug = idFromSlug
+        ? localStorage.getItem(`digital_key_${idFromSlug}`)
+        : null;
 
-    console.log("Verification check:", {
-      id,
-      slug,
-      idFromSlug,
-      verificationStatus,
-      verificationStatusFromSlug,
-      storedDigitalKey,
-      storedDigitalKeyFromSlug,
-    });
+      if (
+        (verificationStatus === "true" && storedDigitalKey) ||
+        (verificationStatusFromSlug === "true" && storedDigitalKeyFromSlug)
+      ) {
+        setHasVerified(true);
+        setDigitalKey(storedDigitalKey || storedDigitalKeyFromSlug);
+        return;
+      }
 
-    if (
-      (verificationStatus === "true" && storedDigitalKey) ||
-      (verificationStatusFromSlug === "true" && storedDigitalKeyFromSlug)
-    ) {
-      setHasVerified(true);
-      setDigitalKey(storedDigitalKey || storedDigitalKeyFromSlug);
-    } else {
-      // If not verified, redirect to voter registration first
-      navigate(`/voter-registration/${id}/${slug}`);
-    }
+      // No verification found – fetch ballot to see if quick ballot is enabled
+      try {
+        const resp = await ballotService.getBallotById(id);
+        const data = resp?.data?.data || {};
+        const quickFlag = data.quickBallot ?? data.quick_ballot ?? false;
+        const urlFlag = window.location.pathname.startsWith("/vote/");
+        const isQuick = quickFlag || urlFlag;
+        if (quickFlag) {
+          console.log("Quick ballot detected – bypassing registration.", {
+            quickFlag,
+            urlFlag,
+          });
+          setIsQuickBallot(true);
+          setDigitalKey("quick-auto-key");
+          setHasVerified(true); // allow voting without registration
+        } else {
+          navigate(`/voter-registration/${id}/${slug}`);
+        }
+      } catch (e) {
+        console.error("Error checking quick ballot status:", e);
+        // fallback to registration flow
+        navigate(`/voter-registration/${id}/${slug}`);
+      }
+    };
+
+    verifyOrBypass();
   }, [id, slug, navigate]);
 
   // Fetch real ballot data when component mounts
@@ -342,7 +358,13 @@ const VotingPage = () => {
   };
 
   const handleConfirmAndSubmit = () => {
-    // Retrieve the stored digital key
+    if (ballot && (ballot.quickBallot || isQuickBallot)) {
+      // For quick ballots skip digital-key dialog
+      handleSubmitBallot();
+      return;
+    }
+
+    // Normal flow requires digital key confirmation
     const storedKey = localStorage.getItem(`digital_key_${id}`);
     if (!storedKey) {
       setError(
@@ -367,20 +389,22 @@ const VotingPage = () => {
       setSubmitError(null);
       setSubmitSuccess(false);
 
-      // Validate digital key first
-      const storedKey = localStorage.getItem(`digital_key_${id}`);
-      if (!storedKey) {
-        setSubmitError(
-          "Digital key not found. Please complete verification first."
-        );
-        setIsSubmitting(false);
-        return;
-      }
+      // Digital key validation – skipped for quick ballots
+      if (!(ballot?.quickBallot || isQuickBallot)) {
+        const storedKey = localStorage.getItem(`digital_key_${id}`);
+        if (!storedKey) {
+          setSubmitError(
+            "Digital key not found. Please complete verification first."
+          );
+          setIsSubmitting(false);
+          return;
+        }
 
-      if (digitalKey !== storedKey) {
-        setSubmitError("Invalid digital key. Please enter the correct key.");
-        setIsSubmitting(false);
-        return;
+        if (digitalKey !== storedKey) {
+          setSubmitError("Invalid digital key. Please enter the correct key.");
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       // Comprehensive voter info gathering approach
@@ -524,8 +548,11 @@ const VotingPage = () => {
         voterId: voterId || "null",
       });
 
-      // CRITICAL: If we have email but no voter ID, create a direct voter record first
-      if (voterInfo.email && !voterId) {
+      // Determine if this is a quick-ballot flow (anonymous voting)
+      const isQuickVote = ballot?.quickBallot || isQuickBallot;
+
+      // Skip voter creation/registration for quick ballots
+      if (!isQuickVote && voterInfo.email && !voterId) {
         try {
           console.log(
             "[VOTING] No voter ID found, creating direct voter record before voting"
@@ -552,8 +579,8 @@ const VotingPage = () => {
         }
       }
 
-      // Also try public registration as another backup approach
-      if (voterInfo.email) {
+      // Also try public registration as another backup approach (skip for quick ballots)
+      if (!isQuickVote && voterInfo.email) {
         try {
           console.log(
             "[VOTING] Performing public registration as additional verification"
@@ -582,22 +609,23 @@ const VotingPage = () => {
         }
       }
 
-      // Prepare the complete vote payload with voter ID and info
-      const votePayload = {
-        rankings: responses,
-        voterId: voterId, // Include voter ID if available
-        voter: voterInfo, // Always include voter info
-      };
+      // Prepare the vote payload – omit voter details for quick ballots
+      const votePayload = isQuickVote
+        ? {
+            rankings: responses,
+            quickBallot: true, // Signal the API helper that this is an anonymous quick ballot
+          }
+        : {
+            rankings: responses,
+            voterId, // Include voter ID if available
+            voter: voterInfo, // Include voter information for regular ballots
+          };
 
       // Log the complete payload for debugging
-      console.log("[VOTING] Submitting vote with complete payload:", {
-        voterId: votePayload.voterId || "not available",
-        rankingsCount: Object.keys(votePayload.rankings || {}).length,
-        voterName: votePayload.voter.name,
-        voterEmailPrefix: votePayload.voter.email
-          ? votePayload.voter.email.substring(0, 3) + "..."
-          : "none",
-      });
+      console.log(
+        "[VOTING] Submitting vote payload:",
+        JSON.stringify(votePayload, null, 2)
+      );
 
       // Submit the vote
       const result = await ballotService.castVote(id, votePayload);
@@ -607,8 +635,15 @@ const VotingPage = () => {
       setSubmitSuccess(true);
       setIsSubmitting(false);
 
-      // Navigate to results page
-      navigate(`/vote/${id}/results`);
+      // Close confirmation dialog if it was open
+      setShowConfirmDialog(false);
+
+      // For quick ballots, always navigate directly to results
+      if (isQuickVote) {
+        navigate(`/elections/${id}/results`);
+      } else {
+        toast.error("Failed to submit your vote. Please try again.");
+      }
     } catch (error) {
       console.error("[VOTING] Error submitting ballot:", error);
       setSubmitError("Error submitting ballot");
@@ -854,8 +889,11 @@ const VotingPage = () => {
                 variant="contained"
                 onClick={handleConfirmAndSubmit}
                 sx={{
-                  bgcolor: "#1F2937",
-                  "&:hover": { bgcolor: "#111827" },
+                  background: "linear-gradient(to right, #080E1D, #263C75)",
+                  "&:hover": {
+                    background: "linear-gradient(to right, #050912, #1d2e59)",
+                  },
+                  borderRadius: "4px",
                 }}
               >
                 Confirm and Submit
@@ -1096,6 +1134,13 @@ const VotingPage = () => {
                 variant="contained"
                 endIcon={<ChevronRightIcon />}
                 onClick={handleContinue}
+                sx={{
+                  background: "linear-gradient(to right, #080E1D, #263C75)",
+                  "&:hover": {
+                    background: "linear-gradient(to right, #050912, #1d2e59)",
+                  },
+                  borderRadius: "4px",
+                }}
               >
                 Continue
               </Button>
@@ -1152,6 +1197,21 @@ const VotingPage = () => {
           </Typography>
         </DialogContent>
       </Dialog>
+
+      {/* San Diego FC logo footer */}
+      <Box
+        component="img"
+        src="/images/san-diego-fc-badge.png"
+        alt="San Diego FC Logo"
+        sx={{
+          position: "fixed",
+          bottom: 16,
+          left: "50%",
+          transform: "translateX(-50%)",
+          height: { xs: 40, sm: 50, md: 60 },
+          zIndex: 1200,
+        }}
+      />
     </>
   );
 };

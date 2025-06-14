@@ -93,8 +93,11 @@ const VotingConfirmationDialog = ({
             onClick={handleSubmit}
             endIcon={<ArrowForwardIcon />}
             sx={{
-              bgcolor: "#1f2937",
-              "&:hover": { bgcolor: "#0f172a" },
+              background: "linear-gradient(to right, #080E1D, #263C75)",
+              "&:hover": {
+                background: "linear-gradient(to right, #050912, #1d2e59)",
+              },
+              borderRadius: "4px",
               px: 4,
               py: 1,
             }}

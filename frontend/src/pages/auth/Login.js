@@ -318,15 +318,15 @@ const Login = () => {
               mt: 1,
               mb: 2,
               py: 1.5,
-              background: "linear-gradient(45deg, #4478EB 30%, #6FA0FF 90%)",
+              background: "linear-gradient(to right, #080E1D, #263C75)",
               color: "#FFFFFF",
               borderRadius: "4px",
               "&:hover": {
-                background: "linear-gradient(45deg, #3366d9 30%, #5c8fff 90%)",
+                background: "linear-gradient(to right, #050912, #1d2e59)",
               },
             }}
           >
-            Sign In
+            Log in
           </Button>
 
           <Box sx={{ mt: 2, textAlign: "center" }}>

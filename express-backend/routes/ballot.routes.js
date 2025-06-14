@@ -28,6 +28,140 @@ const getLogoUrl = () => {
 const router = express.Router();
 
 /**
+ * Quick ballot voting endpoint - bypasses all verification
+ * @route POST /api/ballots/:id/quick-vote
+ * @access Public
+ */
+router.post("/:id/quick-vote", async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const { votes, voterName } = req.body;
+
+    console.log(`[QUICK VOTE] Processing vote for ballot ${id}`);
+
+    const ballot = await Ballot.findByPk(id, { transaction });
+    if (!ballot) {
+      await transaction.rollback();
+      return res
+        .status(404)
+        .json({ status: "error", message: "Ballot not found" });
+    }
+
+    if (!ballot.quickBallot) {
+      await transaction.rollback();
+      return res.status(400).json({
+        status: "error",
+        message: "This ballot does not support quick voting",
+      });
+    }
+
+    if (ballot.status !== "active" && ballot.status !== "scheduled") {
+      await transaction.rollback();
+      return res.status(400).json({
+        status: "error",
+        message: "This ballot is not currently accepting votes",
+      });
+    }
+
+    const votingVoter = await Voter.create(
+      {
+        ballotId: id,
+        email: `quick-${Date.now()}@${
+          req.headers["x-forwarded-for"] || "unknown"
+        }.voter`,
+        firstName: voterName ? voterName.split(" ")[0] : "Quick",
+        lastName: voterName
+          ? voterName.split(" ").slice(1).join(" ") || "Voter"
+          : "Voter",
+        storedName: voterName || "Quick Voter",
+        verificationCode: Math.random()
+          .toString(36)
+          .substring(2, 8)
+          .toUpperCase(),
+        isVerified: true,
+        hasVoted: false,
+        lastActivity: new Date(),
+      },
+      { transaction }
+    );
+
+    ballot.totalVoters = (ballot.totalVoters || 0) + 1;
+    await ballot.save({ transaction });
+
+    let createdVotes = [];
+    if (votes && Array.isArray(votes)) {
+      for (const vote of votes) {
+        if (!vote.questionId || !vote.choiceId) continue;
+
+        const question = await Question.findOne({
+          where: { id: vote.questionId, ballotId: id },
+          transaction,
+        });
+
+        if (!question) {
+          console.log(`Question ${vote.questionId} not found for ballot ${id}`);
+          continue;
+        }
+
+        const choice = await Choice.findOne({
+          where: { id: vote.choiceId, questionId: vote.questionId },
+          transaction,
+        });
+
+        if (!choice) {
+          console.log(
+            `Choice ${vote.choiceId} not found for question ${vote.questionId}`
+          );
+          continue;
+        }
+
+        const voteRecord = await Vote.create(
+          {
+            voterId: votingVoter.id,
+            ballotId: id,
+            questionId: vote.questionId,
+            choiceId: vote.choiceId,
+            rank: vote.rank,
+            voteTimestamp: new Date(),
+            castAt: new Date(),
+          },
+          { transaction }
+        );
+
+        createdVotes.push(voteRecord);
+      }
+    }
+
+    votingVoter.hasVoted = true;
+    await votingVoter.save({ transaction });
+
+    ballot.ballotsReceived = (ballot.ballotsReceived || 0) + 1;
+    await ballot.save({ transaction });
+
+    await transaction.commit();
+
+    res.status(200).json({
+      status: "success",
+      message: "Vote recorded successfully",
+      data: {
+        voterId: votingVoter.id,
+        votes: createdVotes.length,
+        timestamp: new Date(),
+      },
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error("Error processing quick vote:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to process vote",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+});
+
+/**
  * Get all ballots
  * @route GET /api/ballots
  * @access Private
@@ -79,6 +213,7 @@ router.get("/", protect, async (req, res) => {
         "createdBy",
         "createdAt",
         "updatedAt",
+        "quickBallot",
       ],
     });
 
@@ -321,6 +456,10 @@ router.post(
       .optional()
       .isInt()
       .withMessage("voterCount must be an integer"),
+    body("quickBallot")
+      .optional()
+      .isBoolean()
+      .withMessage("quickBallot must be a boolean"),
   ],
   async (req, res) => {
     try {
@@ -343,6 +482,7 @@ router.post(
         verificationMethod,
         questions,
         voterCount,
+        quickBallot,
       } = req.body;
 
       // Additional validation
@@ -371,7 +511,9 @@ router.post(
             endDate,
             isPublic: isPublic || false,
             requiresVerification:
-              requiresVerification !== undefined ? requiresVerification : true,
+              requiresVerification !== undefined
+                ? requiresVerification
+                : !quickBallot,
             verificationMethod: verificationMethod || "email",
             createdBy: req.user.id,
             status:
@@ -382,6 +524,8 @@ router.post(
             allowedVoters: parseInt(voterCount, 10) || 10,
             // totalVoters starts at 0 (actual registered voters count)
             totalVoters: 0,
+            // Set quickBallot flag
+            quickBallot: quickBallot || false,
           },
           { transaction }
         );
@@ -505,6 +649,10 @@ router.put(
       .optional()
       .isIn(["draft", "scheduled", "active", "completed"])
       .withMessage("Invalid status"),
+    body("quickBallot")
+      .optional()
+      .isBoolean()
+      .withMessage("quickBallot must be a boolean"),
   ],
   async (req, res) => {
     try {
@@ -528,6 +676,7 @@ router.put(
         verificationMethod,
         status,
         questions,
+        quickBallot,
       } = req.body;
 
       // Find ballot
@@ -571,6 +720,13 @@ router.put(
             ...(requiresVerification !== undefined && { requiresVerification }),
             ...(verificationMethod && { verificationMethod }),
             ...(status && { status }),
+            ...(quickBallot !== undefined && {
+              quickBallot,
+              // If switching to quick ballot, disable verification
+              requiresVerification: quickBallot
+                ? false
+                : ballot.requiresVerification,
+            }),
           },
           { transaction }
         );
@@ -1196,7 +1352,13 @@ router.post(
           const voter = await Voter.create(
             {
               email: voterData.email,
-              name: voterData.name,
+              firstName: voterData.name
+                ? voterData.name.split(" ")[0]
+                : "Anonymous",
+              lastName: voterData.name
+                ? voterData.name.split(" ").slice(1).join(" ") || "Voter"
+                : "Voter",
+              storedName: voterData.name || "Anonymous Voter",
               ballotId: id,
               verificationCode: Math.random()
                 .toString(36)
@@ -1391,7 +1553,34 @@ router.post(
           });
         }
       }
-      // If voter info was provided, find/create that voter
+      // For quick ballots, create anonymous voter without verification
+      else if (ballot.quickBallot) {
+        console.log(`Creating anonymous voter for quick ballot ${id}`);
+        votingVoter = await Voter.create(
+          {
+            ballotId: id,
+            email: `quick-${Date.now()}@${
+              req.headers["x-forwarded-for"] || "unknown"
+            }.voter`,
+            firstName: "Quick",
+            lastName: "Voter",
+            storedName: "Quick Voter",
+            verificationCode: Math.random()
+              .toString(36)
+              .substring(2, 8)
+              .toUpperCase(),
+            isVerified: true, // Auto-verify for quick ballots
+            hasVoted: false,
+            lastActivity: new Date(),
+          },
+          { transaction }
+        );
+
+        // Increment ballot voter count
+        ballot.totalVoters = (ballot.totalVoters || 0) + 1;
+        await ballot.save({ transaction });
+      }
+      // For regular ballots, use existing voter or create new one
       else if (voter && voter.email) {
         console.log(`Looking up voter with email: ${voter.email}`);
 
@@ -1411,9 +1600,13 @@ router.post(
           );
           votingVoter = await Voter.create(
             {
-              ballotId: id,
               email: voter.email,
-              name: voter.name || "Anonymous Voter",
+              firstName: voter.name ? voter.name.split(" ")[0] : "Anonymous",
+              lastName: voter.name
+                ? voter.name.split(" ").slice(1).join(" ") || "Voter"
+                : "Voter",
+              storedName: voter.name || "Anonymous Voter",
+              ballotId: id,
               verificationCode: Math.random()
                 .toString(36)
                 .substring(2, 8)
@@ -1435,11 +1628,13 @@ router.post(
         console.log(`Creating anonymous voter for ballot ${id}`);
         votingVoter = await Voter.create(
           {
-            ballotId: id,
             email: `anonymous-${Date.now()}@${
               req.headers["x-forwarded-for"] || "unknown"
             }.voter`,
-            name: "Anonymous Voter",
+            firstName: "Anonymous",
+            lastName: "Voter",
+            storedName: "Anonymous Voter",
+            ballotId: id,
             verificationCode: Math.random()
               .toString(36)
               .substring(2, 8)
@@ -1742,6 +1937,10 @@ router.get("/:id/results", async (req, res) => {
               name: choice.text,
               votes,
               percentage,
+              // Pass through any stored image so the frontend can display avatars
+              image: choice.image || null,
+              imageUrl: choice.imageUrl || null,
+              imageData: choice.imageData || null,
             };
           });
 
@@ -3118,9 +3317,7 @@ router.post("/register-with-key", async (req, res) => {
  * @access Private (voter only)
  */
 router.post("/:id/voter-vote", voterAuth, async (req, res) => {
-  // Start a transaction to ensure data consistency
   const transaction = await sequelize.transaction();
-
   try {
     const { id } = req.params;
     const { rankings, votes } = req.body;
@@ -3179,16 +3376,20 @@ router.post("/:id/voter-vote", voterAuth, async (req, res) => {
       });
     }
 
-    // Ensure the ballot is in an active state for voting
-    if (ballot.status !== "active" && ballot.status !== "scheduled") {
-      await transaction.rollback();
-      return res.status(400).json({
-        status: "error",
-        message: "This ballot is not currently accepting votes",
-      });
+    // For quick ballots, skip verification checks
+    if (!ballot.quickBallot) {
+      // Check if voter is verified (for non-quick ballots)
+      if (ballot.requiresVerification && !voter.isVerified) {
+        await transaction.rollback();
+        return res.status(403).json({
+          status: "error",
+          message: "You must verify your identity before voting",
+          requiresVerification: true,
+        });
+      }
     }
 
-    // Process the vote - similar to the public-vote endpoint but simplified
+    // Process the vote
     let createdVotes = [];
 
     // Handle rankings format
@@ -3352,18 +3553,14 @@ router.post("/:id/voter-vote", voterAuth, async (req, res) => {
               ballotId: id,
               questionId: voteData.questionId,
               choiceId: voteData.choiceId,
-              rank: voteData.rank || null,
               castAt: new Date(),
             },
             { transaction }
           );
 
           createdVotes.push(newVote);
-          console.log(
-            `[VOTER VOTE] Created vote for question ${voteData.questionId}, choice ${voteData.choiceId}`
-          );
         } catch (err) {
-          console.error(`[VOTER VOTE] Error creating vote: ${err.message}`);
+          console.error(`[VOTER VOTE] Error processing vote: ${err.message}`);
         }
       }
     } else {

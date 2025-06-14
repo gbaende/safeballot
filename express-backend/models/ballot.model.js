@@ -90,6 +90,12 @@ const Ballot = sequelize.define(
       type: DataTypes.BOOLEAN,
       defaultValue: true,
     },
+    quickBallot: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: "Whether this ballot allows instant voting without registration",
+    },
   },
   {
     tableName: "ballots",
@@ -157,8 +163,9 @@ const Choice = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    // Store base64 or URL. Use LONGTEXT to handle large base64 strings
     image: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT("long"),
       allowNull: true,
     },
     order: {

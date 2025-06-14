@@ -13,6 +13,7 @@ const initialState = {
       title: "",
       description: "",
       questions: [],
+      quickBallot: false,
     },
     duration: {
       startDate: null,
@@ -87,7 +88,14 @@ const electionSlice = createSlice({
       state.ballotBuilderState.currentStep = action.payload;
     },
     updateBallotTitle: (state, action) => {
-      state.ballotBuilderState.ballot.title = action.payload;
+      if (typeof action.payload === "string") {
+        state.ballotBuilderState.ballot.title = action.payload;
+      } else {
+        // Handle object payload with title and quickBallot
+        state.ballotBuilderState.ballot.title = action.payload.title;
+        state.ballotBuilderState.ballot.quickBallot =
+          action.payload.quickBallot;
+      }
     },
     updateBallotDescription: (state, action) => {
       state.ballotBuilderState.ballot.description = action.payload;

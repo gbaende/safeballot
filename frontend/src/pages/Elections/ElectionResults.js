@@ -2,11 +2,12 @@ import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
-  Paper,
   CircularProgress,
   Alert,
   IconButton,
   LinearProgress,
+  Avatar,
+  Grid,
 } from "@mui/material";
 import { useParams, Link } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -48,13 +49,31 @@ function ElectionResults() {
   }, [id]);
 
   return (
-    <Box sx={{ p: 4 }}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        background: "linear-gradient(to right, #080E1D, #263C75)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        py: 4,
+      }}
+    >
       {/* Header with Back Button and Title */}
       <Box sx={{ display: "flex", alignItems: "center", mb: 4 }}>
         <IconButton component={Link} to={`/elections/${id}`} sx={{ mr: 2 }}>
           <ArrowBackIcon />
         </IconButton>
-        <Typography variant="h4" sx={{ fontWeight: 500 }}>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: 500,
+            color: "#fff",
+            textAlign: "center",
+            fontSize: { xs: "2.4rem", sm: "3rem", md: "3.6rem" },
+          }}
+        >
           {ballot ? ballot.title : "Election Results"}
         </Typography>
       </Box>
@@ -77,76 +96,135 @@ function ElectionResults() {
           <CircularProgress />
         </Box>
       ) : (
-        <Box sx={{ ml: "40px" }}>
+        <Box
+          sx={{
+            width: { xs: "95%", sm: "85%", md: "80%" },
+            minHeight: { xs: "auto", md: "80vh" },
+            bgcolor: "#fff",
+            p: { xs: 2, sm: 3, md: 4 },
+            borderRadius: 2,
+            boxShadow: "0px 4px 12px rgba(0,0,0,0.15)",
+            overflowY: "auto",
+          }}
+        >
           {results &&
             results.positions &&
             results.positions.map((position, index) => (
-              <Paper
+              <Box
                 key={index}
                 sx={{
                   p: 3,
                   mb: 3,
-                  borderRadius: "8px",
-                  boxShadow: "0px 2px 4px rgba(0,0,0,0.05)",
-                  width: "60%",
+                  borderBottom: "1px solid #E2E8F0",
+                  "&:last-of-type": { borderBottom: "none" },
+                  width: "100%",
                 }}
               >
                 <Typography
-                  variant="h6"
+                  variant="h5"
                   sx={{
                     mb: 3,
-                    fontWeight: 500,
+                    fontWeight: 600,
                     color: "#4A5568",
+                    fontSize: { xs: "1.6rem", sm: "1.8rem", md: "2rem" },
                   }}
                 >
                   {position.title}
                 </Typography>
 
-                {position.candidates.map((candidate, idx) => (
-                  <Box key={idx} sx={{ mb: 2 }}>
-                    <Typography
-                      variant="body1"
-                      sx={{
-                        mb: 1,
-                        fontWeight: 500,
-                      }}
-                    >
-                      {candidate.name}
-                    </Typography>
-                    <Box sx={{ display: "flex", alignItems: "center" }}>
-                      <Box sx={{ width: "70%", mr: 1 }}>
-                        <LinearProgress
-                          variant="determinate"
-                          value={
-                            candidate.percentage > 100
-                              ? 100
-                              : candidate.percentage
-                          }
+                <Grid container spacing={2}>
+                  {position.candidates.map((candidate, idx) => (
+                    <Grid item xs={12} sm={6} key={idx}>
+                      <Box sx={{ mb: 2 }}>
+                        {/* Avatar + Candidate Name */}
+                        <Box
                           sx={{
-                            height: 8,
-                            borderRadius: 4,
-                            backgroundColor: "#EDF2F7",
-                            "& .MuiLinearProgress-bar": {
-                              borderRadius: 4,
-                              backgroundImage:
-                                "linear-gradient(to right, #00005E, #4478EB)",
-                            },
+                            display: "flex",
+                            alignItems: "center",
+                            mb: 1,
+                            columnGap: 2,
                           }}
-                        />
+                        >
+                          <Avatar
+                            src={
+                              candidate.imageUrl ||
+                              candidate.imageData ||
+                              candidate.image ||
+                              ""
+                            }
+                            alt={candidate.name}
+                            sx={{
+                              width: { xs: 36, sm: 44, md: 52 },
+                              height: { xs: 36, sm: 44, md: 52 },
+                              fontSize: {
+                                xs: "1rem",
+                                sm: "1.1rem",
+                                md: "1.2rem",
+                              },
+                            }}
+                          >
+                            {!candidate.imageUrl &&
+                            !candidate.imageData &&
+                            !candidate.image &&
+                            candidate.name
+                              ? candidate.name[0]
+                              : null}
+                          </Avatar>
+                          <Typography
+                            variant="body1"
+                            sx={{
+                              fontWeight: 500,
+                              fontSize: {
+                                xs: "1.3rem",
+                                sm: "1.4rem",
+                                md: "1.5rem",
+                              },
+                            }}
+                          >
+                            {candidate.name}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: "flex", alignItems: "center" }}>
+                          <Box sx={{ width: "65%", mr: 1 }}>
+                            <LinearProgress
+                              variant="determinate"
+                              value={
+                                candidate.percentage > 100
+                                  ? 100
+                                  : candidate.percentage
+                              }
+                              sx={{
+                                height: 6,
+                                borderRadius: 4,
+                                backgroundColor: "#EDF2F7",
+                                "& .MuiLinearProgress-bar": {
+                                  borderRadius: 4,
+                                  backgroundImage:
+                                    "linear-gradient(to right, #00005E, #4478EB)",
+                                },
+                              }}
+                            />
+                          </Box>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 500,
+                              minWidth: "45px",
+                              fontSize: {
+                                xs: "1rem",
+                                sm: "1.1rem",
+                                md: "1.2rem",
+                              },
+                            }}
+                          >
+                            {candidate.percentage.toFixed(1)}%
+                          </Typography>
+                        </Box>
                       </Box>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          fontWeight: 500,
-                          minWidth: "50px",
-                        }}
-                      >
-                        {candidate.percentage.toFixed(1)}%
-                      </Typography>
-                    </Box>
-                  </Box>
-                ))}
-              </Paper>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
             ))}
 
           {results &&
@@ -157,7 +235,9 @@ function ElectionResults() {
                   textAlign: "center",
                   border: "1px dashed #E2E8F0",
                   borderRadius: "8px",
-                  width: "60%",
+                  width: "100%",
+                  bgcolor: "#fff",
+                  fontSize: { xs: "1.3rem", sm: "1.4rem", md: "1.6rem" },
                 }}
               >
                 <Typography variant="h6" color="text.secondary">

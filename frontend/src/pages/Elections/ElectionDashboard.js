@@ -88,8 +88,23 @@ const ElectionDashboard = () => {
       // Generate a unique code using only the ID (no timestamp)
       const idPart = id.toString().slice(-4); // Last 4 chars of ID
 
-      // Format: baseUrl/voter-registration/electionId/slug-uniqueCode instead of /vote/
-      const link = `${baseUrl}/voter-registration/${id}/${slug}-${idPart}`;
+      // Determine brand: API may strip unknown fields, so look in localStorage fallback if missing
+      let brand = election.brand;
+      if (!brand) {
+        try {
+          const localBallots = JSON.parse(
+            localStorage.getItem("userBallots") || "[]"
+          );
+          const localMatch = localBallots.find(
+            (b) => String(b.id) === String(id)
+          );
+          brand = localMatch?.brand;
+        } catch (_) {}
+      }
+
+      const brandPrefix = brand ? `/${brand}` : "";
+      const linkPrefix = election.quickBallot ? "/vote" : "/voter-registration";
+      const link = `${baseUrl}${brandPrefix}${linkPrefix}/${id}/${slug}-${idPart}`;
 
       // Store the link
       setShareableLink(link);

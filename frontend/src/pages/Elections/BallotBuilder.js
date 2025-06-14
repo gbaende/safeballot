@@ -18,6 +18,7 @@ import {
   DialogActions,
   CircularProgress,
   Checkbox,
+  Switch,
   InputAdornment,
   Tooltip,
   Menu,
@@ -39,6 +40,7 @@ import {
   KeyboardArrowDown as KeyboardArrowDownIcon,
   FormatColorText as FormatColorTextIcon,
   Error as ErrorIcon,
+  PhotoCamera as PhotoCameraIcon,
 } from "@mui/icons-material";
 import { format, isValid, parse } from "date-fns";
 import {
@@ -72,6 +74,50 @@ const steps = [
   "Confirm + Pay",
 ];
 
+// Helper function to combine date and time strings into a JS Date object.
+// Declared **outside** the component so it is hoisted and available before first render.
+export function combineDateAndTime(dateStr, timeStr) {
+  try {
+    if (process.env.NODE_ENV === "development") {
+      console.log("Combining date:", dateStr, "and time:", timeStr);
+    }
+
+    // Parse the date string (e.g. "January 1, 2024")
+    const datePart = parse(dateStr, "MMMM d, yyyy", new Date());
+    if (process.env.NODE_ENV === "development") {
+      console.log("Parsed date part:", datePart);
+    }
+
+    // Extract hours and minutes from time string (e.g. "3:45 PM")
+    const timeMatch = timeStr.match(/(\d+):(\d+)\s+(AM|PM)/i);
+    if (!timeMatch) {
+      console.error("Invalid time format:", timeStr);
+      return new Date();
+    }
+
+    let hours = parseInt(timeMatch[1], 10);
+    const minutes = parseInt(timeMatch[2], 10);
+    const isPM = timeMatch[3].toUpperCase() === "PM";
+
+    // Convert to 24-hour format
+    if (isPM && hours < 12) hours += 12;
+    if (!isPM && hours === 12) hours = 0;
+
+    // Create the combined date
+    const result = new Date(datePart);
+    result.setHours(hours, minutes, 0, 0);
+
+    if (process.env.NODE_ENV === "development") {
+      console.log("Final combined date:", result);
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Error parsing date and time:", error);
+    return new Date();
+  }
+}
+
 const BallotBuilder = () => {
   const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
@@ -86,6 +132,8 @@ const BallotBuilder = () => {
   ]);
   const [currentQuestionId, setCurrentQuestionId] = useState(1);
   const [allowWriteIn, setAllowWriteIn] = useState(false);
+  const [quickBallot, setQuickBallot] = useState(false);
+  const [useSDFCBrand, setUseSDFCBrand] = useState(false);
   const [startDate, setStartDate] = useState(new Date());
   const [startDateStr, setStartDateStr] = useState(
     format(new Date(), "MMMM d, yyyy")
@@ -124,6 +172,43 @@ const BallotBuilder = () => {
 
   // Add a state variable to track greyified lines for each question
   const [greyifiedLines, setGreyifiedLines] = useState({});
+
+  // Store uploaded images keyed by questionId_optionIndex
+  const [optionImages, setOptionImages] = useState({});
+
+  // Handle image upload for an option
+  const handleOptionImageChange = (questionId, optionIndex, event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const key = `${questionId}_${optionIndex}`;
+    const preview = URL.createObjectURL(file);
+
+    setOptionImages((prev) => ({
+      ...prev,
+      [key]: { file, preview },
+    }));
+  };
+
+  // Convert file object to base64 string
+  const fileToBase64 = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  // Memoized combined Date objects to avoid recomputation on every render
+  const startDateTimeCombined = useMemo(
+    () => combineDateAndTime(startDateStr, startTimeStr),
+    [startDateStr, startTimeStr]
+  );
+
+  const endDateTimeCombined = useMemo(
+    () => combineDateAndTime(endDateStr, endTimeStr),
+    [endDateStr, endTimeStr]
+  );
 
   // Function to toggle whether a line is greyified
   const toggleGreyifyLine = (questionId, optionIndex, lineIndex) => {
@@ -322,43 +407,6 @@ const BallotBuilder = () => {
     setEndTimePickerOpen(false);
   };
 
-  // Helper functions to work with dates
-  const combineDateAndTime = (dateStr, timeStr) => {
-    try {
-      console.log("Combining date:", dateStr, "and time:", timeStr);
-
-      // Parse the date string
-      const datePart = parse(dateStr, "MMMM d, yyyy", new Date());
-      console.log("Parsed date part:", datePart);
-
-      // Extract hours and minutes from time string
-      const timeMatch = timeStr.match(/(\d+):(\d+)\s+(AM|PM)/i);
-      if (!timeMatch) {
-        console.error("Invalid time format:", timeStr);
-        return new Date();
-      }
-
-      let hours = parseInt(timeMatch[1], 10);
-      const minutes = parseInt(timeMatch[2], 10);
-      const isPM = timeMatch[3].toUpperCase() === "PM";
-      console.log("Extracted time parts:", { hours, minutes, isPM });
-
-      // Convert to 24-hour format
-      if (isPM && hours < 12) hours += 12;
-      if (!isPM && hours === 12) hours = 0;
-
-      // Create a new date with the parsed time
-      const result = new Date(datePart);
-      result.setHours(hours, minutes, 0, 0);
-      console.log("Final combined date:", result);
-
-      return result;
-    } catch (error) {
-      console.error("Error parsing date and time:", error);
-      return new Date();
-    }
-  };
-
   // Update handlers for date pickers to store both string and Date formats
   const handleStartDateChange = (newDate) => {
     console.log("Start date changed:", newDate);
@@ -468,30 +516,46 @@ const BallotBuilder = () => {
       }
 
       // Format questions for API - filter out empty options
-      const formattedQuestions = questions
-        .map((q) => {
-          // Filter out empty options first
-          const validOptions = q.options.filter(
-            (option) => option.trim() !== ""
-          );
+      const formattedQuestions = (
+        await Promise.all(
+          questions.map(async (q) => {
+            const validOptions = q.options.filter((option) =>
+              typeof option === "string" ? option.trim() !== "" : true
+            );
 
-          // Create properly formatted choices array from options
-          const choices = validOptions.map((optionText, index) => ({
-            text: optionText,
-            description: "",
-            order: index,
-          }));
+            // Create properly formatted choices array from options, including image if uploaded
+            const choices = await Promise.all(
+              validOptions.map(async (optionText, index) => {
+                const key = `${q.id}_${index}`;
+                let imageData = undefined;
+                if (optionImages[key]?.file) {
+                  try {
+                    imageData = await fileToBase64(optionImages[key].file);
+                  } catch (e) {
+                    console.error("Error converting file to base64", e);
+                  }
+                }
 
-          return {
-            title: q.title || "Untitled Question",
-            description: q.description || "",
-            questionType: "single_choice",
-            maxSelections: 1,
-            choices: choices, // This is the key change - backend expects 'choices', not 'options'
-            allow_write_in: allowWriteIn,
-          };
-        })
-        .filter((q) => q.choices.length > 0); // Only include questions with at least one choice
+                return {
+                  text: optionText,
+                  description: "",
+                  order: index,
+                  image: imageData,
+                };
+              })
+            );
+
+            return {
+              title: q.title || "Untitled Question",
+              description: q.description || "",
+              questionType: "single_choice",
+              maxSelections: 1,
+              choices: choices, // This is the key change - backend expects 'choices', not 'options'
+              allow_write_in: allowWriteIn,
+            };
+          })
+        )
+      ).filter((q) => q.choices.length > 0); // Only include questions with at least one choice
 
       // Check if there are any valid questions
       if (formattedQuestions.length === 0) {
@@ -513,6 +577,10 @@ const BallotBuilder = () => {
         voterCount: parseInt(voterCount, 10),
         allowedVoters: parseInt(voterCount, 10),
         maxVoters: parseInt(voterCount, 10),
+
+        // Quick ballot flag – enables anonymous voting flow on the backend
+        quickBallot: quickBallot,
+        brand: useSDFCBrand ? "sdfc" : undefined,
 
         // These start at zero - they're the runtime counters
         totalVoters: 0, // Number of registered voters
@@ -557,10 +625,16 @@ const BallotBuilder = () => {
               localStorage.getItem("userBallots") || "[]"
             );
 
-            // Use the ID returned from the API
-            const newBallot = {
+            // Ensure quickBallot flag is present when creating shareable link
+            const ballotForLink = {
               ...response.data.data,
-              shareableLink: generateShareableLink(response.data.data),
+              quickBallot: ballotData.quickBallot,
+              brand: ballotData.brand,
+            };
+
+            const newBallot = {
+              ...ballotForLink,
+              shareableLink: generateShareableLink(ballotForLink),
             };
 
             localStorage.setItem(
@@ -618,16 +692,21 @@ const BallotBuilder = () => {
                 localStorage.getItem("userBallots") || "[]"
               );
 
-              // Use the ID from the API response if available
-              const newBallot = {
+              // Ensure quickBallot flag is present when creating shareable link
+              const ballotForLink2 = {
                 ...(responseData.data || {}),
+                quickBallot: ballotData.quickBallot,
+                brand: ballotData.brand,
                 id: responseData.data?.id || uuidv4(),
+                title: ballotData.title,
+              };
+
+              const newBallot = {
+                ...ballotForLink2,
                 ...ballotData,
                 status: "scheduled",
                 created_at: new Date().toISOString(),
-                shareableLink: generateShareableLink(
-                  responseData.data || { id: uuidv4(), title: ballotData.title }
-                ),
+                shareableLink: generateShareableLink(ballotForLink2),
               };
 
               localStorage.setItem(
@@ -708,14 +787,27 @@ const BallotBuilder = () => {
   // Helper function to generate a shareable link
   const generateShareableLink = (ballot) => {
     const baseUrl = window.location.origin;
-    // Create a URL-friendly slug from the title
     const slug = (ballot.title || "Untitled Ballot")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "");
-    // Generate a unique code using only the ID's first 8 characters
+
     const idPart = ballot.id.toString().substring(0, 8);
-    // Format: baseUrl/voter-registration/electionId/slug-uniqueCode
+
+    if (ballot.quickBallot) {
+      const brandPrefix = ballot.brand
+        ? `/${ballot.brand}`
+        : useSDFCBrand
+        ? "/sdfc"
+        : "";
+      console.log("[SHARE LINK] quickBallot brand check", {
+        brand: ballot.brand,
+        useSDFCBrand,
+        brandPrefix,
+      });
+      return `${baseUrl}${brandPrefix}/vote/${ballot.id}/${slug}-${idPart}`;
+    }
+
     return `${baseUrl}/voter-registration/${ballot.id}/${slug}-${idPart}`;
   };
 
@@ -812,6 +904,57 @@ const BallotBuilder = () => {
                 value={electionTitle}
                 onChange={(e) => setElectionTitle(e.target.value)}
                 sx={{ mb: 3 }}
+              />
+
+              {/* Quick Voting toggle */}
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={quickBallot}
+                    onChange={(e) => {
+                      setQuickBallot(e.target.checked);
+                      if (!e.target.checked) {
+                        // If quick voting is disabled, also disable SDFC brand toggle
+                        setUseSDFCBrand(false);
+                      }
+                    }}
+                    color="primary"
+                  />
+                }
+                label={
+                  <Box>
+                    <Typography variant="body1">Enable Quick Voting</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Allow voters to cast their vote without registration or
+                      verification
+                    </Typography>
+                  </Box>
+                }
+                sx={{ mb: 2 }}
+              />
+
+              {/* SDFC branding toggle – only meaningful when quick voting */}
+              <FormControlLabel
+                sx={{ alignItems: "flex-start", mb: 2, ml: 0 }}
+                control={
+                  <Switch
+                    checked={useSDFCBrand}
+                    onChange={(e) => setUseSDFCBrand(e.target.checked)}
+                    color="primary"
+                    disabled={!quickBallot}
+                  />
+                }
+                label={
+                  <Box>
+                    <Typography variant="body1">
+                      San Diego FC Branding
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Prepend /sdfc to the quick-vote link and show club
+                      branding
+                    </Typography>
+                  </Box>
+                }
               />
             </Box>
 
@@ -971,6 +1114,25 @@ const BallotBuilder = () => {
                             position="end"
                             sx={{ alignSelf: "center" }}
                           >
+                            <IconButton
+                              size="small"
+                              component="label"
+                              sx={{ mr: 0.5 }}
+                            >
+                              <PhotoCameraIcon fontSize="small" />
+                              <input
+                                type="file"
+                                accept="image/*"
+                                hidden
+                                onChange={(e) =>
+                                  handleOptionImageChange(
+                                    currentQuestionId,
+                                    index,
+                                    e
+                                  )
+                                }
+                              />
+                            </IconButton>
                             <GreyifyButton
                               option={option}
                               questionId={currentQuestionId}
@@ -988,6 +1150,24 @@ const BallotBuilder = () => {
                       }}
                     />
                   </Box>
+
+                  {/* Preview image if uploaded */}
+                  {optionImages[`${currentQuestionId}_${index}`]?.preview && (
+                    <Box sx={{ mt: 1 }}>
+                      <img
+                        src={
+                          optionImages[`${currentQuestionId}_${index}`].preview
+                        }
+                        alt="preview"
+                        style={{
+                          width: "80px",
+                          height: "80px",
+                          objectFit: "cover",
+                          borderRadius: "4px",
+                        }}
+                      />
+                    </Box>
+                  )}
                 </Box>
               ))}
             </Box>
@@ -1904,7 +2084,7 @@ const BallotBuilder = () => {
           <Box sx={{ p: 2 }}>
             <TimePicker
               label="Election Start Time"
-              value={combineDateAndTime(startDateStr, startTimeStr)}
+              value={startDateTimeCombined}
               onChange={handleStartTimeChange}
               renderInput={(params) => <TextField {...params} fullWidth />}
               ampm={true}
@@ -1958,7 +2138,7 @@ const BallotBuilder = () => {
           <Box sx={{ p: 2 }}>
             <TimePicker
               label="Election End Time"
-              value={combineDateAndTime(endDateStr, endTimeStr)}
+              value={endDateTimeCombined}
               onChange={handleEndTimeChange}
               renderInput={(params) => <TextField {...params} fullWidth />}
               ampm={true}
@@ -2121,6 +2301,7 @@ const BallotBuilder = () => {
 
   return (
     <Box sx={{ p: 4 }}>
+      {/* Removed static 'Ballot 3' header */}
       {/* Stepper */}
       <Box
         sx={{

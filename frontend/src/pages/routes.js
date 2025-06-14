@@ -23,6 +23,7 @@ import ScanID from "./Verify/ScanID";
 import * as AdminPages from "./admin";
 import * as VoterPages from "./voter";
 import DirectVoterRegistration from "./voter/DirectVoterRegistration";
+import WhitelabelVotingPage from "./whitelabel/WhitelabelVotingPage";
 
 // Helper for creating the ScanID wrapper
 const createScanIDWrapper = (ScanIDComponent) => {
@@ -71,6 +72,8 @@ const getRoutes = (isAuthenticated) => {
         element={<PreRegistration startAtStep={1} />}
       />
       <Route path="/scan-id/:id/:slug" element={<ScanIDWrapper />} />
+      {/* Whitelabel voting route: /:brand/vote/:id/:slug */}
+      <Route path="/:brand/vote/:id/:slug" element={<WhitelabelVotingPage />} />
 
       {/* Admin Flow Routes - Protected by Authentication */}
       <Route

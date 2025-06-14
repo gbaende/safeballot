@@ -38,8 +38,8 @@ api.interceptors.request.use(
       "/auth/verify-email",
       "/auth/reset-password",
       "/elections/",
-      "/ballots/:id/public-vote",
-      "/ballots/:id/public-register-voter",
+      "/public-vote",
+      "/public-register-voter",
     ];
 
     // Voter-specific endpoints that use voter tokens instead of admin tokens
@@ -241,6 +241,20 @@ api.interceptors.response.use(
       statusText: error.response?.statusText,
       data: error.response?.data,
     });
+
+    // Additional deep log to inspect backend error payload for debugging
+    if (error.response?.data) {
+      try {
+        console.error(
+          "🔍 Backend error payload:",
+          typeof error.response.data === "object"
+            ? JSON.stringify(error.response.data, null, 2)
+            : error.response.data
+        );
+      } catch (e) {
+        console.error("Could not stringify backend error payload", e);
+      }
+    }
 
     // Detailed error information for debugging
     console.error("Detailed API Error:", {
@@ -942,7 +956,7 @@ export const ballotService = {
     api.delete(`/ballots/${ballotId}/voters/${voterId}`),
 
   // Voting
-  castVote: (ballotId, voteData) => {
+  castVote: async (ballotId, voteData) => {
     console.log(
       `Submitting vote for ballot ${ballotId}:`,
       JSON.stringify(voteData, null, 2)
@@ -1112,12 +1126,40 @@ export const ballotService = {
       )
     );
 
+    /*
+     * ------------------------------------------------------------
+     *  QUICK-BALLOT ANONYMOUS FIELDS (Option 2)
+     * ------------------------------------------------------------
+     * Instead of registering a voter, provide firstName/lastName/email
+     * directly in the payload so the backend can create a new anonymous
+     * voter record automatically. No voterId is included.
+     */
+
+    let anonFields = {};
+    if (voteData.quickBallot) {
+      const anonName = voteData.voterInfo?.name || "Quick Voter";
+      const parts = anonName.trim().split(" ");
+      const firstName = parts.shift();
+      const lastName = parts.join(" ") || "Voter";
+      const anonEmail =
+        voteData.voterInfo?.email ||
+        `quick_${Date.now()}_${Math.floor(
+          Math.random() * 1000
+        )}@anonymous.vote`;
+      anonFields = { firstName, lastName, email: anonEmail };
+      // Ensure we do NOT send any previous voterId
+      delete voteData.voterId;
+    }
+
     // Prepare the payload for the public vote endpoint
     const publicVotePayload = {
       rankings: voteData.rankings || {},
       votes: voteData.votes || [],
-      voter: voteData.voterInfo || voteData.voter,
+      ...(voteData.quickBallot ? { quickBallot: true } : {}),
+      ...anonFields,
     };
+
+    console.log("PUBLIC VOTE PAYLOAD BEING SENT:", publicVotePayload);
 
     // Use the public vote endpoint
     return api

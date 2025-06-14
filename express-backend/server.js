@@ -39,8 +39,10 @@ app.use(
     optionsSuccessStatus: 200,
   })
 ); // CORS
-app.use(express.json()); // Parse JSON bodies
-app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+// Allow larger payloads (many base-64 images). Configurable via env.
+const MAX_PAYLOAD_SIZE = process.env.MAX_PAYLOAD_SIZE || "100mb";
+app.use(express.json({ limit: MAX_PAYLOAD_SIZE }));
+app.use(express.urlencoded({ extended: true, limit: MAX_PAYLOAD_SIZE }));
 app.use(cookieParser()); // Parse cookies
 
 // Special handling for webhook routes which need the raw body

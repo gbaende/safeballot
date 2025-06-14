@@ -20,6 +20,7 @@ import {
   DialogActions,
   Modal,
   Backdrop,
+  Avatar,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -47,7 +48,7 @@ const QuestionTab = styled(Box)(({ theme }) => ({
   },
 }));
 
-const VotingPage = () => {
+const VotingPage = ({ branding = {} }) => {
   const { id, slug } = useParams();
   const navigate = useNavigate();
 
@@ -63,46 +64,63 @@ const VotingPage = () => {
   const [digitalKey, setDigitalKey] = useState("");
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [hasVerified, setHasVerified] = useState(false);
+  const [isQuickBallot, setIsQuickBallot] = useState(false);
 
-  // Check if user has been verified
+  // Branding details (optional)
+  const { logo: brandLogo, brandName, sponsors = [], primaryColor } = branding;
+
+  // Check if user has been verified, otherwise decide whether to bypass based on quick ballot rules
   useEffect(() => {
-    // Check for verification status in localStorage
-    const verificationStatus = localStorage.getItem(`verified_${id}`);
-    const storedDigitalKey = localStorage.getItem(`digital_key_${id}`);
+    const verifyOrBypass = async () => {
+      // 1) Check existing verification in localStorage
+      const verificationStatus = localStorage.getItem(`verified_${id}`);
+      const storedDigitalKey = localStorage.getItem(`digital_key_${id}`);
 
-    // Parse the slug to potentially extract the ballot ID in case the URL ID is different
-    const slugParts = slug ? slug.split("-") : [];
-    const idFromSlug =
-      slugParts.length > 0 ? slugParts[slugParts.length - 1] : null;
+      const slugParts = slug ? slug.split("-") : [];
+      const idFromSlug =
+        slugParts.length > 0 ? slugParts[slugParts.length - 1] : null;
 
-    // Also check verification status using the ID from slug
-    const verificationStatusFromSlug = idFromSlug
-      ? localStorage.getItem(`verified_${idFromSlug}`)
-      : null;
-    const storedDigitalKeyFromSlug = idFromSlug
-      ? localStorage.getItem(`digital_key_${idFromSlug}`)
-      : null;
+      const verificationStatusFromSlug = idFromSlug
+        ? localStorage.getItem(`verified_${idFromSlug}`)
+        : null;
+      const storedDigitalKeyFromSlug = idFromSlug
+        ? localStorage.getItem(`digital_key_${idFromSlug}`)
+        : null;
 
-    console.log("Verification check:", {
-      id,
-      slug,
-      idFromSlug,
-      verificationStatus,
-      verificationStatusFromSlug,
-      storedDigitalKey,
-      storedDigitalKeyFromSlug,
-    });
+      if (
+        (verificationStatus === "true" && storedDigitalKey) ||
+        (verificationStatusFromSlug === "true" && storedDigitalKeyFromSlug)
+      ) {
+        setHasVerified(true);
+        setDigitalKey(storedDigitalKey || storedDigitalKeyFromSlug);
+        return;
+      }
 
-    if (
-      (verificationStatus === "true" && storedDigitalKey) ||
-      (verificationStatusFromSlug === "true" && storedDigitalKeyFromSlug)
-    ) {
-      setHasVerified(true);
-      setDigitalKey(storedDigitalKey || storedDigitalKeyFromSlug);
-    } else {
-      // If not verified, redirect to voter registration first
-      navigate(`/voter-registration/${id}/${slug}`);
-    }
+      // 2) No verification found – fetch ballot to determine if quick ballot is enabled
+      try {
+        const resp = await ballotService.getBallotById(id);
+        const data = resp?.data?.data || {};
+        const quickFlag = data.quickBallot ?? data.quick_ballot ?? false;
+        const urlFlag = window.location.pathname.startsWith("/vote/");
+
+        if (quickFlag || urlFlag) {
+          console.log("Quick ballot detected – bypassing registration.", {
+            quickFlag,
+            urlFlag,
+          });
+          setIsQuickBallot(true);
+          setDigitalKey("quick-auto-key"); // set dummy key for consistency
+          setHasVerified(true);
+        } else {
+          navigate(`/voter-registration/${id}/${slug}`);
+        }
+      } catch (e) {
+        console.error("Error checking quick ballot status:", e);
+        navigate(`/voter-registration/${id}/${slug}`);
+      }
+    };
+
+    verifyOrBypass();
   }, [id, slug, navigate]);
 
   // Fetch real ballot data when component mounts
@@ -306,6 +324,8 @@ const VotingPage = () => {
                 id: choice.id || String(choice.order || 0),
                 text: choice.text || choice.option || choice.name || "Option",
                 party: choice.party || "",
+                imageUrl: choice.imageUrl || choice.image || "",
+                imageData: choice.imageData || choice.image || "",
               };
             }
             // If choice is a string, create an object
@@ -313,6 +333,8 @@ const VotingPage = () => {
               id: String(question.choices.indexOf(choice)),
               text: String(choice),
               party: "",
+              imageUrl: "",
+              imageData: "",
             };
           });
         }
@@ -340,12 +362,16 @@ const VotingPage = () => {
               String(option) ||
               `Option ${oIndex + 1}`,
             party: option.party || "",
+            imageUrl: option.imageUrl || option.image || "",
+            imageData: option.imageData || option.image || "",
           };
         } else {
           return {
             id: String(oIndex),
             text: String(option),
             party: "",
+            imageUrl: "",
+            imageData: "",
           };
         }
       });
@@ -456,7 +482,12 @@ const VotingPage = () => {
   };
 
   const handleConfirmAndSubmit = () => {
-    // Retrieve the stored digital key
+    // For quick ballots, skip digital key confirmation
+    if (ballot && (ballot.quickBallot || isQuickBallot)) {
+      handleSubmitBallot();
+      return;
+    }
+
     const storedKey = localStorage.getItem(`digital_key_${id}`);
     if (!storedKey) {
       setError(
@@ -537,6 +568,7 @@ const VotingPage = () => {
 
       // Make sure the payload exactly matches what the backend expects
       const voteData = {
+        quickBallot: ballot?.quickBallot || isQuickBallot,
         voterId: voterId, // Include the voter ID
         voterInfo: voterInfo, // Include voter info if available
         userSelections, // Include the array of user selections
@@ -599,9 +631,13 @@ const VotingPage = () => {
           }
         }
 
-        // Close confirmation dialog and show success dialog
+        // Close confirmation dialog. For quick ballots, jump straight to live results; otherwise, show the "vote counted" dialog.
         setShowConfirmDialog(false);
-        setShowSuccessDialog(true);
+        if (ballot?.quickBallot || isQuickBallot) {
+          navigate(`/elections/${id}/results`);
+        } else {
+          setShowSuccessDialog(true);
+        }
       } catch (error) {
         // Restore admin tokens if they existed even if there was an error
         const adminToken = localStorage.getItem("adminToken");
@@ -632,9 +668,13 @@ const VotingPage = () => {
           return;
         }
 
-        // For demo purposes, still show success dialog even on non-admin errors
+        // On error, still redirect quick-ballot voters to results; others show the fallback dialog
         setShowConfirmDialog(false);
-        setShowSuccessDialog(true);
+        if (ballot?.quickBallot || isQuickBallot) {
+          navigate(`/elections/${id}/results`);
+        } else {
+          setShowSuccessDialog(true);
+        }
       }
     } catch (error) {
       console.error("Error submitting ballot:", error);
@@ -727,6 +767,33 @@ const VotingPage = () => {
   const renderBallotSummary = () => {
     return (
       <Container maxWidth="lg" sx={{ py: 3 }}>
+        {/* Whitelabel Header */}
+        {(brandLogo || brandName) && (
+          <Box
+            sx={{
+              mb: 4,
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              flexDirection: "column",
+            }}
+          >
+            {brandLogo && (
+              <Box
+                component="img"
+                src={brandLogo}
+                alt={brandName || "Brand logo"}
+                sx={{ height: 60, mb: 1 }}
+              />
+            )}
+            {brandName && (
+              <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                {brandName}
+              </Typography>
+            )}
+          </Box>
+        )}
+
         {/* Header */}
         <Box sx={{ display: "flex", alignItems: "center", mb: 4 }}>
           <Button
@@ -900,8 +967,11 @@ const VotingPage = () => {
                 variant="contained"
                 onClick={handleConfirmAndSubmit}
                 sx={{
-                  bgcolor: "#1F2937",
-                  "&:hover": { bgcolor: "#111827" },
+                  background: "linear-gradient(to right, #080E1D, #263C75)",
+                  "&:hover": {
+                    background: "linear-gradient(to right, #050912, #1d2e59)",
+                  },
+                  borderRadius: "4px",
                 }}
               >
                 Confirm and Submit
@@ -1033,7 +1103,6 @@ const VotingPage = () => {
 
                   <RadioGroup
                     value={
-                      // Get the index from the response object
                       typeof responses[activeQuestion] === "object"
                         ? String(responses[activeQuestion].index)
                         : responses[activeQuestion] || ""
@@ -1041,97 +1110,95 @@ const VotingPage = () => {
                     onChange={handleResponseChange}
                     sx={{ mt: 3 }}
                   >
-                    {ballot.questions[activeQuestion].options &&
-                      ballot.questions[activeQuestion].options.map(
-                        (option, idx) => {
-                          // Use the index as the value
-                          const optionValue = String(idx);
+                    <Grid container spacing={2}>
+                      {ballot.questions[activeQuestion].options &&
+                        ballot.questions[activeQuestion].options.map(
+                          (option, idx) => {
+                            const optionValue = String(idx);
 
-                          // Extract option text and party safely
-                          const optionText =
-                            typeof option === "object"
-                              ? option.text ||
-                                option.option ||
-                                option.toString()
-                              : option.toString();
+                            const optionText =
+                              typeof option === "object"
+                                ? option.text ||
+                                  option.option ||
+                                  option.toString()
+                                : option.toString();
 
-                          const optionParty =
-                            typeof option === "object"
-                              ? option.party || ""
-                              : "";
+                            const optionParty =
+                              typeof option === "object"
+                                ? option.party || ""
+                                : "";
 
-                          return (
-                            <Box
-                              key={idx}
-                              sx={{
-                                mb: 2,
-                                display: "flex",
-                                alignItems: "flex-start",
-                              }}
-                            >
-                              <FormControlLabel
-                                value={optionValue}
-                                control={<Radio />}
-                                label=""
-                                sx={{ mr: 1 }}
-                              />
-                              <Box>
-                                <Typography sx={{ whiteSpace: "pre-line" }}>
-                                  {optionText}
-                                </Typography>
-                                {optionParty && (
-                                  <Typography
-                                    variant="body2"
-                                    color="text.secondary"
+                            return (
+                              <Grid item xs={12} sm={6} key={idx}>
+                                <Box
+                                  sx={{
+                                    display: "flex",
+                                    alignItems: "flex-start",
+                                  }}
+                                >
+                                  <FormControlLabel
+                                    value={optionValue}
+                                    control={<Radio />}
+                                    label=""
+                                    sx={{ mr: 1 }}
+                                  />
+
+                                  <Avatar
+                                    src={
+                                      (typeof option === "object" &&
+                                        (option.imageUrl ||
+                                          option.imageData ||
+                                          option.image)) ||
+                                      ""
+                                    }
+                                    sx={{
+                                      width: { xs: 52, sm: 60, md: 68 },
+                                      height: { xs: 52, sm: 60, md: 68 },
+                                      mr: 2,
+                                    }}
                                   >
-                                    {optionParty}
-                                  </Typography>
-                                )}
-                              </Box>
-                            </Box>
-                          );
-                        }
-                      )}
-
-                    {ballot.questions[activeQuestion].allow_write_in && (
-                      <Box
-                        sx={{
-                          mb: 2,
-                          display: "flex",
-                          alignItems: "flex-start",
-                        }}
-                      >
-                        <FormControlLabel
-                          value="write-in"
-                          control={<Radio />}
-                          label=""
-                          sx={{ mr: 1 }}
-                        />
-                        <Box>
-                          <Typography>Write-in</Typography>
-                          {(typeof responses[activeQuestion] === "object" &&
-                            responses[activeQuestion].index === "write-in") ||
-                          responses[activeQuestion] === "write-in" ? (
-                            <TextField
-                              variant="outlined"
-                              size="small"
-                              placeholder="Enter name"
-                              sx={{ mt: 1, minWidth: 200 }}
-                              onChange={(e) => {
-                                setResponses({
-                                  ...responses,
-                                  [activeQuestion]: {
-                                    index: "write-in",
-                                    text: e.target.value || "(Write-in)",
-                                    party: "",
-                                  },
-                                });
-                              }}
-                            />
-                          ) : null}
-                        </Box>
-                      </Box>
-                    )}
+                                    {!(
+                                      typeof option === "object" &&
+                                      (option.imageUrl ||
+                                        option.imageData ||
+                                        option.image)
+                                    ) && optionText[0]}
+                                  </Avatar>
+                                  <Box>
+                                    <Typography
+                                      sx={{
+                                        whiteSpace: "pre-line",
+                                        fontSize: {
+                                          xs: "1.1rem",
+                                          sm: "1.2rem",
+                                          md: "1.3rem",
+                                        },
+                                        fontWeight: 500,
+                                      }}
+                                    >
+                                      {optionText}
+                                    </Typography>
+                                    {optionParty && (
+                                      <Typography
+                                        variant="body2"
+                                        color="text.secondary"
+                                        sx={{
+                                          fontSize: {
+                                            xs: "0.9rem",
+                                            sm: "1rem",
+                                          },
+                                        }}
+                                      >
+                                        {optionParty}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                </Box>
+                              </Grid>
+                            );
+                          }
+                        )}
+                    </Grid>
                   </RadioGroup>
                 </>
               )}
@@ -1142,6 +1209,13 @@ const VotingPage = () => {
                 variant="contained"
                 endIcon={<ChevronRightIcon />}
                 onClick={handleContinue}
+                sx={{
+                  background: "linear-gradient(to right, #080E1D, #263C75)",
+                  "&:hover": {
+                    background: "linear-gradient(to right, #050912, #1d2e59)",
+                  },
+                  borderRadius: "4px",
+                }}
               >
                 Continue
               </Button>
@@ -1197,7 +1271,36 @@ const VotingPage = () => {
             successfully submitted and an email confirmation has been sent.
           </Typography>
         </DialogContent>
+        {/* Optional sponsor logos */}
+        {sponsors.length > 0 && (
+          <DialogActions sx={{ justifyContent: "center", pb: 3 }}>
+            {sponsors.map((s, idx) => (
+              <Box
+                key={idx}
+                component="img"
+                src={s.logo}
+                alt={s.name}
+                sx={{ height: 32, mx: 1 }}
+              />
+            ))}
+          </DialogActions>
+        )}
       </Dialog>
+
+      {/* San Diego FC logo footer */}
+      <Box
+        component="img"
+        src="/images/san-diego-fc-badge.png"
+        alt="San Diego FC Logo"
+        sx={{
+          position: "fixed",
+          bottom: 16,
+          left: "50%",
+          transform: "translateX(-50%)",
+          height: { xs: 40, sm: 50, md: 60 },
+          zIndex: 1200, // above other content but below modals
+        }}
+      />
     </>
   );
 };
