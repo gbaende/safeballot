@@ -132,6 +132,7 @@ const Register = () => {
         justifyContent: "center",
         alignItems: "center",
         background: "linear-gradient(to right, #1e293b, #3b5998)",
+        px: { xs: 2, sm: 0 }, // Add horizontal padding on mobile
       }}
     >
       <Paper
@@ -139,7 +140,8 @@ const Register = () => {
         sx={{
           width: "100%",
           maxWidth: "450px",
-          p: 4,
+          p: { xs: 3, sm: 4 }, // Responsive padding: smaller on mobile
+          mx: { xs: 1, sm: 0 }, // Add horizontal margin on mobile
           borderRadius: "8px",
           display: "flex",
           flexDirection: "column",

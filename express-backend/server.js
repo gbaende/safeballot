@@ -34,7 +34,11 @@ app.use(helmet()); // Security headers
 app.use(morgan("dev")); // Logging
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: [
+      process.env.FRONTEND_URL || "http://localhost:3000",
+      "http://ec2-3-235-213-160.compute-1.amazonaws.com",
+      "http://localhost:8080",
+    ],
     credentials: true,
     optionsSuccessStatus: 200,
   })
@@ -64,8 +68,11 @@ app.use("/api/elections", electionRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/payment", paymentRoutes);
 
-// Serve static files from the React app in production
-if (process.env.NODE_ENV === "production") {
+// Serve static files from the React app in production (only if not using nginx)
+if (
+  process.env.NODE_ENV === "production" &&
+  process.env.SERVE_STATIC !== "false"
+) {
   app.use(express.static(path.join(__dirname, "../frontend/build")));
 
   app.get("*", (req, res) => {

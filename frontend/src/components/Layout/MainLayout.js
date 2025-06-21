@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { styled } from "@mui/material/styles";
@@ -19,6 +19,8 @@ import {
   Menu,
   MenuItem,
   Button,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import {
   Menu as MenuIcon,
@@ -33,29 +35,32 @@ import MyElectionsIcon from "../icons/MyElectionsIcon";
 const drawerWidth = 240;
 
 const Main = styled("main", { shouldForwardProp: (prop) => prop !== "open" })(
-  ({ theme, open }) => ({
+  ({ theme, open, isMobile }) => ({
     flexGrow: 1,
-    padding: theme.spacing(3),
+    padding: isMobile ? theme.spacing(1) : theme.spacing(3),
     transition: theme.transitions.create("margin", {
       easing: theme.transitions.easing.sharp,
       duration: theme.transitions.duration.leavingScreen,
     }),
-    marginLeft: `-${drawerWidth}px`,
-    ...(open && {
-      transition: theme.transitions.create("margin", {
-        easing: theme.transitions.easing.easeOut,
-        duration: theme.transitions.duration.enteringScreen,
+    marginLeft: isMobile ? 0 : `-${drawerWidth}px`,
+    ...(open &&
+      !isMobile && {
+        transition: theme.transitions.create("margin", {
+          easing: theme.transitions.easing.easeOut,
+          duration: theme.transitions.duration.enteringScreen,
+        }),
+        marginLeft: 0,
       }),
-      marginLeft: 0,
-    }),
     background: "#FFFFFF",
     minHeight: "100vh",
+    marginTop: isMobile ? "64px" : 0, // Account for mobile app bar
+    width: isMobile ? "100%" : "auto", // Full width on mobile
   })
 );
 
 const AppBarStyled = styled(AppBar, {
   shouldForwardProp: (prop) => prop !== "open",
-})(({ theme, open }) => ({
+})(({ theme, open, isMobile }) => ({
   transition: theme.transitions.create(["margin", "width"], {
     easing: theme.transitions.easing.sharp,
     duration: theme.transitions.duration.leavingScreen,
@@ -63,14 +68,16 @@ const AppBarStyled = styled(AppBar, {
   backgroundColor: "#FFFFFF",
   color: "#33374D",
   boxShadow: "0px 2px 10px rgba(0, 0, 0, 0.05)",
-  ...(open && {
-    width: `calc(100% - ${drawerWidth}px)`,
-    marginLeft: `${drawerWidth}px`,
-    transition: theme.transitions.create(["margin", "width"], {
-      easing: theme.transitions.easing.easeOut,
-      duration: theme.transitions.duration.enteringScreen,
+  zIndex: isMobile ? theme.zIndex.drawer + 1 : "auto",
+  ...(open &&
+    !isMobile && {
+      width: `calc(100% - ${drawerWidth}px)`,
+      marginLeft: `${drawerWidth}px`,
+      transition: theme.transitions.create(["margin", "width"], {
+        easing: theme.transitions.easing.easeOut,
+        duration: theme.transitions.duration.enteringScreen,
+      }),
     }),
-  }),
 }));
 
 const DrawerHeader = styled("div")(({ theme }) => ({
@@ -95,9 +102,27 @@ const MainLayout = ({ children }) => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(!isMobile); // Start closed on mobile
   const [anchorEl, setAnchorEl] = useState(null);
+
+  // Auto-close drawer when navigation changes on mobile
+  useEffect(() => {
+    if (isMobile && open) {
+      setOpen(false);
+    }
+  }, [location.pathname, isMobile]);
+
+  // Close drawer when switching from mobile to desktop
+  useEffect(() => {
+    if (!isMobile) {
+      setOpen(true); // Open by default on desktop
+    } else {
+      setOpen(false); // Close by default on mobile
+    }
+  }, [isMobile]);
 
   const handleDrawerOpen = () => {
     setOpen(true);
@@ -125,24 +150,41 @@ const MainLayout = ({ children }) => {
   };
 
   const navigationItems = [
-    { text: "Dashboard", icon: <DashboardIcon />, path: "/home" },
+    { text: "Dashboard", icon: <DashboardIcon />, path: "/" },
     { text: "My Elections", icon: <MyElectionsIcon />, path: "/my-elections" },
+    { text: "Create Election", icon: <AddIcon />, path: "/ballot-builder" },
   ];
 
   return (
     <Box sx={{ display: "flex" }}>
-      <AppBarStyled position="fixed" open={open}>
+      <AppBarStyled position="fixed" open={open} isMobile={isMobile}>
         <Toolbar>
           <IconButton
             color="inherit"
             aria-label="open drawer"
             onClick={handleDrawerOpen}
             edge="start"
-            sx={{ mr: 2, ...(open && { display: "none" }) }}
+            sx={{
+              mr: 2,
+              // Only hide the hamburger menu on desktop when drawer is open
+              ...(open && !isMobile && { display: "none" }),
+              // Make the button more prominent on mobile
+              ...(isMobile && {
+                backgroundColor: "rgba(0, 0, 0, 0.04)",
+                "&:hover": {
+                  backgroundColor: "rgba(0, 0, 0, 0.08)",
+                },
+              }),
+            }}
           >
-            <MenuIcon />
+            <MenuIcon sx={{ fontSize: isMobile ? "1.5rem" : "1.25rem" }} />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+          <Typography
+            variant="h6"
+            noWrap
+            component="div"
+            sx={{ fontWeight: 600, color: "#080E1D" }}
+          >
             SafeBallot
           </Typography>
 
@@ -206,11 +248,22 @@ const MainLayout = ({ children }) => {
             width: drawerWidth,
             boxSizing: "border-box",
             borderRight: "1px solid rgba(0, 0, 0, 0.08)",
+            zIndex: isMobile ? theme.zIndex.drawer : "auto",
           },
         }}
-        variant="persistent"
+        variant={isMobile ? "temporary" : "persistent"}
         anchor="left"
         open={open}
+        onClose={handleDrawerClose}
+        ModalProps={{
+          keepMounted: true, // Better open performance on mobile
+          // Ensure backdrop click closes the drawer on mobile
+          ...(isMobile && {
+            BackdropProps: {
+              onClick: handleDrawerClose,
+            },
+          }),
+        }}
       >
         <LogoBox>
           <Typography variant="h5" sx={{ fontWeight: 700, color: "#4478EB" }}>
@@ -222,7 +275,14 @@ const MainLayout = ({ children }) => {
           {navigationItems.map((item) => (
             <ListItem key={item.text} disablePadding>
               <ListItemButton
-                onClick={() => navigate(item.path)}
+                onClick={() => {
+                  console.log(`Navigating to: ${item.path}`); // Debug log
+                  navigate(item.path);
+                  // Close drawer on mobile when navigation item is clicked
+                  if (isMobile) {
+                    setOpen(false);
+                  }
+                }}
                 selected={isActive(item.path)}
                 sx={{
                   "&.Mui-selected": {
@@ -235,9 +295,10 @@ const MainLayout = ({ children }) => {
                   "&:hover": {
                     backgroundColor: "rgba(0, 0, 0, 0.04)",
                   },
+                  py: 1.5, // Increase padding for better touch targets on mobile
                 }}
               >
-                <ListItemIcon sx={{ color: "#718096" }}>
+                <ListItemIcon sx={{ color: "#718096", minWidth: 40 }}>
                   {item.icon}
                 </ListItemIcon>
                 <ListItemText
@@ -245,6 +306,7 @@ const MainLayout = ({ children }) => {
                   primaryTypographyProps={{
                     fontWeight: isActive(item.path) ? 600 : 400,
                     color: "inherit",
+                    fontSize: isMobile ? "1rem" : "0.875rem", // Larger text on mobile
                   }}
                 />
               </ListItemButton>
@@ -253,7 +315,7 @@ const MainLayout = ({ children }) => {
         </List>
         <Divider />
       </Drawer>
-      <Main open={open}>
+      <Main open={open} isMobile={isMobile}>
         <DrawerHeader />
         {children}
       </Main>

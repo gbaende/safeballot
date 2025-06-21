@@ -6,13 +6,14 @@ dotenv.config();
 // Parse the DATABASE_URL if provided, otherwise use individual params
 let sequelize;
 
-if (process.env.DATABASE_URL) {
+if (process.env.DATABASE_URL || process.env.DB_URL) {
   // Using connection string directly instead of URL property to avoid parsing issues
-  sequelize = new Sequelize(process.env.DATABASE_URL, {
+  const dbUrl = process.env.DATABASE_URL || process.env.DB_URL;
+  sequelize = new Sequelize(dbUrl, {
     dialect: "postgres",
     dialectOptions: {
       ssl:
-        process.env.NODE_ENV === "production"
+        process.env.NODE_ENV === "production" && process.env.DB_SSL !== "false"
           ? {
               require: true,
               rejectUnauthorized: false,
@@ -32,7 +33,7 @@ if (process.env.DATABASE_URL) {
     dialect: "postgres",
     dialectOptions: {
       ssl:
-        process.env.NODE_ENV === "production"
+        process.env.NODE_ENV === "production" && process.env.DB_SSL !== "false"
           ? {
               require: true,
               rejectUnauthorized: false,

@@ -209,6 +209,7 @@ const Login = () => {
         justifyContent: "center",
         alignItems: "center",
         background: "linear-gradient(to right, #2d3748, #4a5568)",
+        px: { xs: 2, sm: 0 },
       }}
     >
       <Paper
@@ -216,7 +217,8 @@ const Login = () => {
         sx={{
           width: "100%",
           maxWidth: "450px",
-          p: 4,
+          p: { xs: 3, sm: 4 },
+          mx: { xs: 1, sm: 0 },
           borderRadius: "8px",
           display: "flex",
           flexDirection: "column",

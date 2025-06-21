@@ -208,77 +208,129 @@ const Home = () => {
           </Box>
         )}
 
-        <Grid container spacing={3} mb={4}>
-          <Grid item xs={12} md={6} lg={3}>
+        <Grid container spacing={{ xs: 2, md: 3 }} mb={4}>
+          <Grid item xs={12} sm={6} md={6} lg={3}>
             <StatCard>
-              <CardContent>
+              <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
                 <Box display="flex" alignItems="center" mb={1}>
                   <HowToVoteIcon color="primary" sx={{ mr: 1 }} />
-                  <Typography variant="subtitle1" fontWeight={600}>
+                  <Typography
+                    variant="subtitle1"
+                    fontWeight={600}
+                    sx={{ fontSize: { xs: "0.9rem", md: "1rem" } }}
+                  >
                     Live Elections
                   </Typography>
                 </Box>
-                <Typography variant="h3" fontWeight={700} mb={1}>
+                <Typography
+                  variant="h3"
+                  fontWeight={700}
+                  mb={1}
+                  sx={{ fontSize: { xs: "2rem", md: "3rem" } }}
+                >
                   {liveElections}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ fontSize: { xs: "0.8rem", md: "0.875rem" } }}
+                >
                   Currently active elections
                 </Typography>
               </CardContent>
             </StatCard>
           </Grid>
 
-          <Grid item xs={12} md={6} lg={3}>
+          <Grid item xs={12} sm={6} md={6} lg={3}>
             <StatCard>
-              <CardContent>
+              <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
                 <Box display="flex" alignItems="center" mb={1}>
                   <CalendarIcon color="info" sx={{ mr: 1 }} />
-                  <Typography variant="subtitle1" fontWeight={600}>
+                  <Typography
+                    variant="subtitle1"
+                    fontWeight={600}
+                    sx={{ fontSize: { xs: "0.9rem", md: "1rem" } }}
+                  >
                     Upcoming
                   </Typography>
                 </Box>
-                <Typography variant="h3" fontWeight={700} mb={1}>
+                <Typography
+                  variant="h3"
+                  fontWeight={700}
+                  mb={1}
+                  sx={{ fontSize: { xs: "2rem", md: "3rem" } }}
+                >
                   {upcomingElections}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ fontSize: { xs: "0.8rem", md: "0.875rem" } }}
+                >
                   Elections in registration phase
                 </Typography>
               </CardContent>
             </StatCard>
           </Grid>
 
-          <Grid item xs={12} md={6} lg={3}>
+          <Grid item xs={12} sm={6} md={6} lg={3}>
             <StatCard>
-              <CardContent>
+              <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
                 <Box display="flex" alignItems="center" mb={1}>
                   <PeopleIcon color="success" sx={{ mr: 1 }} />
-                  <Typography variant="subtitle1" fontWeight={600}>
+                  <Typography
+                    variant="subtitle1"
+                    fontWeight={600}
+                    sx={{ fontSize: { xs: "0.9rem", md: "1rem" } }}
+                  >
                     Participation
                   </Typography>
                 </Box>
-                <Typography variant="h3" fontWeight={700} mb={1}>
+                <Typography
+                  variant="h3"
+                  fontWeight={700}
+                  mb={1}
+                  sx={{ fontSize: { xs: "2rem", md: "3rem" } }}
+                >
                   {overallParticipation}%
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ fontSize: { xs: "0.8rem", md: "0.875rem" } }}
+                >
                   Average voter turnout
                 </Typography>
               </CardContent>
             </StatCard>
           </Grid>
 
-          <Grid item xs={12} md={6} lg={3}>
+          <Grid item xs={12} sm={6} md={6} lg={3}>
             <StatCard>
-              <CardContent>
+              <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
                 <Box display="flex" alignItems="center" mb={1}>
                   <CalendarIcon sx={{ mr: 1, color: "#9E9E9E" }} />
-                  <Typography variant="subtitle1" fontWeight={600}>
+                  <Typography
+                    variant="subtitle1"
+                    fontWeight={600}
+                    sx={{ fontSize: { xs: "0.9rem", md: "1rem" } }}
+                  >
                     Total Elections
                   </Typography>
                 </Box>
-                <Typography variant="h3" fontWeight={700} mb={1}>
+                <Typography
+                  variant="h3"
+                  fontWeight={700}
+                  mb={1}
+                  sx={{ fontSize: { xs: "2rem", md: "3rem" } }}
+                >
                   {totalElections}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ fontSize: { xs: "0.8rem", md: "0.875rem" } }}
+                >
                   Your largest elections
                 </Typography>
               </CardContent>
@@ -290,10 +342,16 @@ const Home = () => {
           <Box
             display="flex"
             justifyContent="space-between"
-            alignItems="center"
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            flexDirection={{ xs: "column", sm: "row" }}
+            gap={{ xs: 2, sm: 0 }}
             mb={2}
           >
-            <Typography variant="h5" fontWeight={600}>
+            <Typography
+              variant="h5"
+              fontWeight={600}
+              sx={{ fontSize: { xs: "1.25rem", md: "1.5rem" } }}
+            >
               Top 5 Largest Elections
             </Typography>
             <Button
@@ -301,6 +359,7 @@ const Home = () => {
               color="primary"
               endIcon={<ArrowForwardIcon />}
               onClick={() => navigate("/my-elections")}
+              size={{ xs: "small", sm: "medium" }}
             >
               View All Elections
             </Button>
@@ -331,9 +390,9 @@ const Home = () => {
             <TableContainer
               component={Paper}
               elevation={0}
-              sx={{ borderRadius: 2 }}
+              sx={{ borderRadius: 2, overflowX: "auto" }}
             >
-              <Table sx={{ minWidth: 650 }}>
+              <Table sx={{ minWidth: { xs: 300, sm: 650 } }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Election Title</TableCell>

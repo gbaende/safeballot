@@ -1,7 +1,11 @@
 import axios from "axios";
 
-// Updated to include /api in the URL
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8080/api";
+// Updated to use relative URL for production, localhost for development
+const API_URL =
+  process.env.REACT_APP_API_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "/api"
+    : "http://localhost:8080/api");
 
 // Cache to prevent duplicate API calls
 const requestCache = new Map();
@@ -1182,16 +1186,17 @@ export const ballotService = {
     try {
       console.log("EMERGENCY: Attempting direct database access for ballots");
       // Direct fetch approach to bypass normal authentication
-      const response = await fetch(
-        "http://localhost:8080/api/admin/direct-data?type=ballots",
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Emergency-Access": "true",
-          },
-        }
-      );
+      const apiUrl =
+        process.env.NODE_ENV === "production"
+          ? "/api"
+          : "http://localhost:8080/api";
+      const response = await fetch(`${apiUrl}/admin/direct-data?type=ballots`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Emergency-Access": "true",
+        },
+      });
 
       if (!response.ok) {
         // Try fallback with any available tokens
@@ -1200,21 +1205,18 @@ export const ballotService = {
           localStorage.getItem("token") ||
           localStorage.getItem("voterToken");
 
-        const authResponse = await fetch(
-          "http://localhost:8080/api/ballots?emergency=true",
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: token
-                ? token.startsWith("Bearer ")
-                  ? token
-                  : `Bearer ${token}`
-                : "",
-              "X-Emergency-Access": "true",
-            },
-          }
-        );
+        const authResponse = await fetch(`${apiUrl}/ballots?emergency=true`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token
+              ? token.startsWith("Bearer ")
+                ? token
+                : `Bearer ${token}`
+              : "",
+            "X-Emergency-Access": "true",
+          },
+        });
 
         const data = await authResponse.json();
         return { data, status: authResponse.status };

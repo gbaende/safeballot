@@ -29,6 +29,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import { ballotService } from "../../services/api";
+import { copyToClipboard } from "../../utils/clipboard";
 
 const ElectionDashboard = () => {
   const { id } = useParams();
@@ -461,13 +462,23 @@ const ElectionDashboard = () => {
     return window.location.origin;
   };
 
-  const handleCopyLink = () => {
+  const handleCopyLink = async () => {
     const link = getShareableLink();
-    navigator.clipboard.writeText(link);
-    setCopied(true);
-
-    // Reset the copied state after 2 seconds
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      const success = await copyToClipboard(link);
+      if (success) {
+        setCopied(true);
+        // Reset the copied state after 2 seconds
+        setTimeout(() => setCopied(false), 2000);
+      } else {
+        console.error("Failed to copy link to clipboard");
+        // Still show success message as fallback methods might have worked
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    } catch (error) {
+      console.error("Error copying link:", error);
+    }
   };
 
   // Early return for loading and error states
@@ -606,13 +617,13 @@ const ElectionDashboard = () => {
       </Box>
 
       {/* Main Content Grid */}
-      <Grid container spacing={3}>
+      <Grid container spacing={{ xs: 2, md: 3 }}>
         {/* Left Column - Election Status */}
         <Grid item xs={12} md={6}>
           {/* Live Voting Status */}
           <Paper
             sx={{
-              p: 3,
+              p: { xs: 2, sm: 3 },
               mb: 3,
               border: "1px solid #E2E8F0",
               boxShadow: "none",

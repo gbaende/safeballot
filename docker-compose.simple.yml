@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: safeballot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  backend:
+    build: ./express-backend
+    ports:
+      - "8080:8080"
+    restart: always
+    depends_on:
+      - postgres
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - FRONTEND_URL=http://ec2-3-235-213-160.compute-1.amazonaws.com
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/safeballot
+      - JWT_SECRET=your-super-secret-jwt-key-for-staging
+      - JWT_EXPIRES_IN=7d
+      - MAX_PAYLOAD_SIZE=100mb
+      - SERVE_STATIC=false
+
+  nginx:
+    image: nginx:1.25-alpine
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend/build:/usr/share/nginx/html:ro
+      - ./nginx.stage.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: always
+
+volumes:
+  postgres_data:

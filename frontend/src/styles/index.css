@@ -6,6 +6,9 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: #f5f5f5;
+  /* Improve text readability on mobile */
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
 }
 
 code {
@@ -20,4 +23,50 @@ code {
 a {
   text-decoration: none;
   color: inherit;
+}
+
+/* Mobile-first responsive utilities */
+@media (max-width: 768px) {
+  /* Ensure proper touch targets */
+  button,
+  .MuiButton-root,
+  .MuiIconButton-root {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Improve form field touch targets */
+  .MuiTextField-root input,
+  .MuiTextField-root textarea {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+}
+
+/* Improve scrolling on iOS */
+.MuiPaper-root,
+.MuiDialog-paper {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Responsive typography improvements */
+@media (max-width: 600px) {
+  h1,
+  .MuiTypography-h1 {
+    font-size: 2rem;
+  }
+
+  h2,
+  .MuiTypography-h2 {
+    font-size: 1.75rem;
+  }
+
+  h3,
+  .MuiTypography-h3 {
+    font-size: 1.5rem;
+  }
+
+  h4,
+  .MuiTypography-h4 {
+    font-size: 1.25rem;
+  }
 }

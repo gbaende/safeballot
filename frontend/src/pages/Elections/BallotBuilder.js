@@ -57,15 +57,14 @@ import {
   stripeService,
 } from "../../services/api";
 
-// Import Stripe components
-import {
-  Elements,
-  PaymentElement,
-  useStripe,
-  useElements,
-} from "@stripe/react-stripe-js";
-import { loadStripe } from "@stripe/stripe-js";
+// Import Mock Payment component
+import MockPaymentForm from "../../components/MockPaymentForm";
 import TextareaAutosize from "@mui/material/TextareaAutosize";
+import {
+  compressMultipleImages,
+  formatFileSize,
+} from "../../utils/imageCompression";
+import { copyToClipboard } from "../../utils/clipboard";
 
 const steps = [
   "Build Ballot",
@@ -474,13 +473,13 @@ const BallotBuilder = () => {
     }
   };
 
-  // Initialize payment intent when reaching the payment step
-  useEffect(() => {
-    if (activeStep === 3 && totalPrice > 0 && !paymentClientSecret) {
-      createPaymentIntent();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStep, totalPrice, paymentClientSecret]);
+  // Payment intent creation disabled - bypassing payment for development
+  // useEffect(() => {
+  //   if (activeStep === 3 && totalPrice > 0 && !paymentClientSecret) {
+  //     createPaymentIntent();
+  //   }
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [activeStep, totalPrice, paymentClientSecret]);
 
   // Update the submitBallot function to handle Stripe payment with Payment Intents
   const submitBallot = async (paymentIntent, paymentMethod) => {
@@ -523,16 +522,43 @@ const BallotBuilder = () => {
               typeof option === "string" ? option.trim() !== "" : true
             );
 
-            // Create properly formatted choices array from options, including image if uploaded
+            // Create properly formatted choices array from options, including compressed images if uploaded
             const choices = await Promise.all(
               validOptions.map(async (optionText, index) => {
                 const key = `${q.id}_${index}`;
                 let imageData = undefined;
                 if (optionImages[key]?.file) {
                   try {
-                    imageData = await fileToBase64(optionImages[key].file);
+                    // Compress image before converting to base64
+                    const { compressedImages } = await compressMultipleImages(
+                      { [key]: optionImages[key] },
+                      {
+                        maxWidth: 600,
+                        maxHeight: 400,
+                        quality: 0.6,
+                        format: "image/jpeg",
+                      }
+                    );
+                    imageData = compressedImages[key]?.compressedData;
+
+                    if (imageData) {
+                      console.log(
+                        `Compressed image for ${key}: ${formatFileSize(
+                          compressedImages[key].compressedSize
+                        )}`
+                      );
+                    }
                   } catch (e) {
-                    console.error("Error converting file to base64", e);
+                    console.error("Error compressing image", e);
+                    // Fallback to original method
+                    try {
+                      imageData = await fileToBase64(optionImages[key].file);
+                    } catch (fallbackError) {
+                      console.error(
+                        "Error converting file to base64",
+                        fallbackError
+                      );
+                    }
                   }
                 }
 
@@ -663,7 +689,11 @@ const BallotBuilder = () => {
           console.log("Falling back to direct fetch API...");
 
           // Create fetch request with explicit headers
-          const response = await fetch("http://localhost:8080/api/ballots", {
+          const apiUrl =
+            process.env.NODE_ENV === "production"
+              ? "/api"
+              : "http://localhost:8080/api";
+          const response = await fetch(`${apiUrl}/ballots`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -818,10 +848,17 @@ const BallotBuilder = () => {
         Build Ballot
       </Typography>
 
-      <Grid container spacing={4}>
+      <Grid container spacing={{ xs: 2, md: 4 }}>
         {/* Left Column - Content Sidebar */}
         <Grid item xs={12} md={4}>
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+          <Typography
+            variant="h6"
+            sx={{
+              mb: 2,
+              fontWeight: 600,
+              fontSize: { xs: "1.1rem", md: "1.25rem" },
+            }}
+          >
             Content
           </Typography>
 
@@ -869,7 +906,7 @@ const BallotBuilder = () => {
         <Grid item xs={12} md={8}>
           <Paper
             sx={{
-              p: 3,
+              p: { xs: 2, sm: 3 },
               border: "1px solid #E2E8F0",
               borderRadius: "8px",
               boxShadow: "none",
@@ -881,12 +918,22 @@ const BallotBuilder = () => {
                 justifyContent: "space-between",
                 alignItems: "center",
                 mb: 2,
+                flexDirection: { xs: "column", sm: "row" },
+                gap: { xs: 1, sm: 0 },
               }}
             >
-              <Typography variant="h6" sx={{ fontWeight: 500 }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 500,
+                  fontSize: { xs: "1.1rem", md: "1.25rem" },
+                }}
+              >
                 Election Title
               </Typography>
-              <EditIcon sx={{ color: "#A0AEC0" }} />
+              <EditIcon
+                sx={{ color: "#A0AEC0", display: { xs: "none", sm: "block" } }}
+              />
             </Box>
 
             <Box
@@ -970,7 +1017,7 @@ const BallotBuilder = () => {
             <Box
               sx={{
                 mb: 4,
-                p: 2,
+                p: { xs: 1.5, sm: 2 },
                 bgcolor: "#F7FAFC",
                 borderRadius: "4px 4px 0 0",
                 border: "1px solid #E2E8F0",
@@ -978,13 +1025,20 @@ const BallotBuilder = () => {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
+                flexDirection: { xs: "column", sm: "row" },
+                gap: { xs: 1, sm: 0 },
               }}
             >
-              <Typography variant="body1">Question 1</Typography>
+              <Typography
+                variant="body1"
+                sx={{ fontSize: { xs: "0.9rem", md: "1rem" } }}
+              >
+                Question 1
+              </Typography>
               <Box
                 sx={{
                   display: "flex",
-                  gap: 1,
+                  gap: { xs: 0.5, sm: 1 },
                 }}
               >
                 <IconButton size="small">
@@ -1004,7 +1058,7 @@ const BallotBuilder = () => {
 
             <Box
               sx={{
-                p: 3,
+                p: { xs: 2, sm: 3 },
                 border: "1px solid #E2E8F0",
                 borderRadius: "0 0 4px 4px",
                 borderTop: "none",
@@ -1180,11 +1234,18 @@ const BallotBuilder = () => {
   // Step 2: Set Duration Content
   const renderSetDuration = () => (
     <>
-      <Typography variant="h4" sx={{ fontWeight: 500, mb: 6 }}>
+      <Typography
+        variant="h4"
+        sx={{
+          fontWeight: 500,
+          mb: { xs: 3, md: 6 },
+          fontSize: { xs: "1.5rem", md: "2.125rem" },
+        }}
+      >
         How long will the election run for?
       </Typography>
 
-      <Box sx={{ maxWidth: "960px", mt: 5 }}>
+      <Box sx={{ maxWidth: "960px", mt: { xs: 2, md: 5 } }}>
         {/* Duration header with blue dot - moved outside */}
         <Box
           className="section-header-duration"
@@ -1218,13 +1279,13 @@ const BallotBuilder = () => {
 
         <Paper
           sx={{
-            p: 6,
+            p: { xs: 3, sm: 4, md: 6 },
             border: "1px solid #E2E8F0",
             borderRadius: "0 0 12px 12px",
             borderTop: "none",
             boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.05)",
             mb: 4,
-            minHeight: "580px",
+            minHeight: { xs: "auto", md: "580px" },
             display: "flex",
             flexDirection: "column",
             justifyContent: "center",
@@ -1232,19 +1293,40 @@ const BallotBuilder = () => {
             pt: 0,
           }}
         >
-          <Box sx={{ width: "70%", maxWidth: "600px", marginLeft: 0 }}>
+          <Box
+            sx={{
+              width: { xs: "100%", md: "70%" },
+              maxWidth: "600px",
+              marginLeft: 0,
+            }}
+          >
             {/* Election Start Time */}
-            <Box sx={{ display: "flex", mb: 8 }}>
-              <Box sx={{ width: "40%" }}>
-                <Typography variant="body1" fontWeight={500} sx={{ mb: 1 }}>
+            <Box
+              sx={{
+                display: "flex",
+                mb: { xs: 4, md: 8 },
+                flexDirection: { xs: "column", md: "row" },
+                gap: { xs: 2, md: 0 },
+              }}
+            >
+              <Box sx={{ width: { xs: "100%", md: "40%" } }}>
+                <Typography
+                  variant="body1"
+                  fontWeight={500}
+                  sx={{ mb: 1, fontSize: { xs: "0.9rem", md: "1rem" } }}
+                >
                   Election Start Time
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ fontSize: { xs: "0.8rem", md: "0.875rem" } }}
+                >
                   Set the time and date for when your election will start
                 </Typography>
               </Box>
 
-              <Box sx={{ width: "60%" }}>
+              <Box sx={{ width: { xs: "100%", md: "60%" } }}>
                 <Box
                   sx={{
                     mb: 2,
@@ -1393,24 +1475,32 @@ const BallotBuilder = () => {
 
         <Paper
           sx={{
-            p: 6,
+            p: { xs: 3, sm: 4, md: 6 },
             border: "1px solid #E2E8F0",
             borderRadius: "0 0 12px 12px",
             borderTop: "none",
             boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.05)",
             mb: 4,
-            minHeight: "340px",
+            minHeight: { xs: "auto", md: "340px" },
           }}
         >
           {/* 4-container layout */}
-          <Grid container spacing={4}>
+          <Grid container spacing={{ xs: 3, md: 4 }}>
             {/* Container 1: Left column with voter text */}
             <Grid item xs={12} md={5}>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body1" fontWeight={500} sx={{ mb: 1 }}>
+              <Box sx={{ mb: { xs: 3, md: 2 } }}>
+                <Typography
+                  variant="body1"
+                  fontWeight={500}
+                  sx={{ mb: 1, fontSize: { xs: "0.9rem", md: "1rem" } }}
+                >
                   Set the number of voters
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ fontSize: { xs: "0.8rem", md: "0.875rem" } }}
+                >
                   The cost to run an election depends on the number of voters
                   allowed to preregister.
                 </Typography>
@@ -1554,206 +1644,23 @@ const BallotBuilder = () => {
     </>
   );
 
-  // Conditionally render the Elements component
-  const stripePromise = useMemo(
-    () => loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY),
-    []
-  );
-  const ElementsWithClientSecret = ({ children }) => {
-    const options = useMemo(
-      () => ({
-        clientSecret: paymentClientSecret,
-        appearance: {
-          theme: "stripe",
-          variables: {
-            colorPrimary: "#3182CE",
-            colorBackground: "#ffffff",
-            colorText: "#1A202C",
-            colorDanger: "#E53E3E",
-            fontFamily:
-              '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            spacingUnit: "4px",
-            borderRadius: "4px",
-          },
-        },
-      }),
-      [paymentClientSecret]
-    );
-    if (!paymentClientSecret) {
-      return (
-        <Box sx={{ p: 3, textAlign: "center" }}>
-          <CircularProgress size={24} />
-          <Typography variant="body2" sx={{ mt: 1 }}>
-            Initializing payment form...
-          </Typography>
-        </Box>
-      );
-    }
-    return (
-      <Elements stripe={stripePromise} options={options}>
-        {children}
-      </Elements>
-    );
+  // Handle successful payment from mock form
+  const handlePaymentSuccess = (paymentIntent) => {
+    console.log("Mock payment successful:", paymentIntent);
+    submitBallot(paymentIntent, paymentIntent.payment_method);
   };
 
-  // Create a separate component for Stripe payment elements
-  const PaymentForm = ({
-    clientSecret,
-    amount,
-    currency,
-    onSuccess,
-    onError,
-  }) => {
-    const stripe = useStripe();
-    const elements = useElements();
-    const [error, setError] = useState(null);
-    const [processing, setProcessing] = useState(false);
-
-    const handleSubmit = async (event) => {
-      event.preventDefault();
-
-      if (!stripe || !elements) {
-        // Stripe.js has not loaded yet
-        return;
-      }
-
-      setProcessing(true);
-
-      try {
-        // Use confirmPayment to handle the payment with the PaymentElement
-        const { error: submitError, paymentIntent } =
-          await stripe.confirmPayment({
-            elements,
-            confirmParams: {
-              return_url: window.location.origin + "/payment-success",
-              payment_method_data: {
-                billing_details: {
-                  name: cardholderName || "",
-                  address: {
-                    city: city || "",
-                    postal_code: zipCode || "",
-                    country: billingAddress || "United States",
-                  },
-                },
-              },
-            },
-            redirect: "if_required",
-          });
-
-        setProcessing(false);
-
-        if (submitError) {
-          console.error("Payment error:", submitError);
-          setError(submitError.message || "Payment failed. Please try again.");
-        } else if (paymentIntent && paymentIntent.status === "succeeded") {
-          // Payment succeeded, pass the payment method to the parent component
-          onSuccess(paymentIntent);
-        } else {
-          setError("Payment processing failed. Please try again.");
-        }
-      } catch (err) {
-        console.error("Payment error:", err);
-        setError(err.message || "An error occurred during payment processing.");
-        setProcessing(false);
-      }
-    };
-
-    return (
-      <form onSubmit={handleSubmit}>
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="body1" fontWeight={500} sx={{ mb: 1 }}>
-            Payment Information
-          </Typography>
-          <Box
-            sx={{
-              p: 2,
-              border: "1px solid #E2E8F0",
-              borderRadius: "4px",
-              backgroundColor: "#FFFFFF",
-              mb: 2,
-            }}
-          >
-            <PaymentElement
-              options={{
-                layout: "tabs",
-                paymentMethodOrder: ["card", "us_bank_account"],
-                defaultValues: {
-                  billingDetails: {
-                    name: cardholderName || "",
-                    address: {
-                      city: city || "",
-                      postal_code: zipCode || "",
-                      country: billingAddress || "United States",
-                    },
-                  },
-                },
-              }}
-            />
-          </Box>
-          {error && (
-            <Typography
-              color="error"
-              variant="body2"
-              sx={{ mt: 1, display: "flex", alignItems: "center" }}
-            >
-              <ErrorIcon fontSize="small" sx={{ mr: 0.5 }} />
-              {error}
-            </Typography>
-          )}
-          {paymentError && !error && (
-            <Typography
-              color="error"
-              variant="body2"
-              sx={{ mt: 1, display: "flex", alignItems: "center" }}
-            >
-              <ErrorIcon fontSize="small" sx={{ mr: 0.5 }} />
-              {paymentError}
-            </Typography>
-          )}
-        </Box>
-
-        <Box sx={{ mt: 4, display: "flex", justifyContent: "space-between" }}>
-          <Button
-            onClick={handleBack}
-            sx={{
-              color: "#4A5568",
-              borderColor: "#E2E8F0",
-              textTransform: "none",
-              borderRadius: "4px",
-            }}
-            variant="outlined"
-          >
-            Back
-          </Button>
-
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={processing || !stripe || isSubmitting || submitSuccess}
-            sx={{
-              background: "linear-gradient(90deg, #4478EB 0%, #6FA0FF 100%)",
-              color: "white",
-              textTransform: "none",
-              borderRadius: "4px",
-              minWidth: "150px",
-            }}
-          >
-            {processing || isSubmitting ? (
-              <CircularProgress size={24} color="inherit" />
-            ) : (
-              `Submit and Pay $${totalPrice.toFixed(2)}`
-            )}
-          </Button>
-        </Box>
-      </form>
-    );
+  // Handle payment error from mock form
+  const handlePaymentError = (error) => {
+    console.error("Mock payment error:", error);
+    setPaymentError(error.message || "Payment failed. Please try again.");
   };
 
   // Update the renderConfirmAndPay function to include Stripe elements
   const renderConfirmAndPay = () => (
     <>
       <Typography variant="h4" sx={{ fontWeight: 500, mb: 4 }}>
-        Confirm + Pay
+        Confirm & Create Ballot
       </Typography>
 
       {submitSuccess && (
@@ -1772,12 +1679,12 @@ const BallotBuilder = () => {
         container
         spacing={3}
         sx={{
-          justifyContent: "space-between",
+          justifyContent: "center",
           mb: { xs: 8, md: 10 },
         }}
       >
-        {/* Left Column - Review Election Details */}
-        <Grid item xs={12} md={5.4} sx={{ width: "45%" }}>
+        {/* Single Column - Review Election Details */}
+        <Grid item xs={12} md={8}>
           {/* Styled grey review header */}
           <Box
             className="section-header-review"
@@ -1816,14 +1723,13 @@ const BallotBuilder = () => {
               borderRadius: "0 0 12px 12px",
               borderTop: "none",
               boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.05)",
-              height: "75%",
-              overflowY: "auto",
+              minHeight: "400px",
             }}
           >
-            {/* Content container with reduced width */}
-            <Box sx={{ width: "90%", mx: "auto", py: 2 }}>
+            {/* Content container */}
+            <Box sx={{ width: "100%", mx: "auto", py: 2 }}>
               {/* Ballot Details */}
-              <Typography variant="body1" fontWeight={600} sx={{ mb: 2 }}>
+              <Typography variant="h6" fontWeight={600} sx={{ mb: 3 }}>
                 Ballot Details
               </Typography>
               <Box
@@ -1831,211 +1737,102 @@ const BallotBuilder = () => {
                   height: "1px",
                   bgcolor: "#E2E8F0",
                   width: "100%",
-                  mb: 2,
+                  mb: 3,
                 }}
               />
 
-              <Box sx={{ mb: 6 }}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    mb: 1,
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary">
-                    Title:
-                  </Typography>
-                  <Typography variant="body2">
-                    {electionTitle || "Untitled Ballot"}
-                  </Typography>
-                </Box>
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    mb: 1,
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary">
-                    Ballot:
-                  </Typography>
-                  <Typography variant="body2">
-                    {questions.length} Question
-                    {questions.length !== 1 ? "s" : ""}
-                  </Typography>
-                </Box>
-              </Box>
+              <Grid container spacing={4} sx={{ mb: 4 }}>
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mb: 1 }}
+                    >
+                      Title:
+                    </Typography>
+                    <Typography variant="body1" fontWeight={500}>
+                      {electionTitle || "Untitled Ballot"}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mb: 1 }}
+                    >
+                      Questions:
+                    </Typography>
+                    <Typography variant="body1">
+                      {questions.length} Question
+                      {questions.length !== 1 ? "s" : ""}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mb: 1 }}
+                    >
+                      Voters:
+                    </Typography>
+                    <Typography variant="body1">
+                      {voterCount} voter{voterCount !== 1 ? "s" : ""}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mb: 1 }}
+                    >
+                      Starts:
+                    </Typography>
+                    <Typography variant="body1">
+                      {startDateStr}, {startTimeStr}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mb: 1 }}
+                    >
+                      Ends:
+                    </Typography>
+                    <Typography variant="body1">
+                      {endDateStr}, {endTimeStr}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mb: 1 }}
+                    >
+                      Quick Voting:
+                    </Typography>
+                    <Typography variant="body1">
+                      {quickBallot ? "Enabled" : "Disabled"}
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
 
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="body1" fontWeight={600}>
-                  Duration
-                </Typography>
-                <Box
-                  sx={{
-                    height: "1px",
-                    bgcolor: "#E2E8F0",
-                    width: "100%",
-                    mt: 1,
-                    mb: 1,
-                  }}
+              {/* Payment Form */}
+              <Box sx={{ mt: 4 }}>
+                <MockPaymentForm
+                  amount={totalPrice}
+                  currency="USD"
+                  onSuccess={handlePaymentSuccess}
+                  onError={handlePaymentError}
+                  onBack={handleBack}
+                  isSubmitting={isSubmitting}
                 />
-              </Box>
-
-              <Box sx={{ mb: 7 }}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    mb: 2,
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary">
-                    Starts:
-                  </Typography>
-                  <Typography variant="body2">
-                    {startDateStr}, {startTimeStr}
-                  </Typography>
-                </Box>
-
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary">
-                    Ends:
-                  </Typography>
-                  <Typography variant="body2">
-                    {endDateStr}, {endTimeStr}
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="body1" fontWeight={600}>
-                  Number of Voters
-                </Typography>
-                <Box
-                  sx={{
-                    height: "1px",
-                    bgcolor: "#E2E8F0",
-                    width: "100%",
-                    mt: 1,
-                    mb: 1,
-                  }}
-                />
-              </Box>
-
-              <Box sx={{ mb: 8 }}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary">
-                    Voters:
-                  </Typography>
-                  <Typography variant="body2">
-                    {voterCount} voter{voterCount !== 1 ? "s" : ""} x $
-                    {pricePerVoter.toFixed(2)}
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Box sx={{ pt: 1 }}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    borderTop: "1px solid #E2E8F0",
-                    pt: 2,
-                  }}
-                >
-                  <Typography variant="body1" fontWeight={600}>
-                    Total Amount:
-                  </Typography>
-                  <Typography variant="body1" fontWeight={600}>
-                    ${totalPrice.toFixed(2)}
-                  </Typography>
-                </Box>
               </Box>
             </Box>
-          </Paper>
-        </Grid>
-
-        {/* Right Column - Stripe Payment Only */}
-        <Grid item xs={12} md={6} sx={{ width: "50%" }}>
-          <Box
-            className="section-header-payment"
-            sx={{
-              bgcolor: "#F7FAFC",
-              p: 2,
-              mb: 0,
-              borderRadius: "12px 12px 0 0",
-              borderBottom: "1px solid #E2E8F0",
-              borderTop: "1px solid #E2E8F0",
-              borderLeft: "1px solid #E2E8F0",
-              borderRight: "1px solid #E2E8F0",
-              width: "100%",
-            }}
-          >
-            <Box sx={{ display: "flex", alignItems: "center" }}>
-              <Box
-                sx={{
-                  width: 14,
-                  height: 14,
-                  borderRadius: "50%",
-                  bgcolor: "#3182CE",
-                  mr: 1.5,
-                }}
-              />
-              <Typography variant="body1" fontWeight={500}>
-                Payment Details
-              </Typography>
-            </Box>
-          </Box>
-          <Paper
-            sx={{
-              p: 4,
-              border: "1px solid #E2E8F0",
-              borderRadius: "0 0 12px 12px",
-              borderTop: "none",
-              boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.05)",
-              height: "100%",
-            }}
-          >
-            {/* Stripe Payment Element Only */}
-            {paymentClientSecret ? (
-              <ElementsWithClientSecret>
-                <PaymentForm
-                  clientSecret={paymentClientSecret}
-                  amount={totalPrice * 100}
-                  currency="usd"
-                  onSuccess={(paymentIntent) =>
-                    submitBallot(paymentIntent, {
-                      id: paymentIntent.payment_method,
-                    })
-                  }
-                  onError={(error) => setPaymentError(error.message)}
-                />
-              </ElementsWithClientSecret>
-            ) : (
-              <Box sx={{ p: 3, textAlign: "center" }}>
-                <CircularProgress size={24} />
-                <Typography variant="body2" sx={{ mt: 1 }}>
-                  Initializing payment form...
-                </Typography>
-              </Box>
-            )}
           </Paper>
         </Grid>
       </Grid>
@@ -2311,7 +2108,15 @@ const BallotBuilder = () => {
           mb: 4,
         }}
       >
-        <Box sx={{ width: "70%", display: "flex", alignItems: "center" }}>
+        <Box
+          sx={{
+            flexGrow: 1,
+            display: "flex",
+            alignItems: "center",
+            overflowX: "auto",
+            pr: 2,
+          }}
+        >
           {steps.map((label, index) => (
             <React.Fragment key={label}>
               <Box
@@ -2374,13 +2179,14 @@ const BallotBuilder = () => {
               }
             }}
             sx={{
-              bgcolor: "#2D3748",
+              background: "linear-gradient(to right, #080E1D, #263C75)",
               color: "#FFFFFF",
               "&:hover": {
-                bgcolor: "#1A202C",
+                background: "linear-gradient(to right, #050912, #1d2e59)",
               },
               borderRadius: "4px",
               px: 4,
+              whiteSpace: "nowrap",
             }}
           >
             Next

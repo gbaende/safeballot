@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import {
   Box,
@@ -14,11 +14,16 @@ import {
   MenuItem,
   ListItemButton,
   IconButton,
+  AppBar,
+  Toolbar,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import HomeIcon from "@mui/icons-material/Home";
 import PeopleIcon from "@mui/icons-material/People";
 import LogoutIcon from "@mui/icons-material/Logout";
+import MenuIcon from "@mui/icons-material/Menu";
 import MyElectionsIcon from "../icons/MyElectionsIcon";
 
 const drawerWidth = 240;
@@ -26,6 +31,34 @@ const drawerWidth = 240;
 const MainLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md")); // Changed from "sm" to "md" for better mobile detection
+
+  // Mobile drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Debug logging for mobile detection
+  useEffect(() => {
+    console.log("Mobile detection:", {
+      isMobile,
+      drawerOpen,
+      pathname: location.pathname,
+    });
+  }, [isMobile, drawerOpen, location.pathname]);
+
+  // Auto-close drawer when the URL actually changes on mobile
+  useEffect(() => {
+    if (isMobile) {
+      setDrawerOpen(false);
+    }
+  }, [location.pathname, isMobile]);
+
+  // Close drawer when switching from mobile to desktop
+  useEffect(() => {
+    if (!isMobile) {
+      setDrawerOpen(false);
+    }
+  }, [isMobile]);
 
   // Function to generate display name from email
   const generateNameFromEmail = (email) => {
@@ -170,8 +203,56 @@ const MainLayout = () => {
 
   return (
     <Box sx={{ display: "flex" }}>
+      {/* Mobile App Bar */}
+      {isMobile && (
+        <AppBar
+          position="fixed"
+          sx={{
+            backgroundColor: "#FFFFFF",
+            color: "#33374D",
+            boxShadow: "0px 2px 10px rgba(0, 0, 0, 0.05)",
+          }}
+        >
+          <Toolbar>
+            <IconButton
+              color="inherit"
+              aria-label="open drawer"
+              edge="start"
+              onClick={() => {
+                console.log("Hamburger menu clicked, opening drawer");
+                setDrawerOpen(true);
+              }}
+              sx={{
+                mr: 2,
+                // Make the button more prominent on mobile
+                backgroundColor: "rgba(68, 120, 235, 0.1)",
+                "&:hover": {
+                  backgroundColor: "rgba(68, 120, 235, 0.2)",
+                },
+                border: "1px solid rgba(68, 120, 235, 0.3)",
+              }}
+            >
+              <MenuIcon sx={{ fontSize: "1.5rem", color: "#4478EB" }} />
+            </IconButton>
+            <Typography
+              variant="h6"
+              noWrap
+              component="div"
+              sx={{ fontWeight: 600, color: "#080E1D" }}
+            >
+              SafeBallot
+            </Typography>
+          </Toolbar>
+        </AppBar>
+      )}
+
       <Drawer
-        variant="permanent"
+        variant={isMobile ? "temporary" : "permanent"}
+        open={isMobile ? drawerOpen : true}
+        onClose={() => {
+          console.log("Drawer closing");
+          setDrawerOpen(false);
+        }}
         sx={{
           width: drawerWidth,
           flexShrink: 0,
@@ -180,9 +261,35 @@ const MainLayout = () => {
             boxSizing: "border-box",
             border: "none",
             boxShadow: "0 0 10px rgba(0,0,0,0.05)",
+            // Ensure content starts below the AppBar on mobile
+            paddingTop: isMobile ? "64px" : 0,
           },
         }}
+        ModalProps={{
+          keepMounted: true, // Better open performance on mobile
+          ...(isMobile && {
+            disablePortal: false,
+            disableEnforceFocus: false,
+            disableAutoFocus: false,
+            // Better backdrop handling
+            BackdropProps: {
+              onClick: () => {
+                console.log("Backdrop clicked, closing drawer");
+                setDrawerOpen(false);
+              },
+            },
+          }),
+        }}
       >
+        {/* Debug header for mobile */}
+        {isMobile && (
+          <Box sx={{ p: 2, backgroundColor: "#f0f0f0", textAlign: "center" }}>
+            <Typography variant="caption" sx={{ color: "#666" }}>
+              Mobile Menu (Debug: {drawerOpen ? "Open" : "Closed"})
+            </Typography>
+          </Box>
+        )}
+
         <Box sx={{ p: 2, mb: 2 }}>
           <Box
             sx={{
@@ -234,9 +341,22 @@ const MainLayout = () => {
               component={Link}
               to={item.path}
               selected={location.pathname === item.path}
+              onClick={() => {
+                console.log(`Navigation clicked: ${item.text} -> ${item.path}`);
+                // Close drawer on mobile when navigation item is clicked
+                if (isMobile) {
+                  console.log("Closing drawer on mobile navigation");
+                  setDrawerOpen(false);
+                }
+              }}
               sx={{
                 borderRadius: "8px",
                 mb: 0.5,
+                py: isMobile ? 1.5 : 1, // Larger touch targets on mobile
+                // Add background for debugging on mobile
+                backgroundColor: isMobile
+                  ? "rgba(68, 120, 235, 0.05)"
+                  : "transparent",
                 "&.Mui-selected": {
                   backgroundColor: "#E5EBF7",
                 },
@@ -257,6 +377,9 @@ const MainLayout = () => {
                 primary={item.text}
                 primaryTypographyProps={{
                   fontWeight: location.pathname === item.path ? 600 : 400,
+                  fontSize: isMobile ? "1rem" : "0.875rem", // Larger text on mobile
+                  // Add color for debugging on mobile
+                  color: isMobile ? "#4478EB" : "inherit",
                 }}
               />
             </ListItem>
@@ -327,10 +450,15 @@ const MainLayout = () => {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
+          p: { xs: 1, sm: 2, md: 3 }, // Reduced padding on mobile
+          width: {
+            xs: "100%", // Full width on mobile
+            sm: `calc(100% - ${isMobile ? 0 : drawerWidth}px)`,
+          },
           backgroundColor: "#FFFFFF",
           minHeight: "100vh",
+          marginTop: isMobile ? "64px" : 0, // Account for mobile app bar
+          overflow: "auto", // Ensure proper scrolling
         }}
       >
         <Outlet />

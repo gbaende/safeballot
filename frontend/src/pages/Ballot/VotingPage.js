@@ -463,10 +463,18 @@ const VotingPage = ({ branding = {} }) => {
   };
 
   const handleContinue = () => {
+    // Force new build hash - Quick ballot flow update v2.1
     if (activeQuestion < ballot.questions.length - 1) {
       setActiveQuestion(activeQuestion + 1);
     } else {
-      handleOverviewClick();
+      // On the last question
+      if (ballot?.quickBallot || isQuickBallot) {
+        // For quick ballots, skip overview and submit directly
+        handleConfirmAndSubmit();
+      } else {
+        // For regular ballots, show overview
+        handleOverviewClick();
+      }
     }
   };
 
@@ -798,22 +806,45 @@ const VotingPage = ({ branding = {} }) => {
         )}
 
         {/* Header */}
-        <Box sx={{ display: "flex", alignItems: "center", mb: 4 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            mb: { xs: 2, md: 4 },
+            flexDirection: { xs: "column", sm: "row" },
+            gap: { xs: 1, sm: 0 },
+          }}
+        >
           <IconButton
             onClick={handleGoBack}
             sx={{
-              mr: 2,
+              mr: { xs: 0, sm: 2 },
+              mb: { xs: 1, sm: 0 },
               color: "#4A5568",
               backgroundColor: "#F1F1F1",
               p: 1,
               "&:hover": { backgroundColor: "#E2E8F0" },
+              alignSelf: { xs: "flex-start", sm: "center" },
             }}
           >
             <ArrowBackIcon fontSize="small" />
           </IconButton>
           {/* Title + status together */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Typography variant="h6">{ballot.title}</Typography>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              flexDirection: { xs: "column", sm: "row" },
+              textAlign: { xs: "center", sm: "left" },
+            }}
+          >
+            <Typography
+              variant="h6"
+              sx={{ fontSize: { xs: "1.1rem", md: "1.25rem" } }}
+            >
+              {ballot.title}
+            </Typography>
             <Box
               sx={{
                 px: 1.2,
@@ -821,7 +852,7 @@ const VotingPage = ({ branding = {} }) => {
                 bgcolor: "#00E40814",
                 borderRadius: 1,
                 color: "#00A606",
-                fontSize: "0.8rem",
+                fontSize: { xs: "0.7rem", md: "0.8rem" },
               }}
             >
               {ballot.status && ballot.status.toLowerCase() !== "active"
@@ -832,15 +863,33 @@ const VotingPage = ({ branding = {} }) => {
         </Box>
 
         {/* Everything below aligns under title */}
-        <Box sx={{ ml: `${LEFT_OFFSET}px` }}>
-          <Box sx={{ borderBottom: 1, borderColor: "divider", mt: 2, mb: 4 }} />
+        <Box sx={{ ml: { xs: 0, md: `${LEFT_OFFSET}px` } }}>
+          <Box
+            sx={{
+              borderBottom: 1,
+              borderColor: "divider",
+              mt: 2,
+              mb: { xs: 2, md: 4 },
+            }}
+          />
 
           {/* Ballot Summary Header */}
-          <Typography variant="h6" sx={{ mb: 3, ml: { xs: 0, sm: 6 } }}>
+          <Typography
+            variant="h6"
+            sx={{
+              mb: 3,
+              ml: { xs: 0, sm: 6 },
+              fontSize: { xs: "1.1rem", md: "1.25rem" },
+            }}
+          >
             Ballot Summary
           </Typography>
 
-          <Grid container spacing={6} sx={{ pr: 2 }}>
+          <Grid
+            container
+            spacing={{ xs: 3, md: 6 }}
+            sx={{ pr: { xs: 0, md: 2 } }}
+          >
             {/* Left sidebar - questions */}
             <Grid item xs={12} md={3} lg={3}>
               <Box>
@@ -1009,49 +1058,97 @@ const VotingPage = ({ branding = {} }) => {
     return (
       <Box sx={{ py: 3, px: { xs: 2, sm: 3, md: 4 }, maxWidth: "1200px" }}>
         {/* Header */}
-        <Box sx={{ display: "flex", alignItems: "center", mb: 4 }}>
-          <IconButton
-            onClick={handleGoBack}
-            sx={{
-              mr: 2,
-              color: "#4A5568",
-              backgroundColor: "#F1F1F1",
-              p: 1,
-              "&:hover": { backgroundColor: "#E2E8F0" },
-            }}
-          >
-            <ArrowBackIcon fontSize="small" />
-          </IconButton>
-          {/* Title + status together */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Typography variant="h6">{ballot.title}</Typography>
-            <Box
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 4,
+          }}
+        >
+          {/* Left side - Back button, Title, and Status */}
+          <Box sx={{ display: "flex", alignItems: "center" }}>
+            <IconButton
+              onClick={handleGoBack}
               sx={{
-                px: 1.2,
-                py: 0.4,
-                bgcolor: "#00E40814",
-                borderRadius: 1,
-                color: "#00A606",
-                fontSize: "0.8rem",
+                mr: 2,
+                color: "#4A5568",
+                backgroundColor: "#F1F1F1",
+                p: 1,
+                "&:hover": { backgroundColor: "#E2E8F0" },
               }}
             >
-              {ballot.status && ballot.status.toLowerCase() !== "active"
-                ? ballot.status
-                : "In progress"}
+              <ArrowBackIcon fontSize="small" />
+            </IconButton>
+            {/* Title + status together */}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                flexWrap: { xs: "wrap", sm: "nowrap" },
+              }}
+            >
+              <Typography
+                variant="h6"
+                sx={{ fontSize: { xs: "1.1rem", sm: "1.25rem" } }}
+              >
+                {ballot.title}
+              </Typography>
+              <Box
+                sx={{
+                  px: 1.2,
+                  py: 0.4,
+                  bgcolor: "#00E40814",
+                  borderRadius: 1,
+                  color: "#00A606",
+                  fontSize: "0.8rem",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {ballot.status && ballot.status.toLowerCase() !== "active"
+                  ? ballot.status
+                  : "In progress"}
+              </Box>
             </Box>
           </Box>
+
+          {/* Right side - SDFC Logo */}
+          <Box
+            component="img"
+            src="/images/san-diego-fc-badge.png"
+            alt="San Diego FC Logo"
+            sx={{
+              height: { xs: 32, sm: 40, md: 50 },
+              ml: 2,
+            }}
+          />
         </Box>
 
         {/* Everything below aligns under title */}
-        <Box sx={{ ml: `${LEFT_OFFSET}px` }}>
-          <Box sx={{ borderBottom: 1, borderColor: "divider", mt: 2, mb: 4 }} />
+        <Box sx={{ ml: { xs: 0, md: `${LEFT_OFFSET}px` } }}>
+          <Box
+            sx={{
+              borderBottom: 1,
+              borderColor: "divider",
+              mt: 2,
+              mb: { xs: 2, md: 4 },
+            }}
+          />
 
           {/* Content */}
-          <Typography variant="h6" sx={{ mb: 3 }}>
+          <Typography
+            variant="h6"
+            sx={{ mb: 3, fontSize: { xs: "1.1rem", md: "1.25rem" } }}
+          >
             Content
           </Typography>
 
-          <Grid container spacing={6} sx={{ pr: 2 }}>
+          <Grid
+            container
+            spacing={{ xs: 3, md: 6 }}
+            sx={{ pr: { xs: 0, md: 2 } }}
+          >
             {/* Left sidebar - question navigation */}
             <Grid item xs={12} md={3} lg={3}>
               <Paper
@@ -1086,14 +1183,17 @@ const VotingPage = ({ branding = {} }) => {
                 ))}
               </Paper>
 
-              <Button
-                variant="text"
-                startIcon={<ChevronRightIcon />}
-                onClick={handleOverviewClick}
-                sx={{ mt: 5 }}
-              >
-                Overview + Confirm
-              </Button>
+              {/* Hide Overview button for quick ballots */}
+              {!(ballot?.quickBallot || isQuickBallot) && (
+                <Button
+                  variant="text"
+                  startIcon={<ChevronRightIcon />}
+                  onClick={handleOverviewClick}
+                  sx={{ mt: 5 }}
+                >
+                  Overview + Confirm
+                </Button>
+              )}
             </Grid>
 
             {/* Right content - active question */}
@@ -1101,7 +1201,7 @@ const VotingPage = ({ branding = {} }) => {
               <Paper
                 elevation={0}
                 sx={{
-                  p: 3,
+                  p: { xs: 2, sm: 3 },
                   border: 1,
                   borderColor: "divider",
                   borderRadius: 2,
@@ -1248,7 +1348,11 @@ const VotingPage = ({ branding = {} }) => {
                     borderRadius: "4px",
                   }}
                 >
-                  Continue
+                  {/* Show "Submit" for quick ballots on last question, otherwise "Continue" */}
+                  {activeQuestion === ballot.questions.length - 1 &&
+                  (ballot?.quickBallot || isQuickBallot)
+                    ? "Submit"
+                    : "Continue"}
                 </Button>
               </Box>
             </Grid>
@@ -1318,20 +1422,6 @@ const VotingPage = ({ branding = {} }) => {
           </DialogActions>
         )}
       </Dialog>
-
-      {/* Brand logo – now top-right */}
-      <Box
-        component="img"
-        src="/images/san-diego-fc-badge.png"
-        alt="San Diego FC Logo"
-        sx={{
-          position: "fixed",
-          top: 16,
-          right: 16,
-          height: { xs: 40, sm: 50, md: 60 },
-          zIndex: 1200,
-        }}
-      />
     </Box>
   );
 };
